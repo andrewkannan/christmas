@@ -17,7 +17,14 @@ import type {
 } from '../src/types.ts';
 import { buildPersonalWhatsAppUrl } from './phone.ts';
 
-const ALL_GAMES: GameId[] = ['gift-rush', 'tap-duel', 'starlight-drop'];
+const ACTIVE_GAMES: GameId[] = [
+  'claw-machine',
+  'santa-dash',
+  'gift-tetris',
+  'gift-slash',
+  'candy-match',
+];
+const LEGACY_GAMES: GameId[] = ['gift-rush', 'tap-duel', 'starlight-drop'];
 
 export const DEFAULT_EVENT_SETTINGS: EventSettings = {
   churchName: 'Hope Community',
@@ -539,7 +546,7 @@ export class ArcadeDatabase {
           AVG(CASE WHEN event_type = 'game_complete' THEN score ELSE NULL END) AS avg_score,
           MAX(CASE WHEN event_type = 'game_complete' THEN score ELSE 0 END) AS high_score
         FROM analytics_events
-        WHERE game_id IN ('gift-rush', 'tap-duel', 'starlight-drop')
+        WHERE game_id != ''
         GROUP BY game_id`
       )
       .all() as Array<{
@@ -553,7 +560,14 @@ export class ArcadeDatabase {
     }>;
 
     const byGameMap = new Map(rawGameRows.map((r) => [r.game_id, r]));
-    const byGame: GameAnalyticsRow[] = ALL_GAMES.map((gid) => {
+    const orderedGameIds: GameId[] = [
+      ...ACTIVE_GAMES,
+      ...LEGACY_GAMES.filter((gid) => {
+        const row = byGameMap.get(gid);
+        return Boolean(row && (row.starts > 0 || row.completions > 0));
+      }),
+    ];
+    const byGame: GameAnalyticsRow[] = orderedGameIds.map((gid) => {
       const r = byGameMap.get(gid);
       const completions = r?.completions ?? 0;
       const starts = Math.max(r?.starts ?? 0, completions);

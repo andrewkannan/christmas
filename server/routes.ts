@@ -14,6 +14,17 @@ import {
 import { buildGoogleCalendarUrl, buildIcsContent } from './calendar.ts';
 import { normalizePhoneForWhatsApp } from './phone.ts';
 
+const GameIdEnum = z.enum([
+  'claw-machine',
+  'santa-dash',
+  'gift-tetris',
+  'gift-slash',
+  'candy-match',
+  'gift-rush',
+  'tap-duel',
+  'starlight-drop',
+]);
+
 const LeadSubmissionSchema = z.object({
   name: z
     .string()
@@ -26,7 +37,7 @@ const LeadSubmissionSchema = z.object({
     .trim()
     .regex(/^\+?\d{1,4}$/, 'Invalid country code.')
     .default('60'),
-  gamePlayed: z.enum(['gift-rush', 'tap-duel', 'starlight-drop']),
+  gamePlayed: GameIdEnum,
   score: z.number().int().min(0).max(9999),
   targetScore: z.number().int().min(1).max(9999).default(15),
   volunteerName: z.string().trim().max(40).default(''),
@@ -48,7 +59,7 @@ const TrackEventSchema = z.object({
     'calendar_ics',
     'maps_click',
   ]),
-  gameId: z.enum(['gift-rush', 'tap-duel', 'starlight-drop']).optional(),
+  gameId: GameIdEnum.optional(),
   score: z.number().int().min(0).max(9999).optional(),
   isPostInteraction: z.boolean().optional(),
   volunteerName: z.string().trim().max(40).optional(),

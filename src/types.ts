@@ -1,4 +1,88 @@
-export type GameId = 'gift-rush' | 'tap-duel' | 'starlight-drop';
+export type ActiveGameId =
+  | 'claw-machine'
+  | 'santa-dash'
+  | 'gift-tetris'
+  | 'gift-slash'
+  | 'candy-match';
+
+export type LegacyGameId = 'gift-rush' | 'tap-duel' | 'starlight-drop';
+
+export type GameId = ActiveGameId | LegacyGameId;
+
+export interface ArcadeGameMeta {
+  id: ActiveGameId;
+  title: string;
+  shortTag: string;
+  durationLabel: string;
+  controlHint: string;
+  emoji: string;
+  accentBg: string;
+  accentFg: string;
+}
+
+export const ACTIVE_ARCADE_GAMES: readonly ArcadeGameMeta[] = [
+  {
+    id: 'claw-machine',
+    title: 'Claw Grab',
+    shortTag: 'UFO Crane',
+    durationLabel: '22s',
+    controlHint: 'Slide & Drop Claw',
+    emoji: '🧸',
+    accentBg: 'linear-gradient(135deg, #ff3b30, #d70015)',
+    accentFg: '#ffffff',
+  },
+  {
+    id: 'santa-dash',
+    title: 'Santa Dash',
+    shortTag: '3-Lane Run',
+    durationLabel: '20s',
+    controlHint: 'Swipe Left / Right',
+    emoji: '🛷',
+    accentBg: 'linear-gradient(135deg, #15803d, #0f5132)',
+    accentFg: '#ffffff',
+  },
+  {
+    id: 'gift-tetris',
+    title: 'Block Stack',
+    shortTag: 'Gift Tetris',
+    durationLabel: '25s',
+    controlHint: 'Tap Rotate · Drop Rows',
+    emoji: '🧱',
+    accentBg: 'linear-gradient(135deg, #d97706, #b45309)',
+    accentFg: '#ffffff',
+  },
+  {
+    id: 'gift-slash',
+    title: 'Berry Slash',
+    shortTag: 'Fruit Ninja',
+    durationLabel: '20s',
+    controlHint: 'Swipe Across Ornaments',
+    emoji: '⚔️',
+    accentBg: 'linear-gradient(135deg, #e11d48, #9f1239)',
+    accentFg: '#ffffff',
+  },
+  {
+    id: 'candy-match',
+    title: 'Candy Match',
+    shortTag: 'Candy Crush',
+    durationLabel: '25s',
+    controlHint: 'Swap 3 Candies',
+    emoji: '🍬',
+    accentBg: 'linear-gradient(135deg, #0284c7, #0369a1)',
+    accentFg: '#ffffff',
+  },
+] as const;
+
+export const GAME_LABELS_MAP: Record<string, string> = {
+  'claw-machine': '🧸 Claw Grab',
+  'santa-dash': '🛷 Santa Dash',
+  'gift-tetris': '🧱 Block Stack',
+  'gift-slash': '⚔️ Berry Slash',
+  'candy-match': '🍬 Candy Match',
+  'gift-rush': '⚡ Gift Rush',
+  'tap-duel': '🥊 Tap Duel',
+  'starlight-drop': '🎯 Starlight Drop',
+};
 
 export type AnalyticsEventType =
   | 'page_view'
