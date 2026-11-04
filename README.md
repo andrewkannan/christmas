@@ -27,10 +27,12 @@ npm run dev
 ## Street Outreach Flow (35–45 Seconds)
 
 1. **Print or Display Volunteer QR Boards:** Open `/team` → **QR Board Maker**, enter each volunteer's name (e.g., `Andrew`, target `18`), and click **Poster View → Print A4 Board** (or save the QR PNG).
-2. **Passerby Scans QR (`/?vs=Andrew&target=18`):** Sees *"🎄 Andrew challenges you! Beat 18 pts"* and picks any 1 of 3 zero-tutorial games:
-   - **⚡ Gift & Star Rush (20s Solo):** Slide sleigh left/right to catch gifts and the **Bethlehem Star** (2x Golden Fever).
-   - **🥊 Sleigh Tap Duel (15s 2-Player, 1 Phone):** Hold one phone between volunteer and guest—tap opposite ends to pull the Christmas sleigh!
-   - **🎯 Starlight Drop & Spark (15s Chill + 1 Trivia):** Drop 3 stars down the Plinko pegboard + answer 1 warm Christmas curiosity question that naturally starts a conversation.
+2. **Passerby Scans QR (`/?vs=Andrew&target=18`):** Opens an Apple Snow Glass **5-Game Christmas Arcade Stop** and taps any familiar hit game (20–25s):
+   - **🧸 Claw Grab (22s):** Cow Play Cow Moo / UFO Catcher crane grab with Final 5s Golden Magnet Claw.
+   - **🛷 Santa Dash (20s):** Subway Surfers-style 3-lane snowy sprint with Star Magnet Rush.
+   - **🧱 Block Stack (25s):** Fast 8×12 Christmas Gift Tetris with ghost landing preview and pre-gapped starter rows for instant line clears.
+   - **⚔️ Berry Slash (20s):** Fruit Ninja-style ornament & candy slicer with glowing blade ribbon and multi-slice combos.
+   - **🍬 Candy Match (25s):** Candy Crush-style 6×6 Christmas swap-3 with cascading combos and Row Sparklers.
 3. **Name + Phone Unlock:** Guest enters their name and mobile number (automatically normalized with your default country code, e.g. `+60` or `+65`).
 4. **Gift & Sticky E-Invitation (Saved on Their Phone):**
    - Volunteer verifies the **LIVE PASS** pulsing clock & unique `XMAS-XXXX` code, hands over the physical gift, and taps **Mark Gift Given ✓**.

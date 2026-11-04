@@ -1,9 +1,9 @@
 {
   "name": "christmas-pocket-arcade",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "Mobile QR Christmas Pocket Arcade for street evangelism with Winner Gift Pass, E-Ticket, Calendar export, and PIN-protected Team Dashboard",
+  "description": "Apple Snow Glass Christmas Arcade Stop with 5 mobile arcade games, Winner E-Pass, Calendar export, Saved Phone Sessions, and Master Analytics Console",
   "scripts": {
     "dev": "concurrently -n api,web -c green,amber \"tsx watch server/index.ts\" \"vite\"",
     "dev:api": "tsx watch server/index.ts",
