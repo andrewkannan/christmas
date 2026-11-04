@@ -1,6 +1,6 @@
 {
   "name": "christmas-pocket-arcade",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "Apple Snow Glass Christmas Arcade Stop with 5 mobile arcade games, Winner E-Pass, Calendar export, Saved Phone Sessions, and Master Analytics Console",
@@ -11,7 +11,8 @@
     "build": "tsc --noEmit && vite build",
     "start": "tsx server/index.ts --production",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "npm run build && playwright test"
   },
   "dependencies": {
     "express": "^4.21.2",
@@ -21,6 +22,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/express": "^4.17.21",
     "@types/node": "^24.0.0",
     "@types/qrcode": "^1.5.5",
@@ -29,6 +31,7 @@
     "@types/supertest": "^6.0.2",
     "@vitejs/plugin-react": "^6.2.1",
     "concurrently": "^9.1.2",
+    "fast-check": "^4.10.2",
     "supertest": "^7.0.0",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3",
