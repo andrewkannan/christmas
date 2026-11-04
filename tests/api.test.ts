@@ -204,13 +204,13 @@ describe('Christmas Pocket Arcade API & Security', () => {
     expect(emptyMaster.body.overview.totalGamesPlayed).toBe(0);
     expect(emptyMaster.body.overview.gamesAfterInteraction).toBe(0);
     expect(emptyMaster.body.overview.visitorToLeadRatePct).toBe(0);
-    expect(emptyMaster.body.byGame).toHaveLength(3);
+    expect(emptyMaster.body.byGame).toHaveLength(5);
   });
 
   it('restores saved phone sessions without leaking phone PII and tracks full Master Analytics across street + post-interaction play', async () => {
     const visitorId = 'vis-daniel-street-01';
 
-    // 1. Passerby scans Andrew's QR board and plays initial game on the street
+    // 1. Passerby scans Andrew's QR board and plays Claw Grab on the street
     await request(app)
       .post('/api/events')
       .send({
@@ -226,7 +226,7 @@ describe('Christmas Pocket Arcade API & Security', () => {
       .send({
         visitorId,
         eventType: 'game_start',
-        gameId: 'gift-rush',
+        gameId: 'claw-machine',
         isPostInteraction: false,
         volunteerName: 'Andrew',
       })
@@ -237,7 +237,7 @@ describe('Christmas Pocket Arcade API & Security', () => {
       .send({
         visitorId,
         eventType: 'game_complete',
-        gameId: 'gift-rush',
+        gameId: 'claw-machine',
         score: 22,
         isPostInteraction: false,
         volunteerName: 'Andrew',
@@ -251,7 +251,7 @@ describe('Christmas Pocket Arcade API & Security', () => {
         name: 'Daniel Tan',
         phone: '016-555 8899',
         countryCode: '60',
-        gamePlayed: 'gift-rush',
+        gamePlayed: 'claw-machine',
         score: 22,
         targetScore: 18,
         volunteerName: 'Andrew',
@@ -263,7 +263,7 @@ describe('Christmas Pocket Arcade API & Security', () => {
     const claimToken = leadRes.body.claim.claimToken as string;
     expect(leadRes.body.claim.totalGamesPlayed).toBe(1);
     expect(leadRes.body.claim.gamesAfterInteraction).toBe(0);
-    expect(leadRes.body.claim.bestScores['gift-rush']).toBe(22);
+    expect(leadRes.body.claim.bestScores['claw-machine']).toBe(22);
 
     // 3. Guest views E-Invite, downloads PNG ticket, and saves to Google Calendar on the spot
     await request(app)
@@ -285,7 +285,7 @@ describe('Christmas Pocket Arcade API & Security', () => {
     expect(savedPassRes.body.claim.rawPhone).toBeUndefined();
     expect(savedPassRes.body.claim.normalizedPhone).toBeUndefined();
 
-    // 5. Post-interaction return view + 2 more games + 2 WhatsApp shares + .ics + Maps click
+    // 5. Post-interaction return view + 4 more games across all 5 new game IDs + 2 WhatsApp shares + .ics + Maps click
     await request(app)
       .post('/api/events')
       .send({ visitorId, claimToken, eventType: 'page_view', isPostInteraction: true })
@@ -301,27 +301,37 @@ describe('Christmas Pocket Arcade API & Security', () => {
         visitorId,
         claimToken,
         eventType: 'game_complete',
-        gameId: 'gift-rush',
+        gameId: 'claw-machine',
         score: 36,
         isPostInteraction: true,
       })
       .expect(201);
-    expect(replay1.body.claim.bestScores['gift-rush']).toBe(36);
+    expect(replay1.body.claim.bestScores['claw-machine']).toBe(36);
 
-    const replay2 = await request(app)
-      .post('/api/events')
-      .send({
-        visitorId,
-        claimToken,
-        eventType: 'game_complete',
-        gameId: 'starlight-drop',
-        score: 29,
-        isPostInteraction: true,
-      })
-      .expect(201);
-    expect(replay2.body.claim.totalGamesPlayed).toBe(3);
-    expect(replay2.body.claim.gamesAfterInteraction).toBe(2);
-    expect(replay2.body.claim.bestScores['starlight-drop']).toBe(29);
+    for (const [gid, sc] of [
+      ['santa-dash', 30],
+      ['gift-tetris', 42],
+      ['gift-slash', 28],
+      ['candy-match', 34],
+    ] as const) {
+      await request(app)
+        .post('/api/events')
+        .send({
+          visitorId,
+          claimToken,
+          eventType: 'game_complete',
+          gameId: gid,
+          score: sc,
+          isPostInteraction: true,
+        })
+        .expect(201);
+    }
+
+    const afterAll5 = await request(app).get(`/api/public/pass/${claimToken}`).expect(200);
+    expect(afterAll5.body.claim.totalGamesPlayed).toBe(6);
+    expect(afterAll5.body.claim.gamesAfterInteraction).toBe(5);
+    expect(afterAll5.body.claim.bestScores['gift-tetris']).toBe(42);
+    expect(afterAll5.body.claim.bestScores['candy-match']).toBe(34);
 
     await request(app)
       .post('/api/events')
@@ -350,10 +360,9 @@ describe('Christmas Pocket Arcade API & Security', () => {
 
     const teamLeadsBefore = await agent.get('/api/team/leads').expect(200);
     const danielLead = teamLeadsBefore.body.leads[0];
-    // Personal WhatsApp link embeds ?pass=<claimToken> so guest restores session in 1 tap
     expect(decodeURIComponent(danielLead.whatsappUrl)).toContain(`/?pass=${claimToken}`);
-    expect(danielLead.totalGamesPlayed).toBe(3);
-    expect(danielLead.gamesAfterInteraction).toBe(2);
+    expect(danielLead.totalGamesPlayed).toBe(6);
+    expect(danielLead.gamesAfterInteraction).toBe(5);
     expect(danielLead.inviteShares).toBe(2);
     expect(danielLead.ticketDownloads).toBe(1);
     expect(danielLead.calendarAdds).toBe(2);
@@ -369,9 +378,9 @@ describe('Christmas Pocket Arcade API & Security', () => {
     expect(ov.uniqueVisitors).toBe(1);
     expect(ov.qrScanViews).toBe(2);
     expect(ov.returnViewsAfterInteraction).toBe(1);
-    expect(ov.totalGamesPlayed).toBe(3);
+    expect(ov.totalGamesPlayed).toBe(6);
     expect(ov.gamesDuringInteraction).toBe(1);
-    expect(ov.gamesAfterInteraction).toBe(2);
+    expect(ov.gamesAfterInteraction).toBe(5);
     expect(ov.uniquePlayersAfterInteraction).toBe(1);
     expect(ov.totalLeads).toBe(1);
     expect(ov.giftsClaimed).toBe(1);
@@ -385,19 +394,19 @@ describe('Christmas Pocket Arcade API & Security', () => {
     expect(ov.teamWhatsappFollowupsSent).toBe(1);
     expect(ov.teamWhatsappClicksTotal).toBe(1);
 
-    const giftRushRow = masterRes.body.byGame.find(
-      (g: { gameId: string }) => g.gameId === 'gift-rush'
+    const clawRow = masterRes.body.byGame.find(
+      (g: { gameId: string }) => g.gameId === 'claw-machine'
     );
-    expect(giftRushRow.completions).toBe(2);
-    expect(giftRushRow.duringInteraction).toBe(1);
-    expect(giftRushRow.afterInteraction).toBe(1);
-    expect(giftRushRow.highScore).toBe(36);
+    expect(clawRow.completions).toBe(2);
+    expect(clawRow.duringInteraction).toBe(1);
+    expect(clawRow.afterInteraction).toBe(1);
+    expect(clawRow.highScore).toBe(36);
 
     const andrewVol = masterRes.body.byVolunteer.find(
       (v: { volunteerName: string }) => v.volunteerName === 'Andrew'
     );
     expect(andrewVol.leadsCount).toBe(1);
-    expect(andrewVol.gamesAfterInteraction).toBe(2);
+    expect(andrewVol.gamesAfterInteraction).toBe(5);
     expect(andrewVol.sharedInvites).toBe(2);
 
     expect(masterRes.body.recentActivity[0].guestName).toBe('Daniel Tan');
