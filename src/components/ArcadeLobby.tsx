@@ -2,6 +2,7 @@ import {
   ACTIVE_ARCADE_GAMES,
   type ActiveGameId,
   type EventSettings,
+  type GameLeaderboard,
   type PublicClaimResult,
 } from '../types.ts';
 
@@ -10,6 +11,7 @@ interface ArcadeLobbyProps {
   targetScore: number;
   settings: EventSettings;
   savedPass: PublicClaimResult | null;
+  boards: GameLeaderboard[] | null;
   onOpenSavedPass: () => void;
   onSelectGame: (game: ActiveGameId) => void;
 }
@@ -19,6 +21,7 @@ export function ArcadeLobby({
   targetScore,
   settings,
   savedPass,
+  boards,
   onOpenSavedPass,
   onSelectGame,
 }: ArcadeLobbyProps) {
@@ -61,6 +64,7 @@ export function ArcadeLobby({
       <ul role="list" className="arcade-shelf">
         {ACTIVE_ARCADE_GAMES.map((game) => {
           const best = savedPass?.bestScores?.[game.id];
+          const leader = boards?.find((b) => b.gameId === game.id)?.top[0];
           return (
             <li key={game.id}>
               <button
@@ -82,8 +86,14 @@ export function ArcadeLobby({
                     <span>
                       {game.shortTag} · {game.durationLabel}
                     </span>
-                    {typeof best === 'number' && (
+                    {typeof best === 'number' && best > 0 && (
                       <span className="arcade-tile__best">★ {best}</span>
+                    )}
+                    {leader && (
+                      <span className="arcade-tile__leader">
+                        <span aria-hidden="true">🏆</span>
+                        <span className="visually-hidden">Top score:</span> {leader.score} {leader.name}
+                      </span>
                     )}
                   </div>
                 </div>

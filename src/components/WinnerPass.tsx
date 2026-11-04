@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  GAME_LABELS_MAP,
+  ACTIVE_ARCADE_GAMES,
   type EventSettings,
-  type GameId,
+  type GameLeaderboard,
   type PublicClaimResult,
 } from '../types.ts';
-import { markGiftClaimedPublic } from '../lib/api.ts';
+import { fetchLeaderboards, markGiftClaimedPublic } from '../lib/api.ts';
 import { savePassLocally, trackArcadeEvent } from '../lib/playerSession.ts';
 import { renderPersonalizedETicketPng } from '../lib/ticketCanvas.ts';
 
@@ -13,7 +13,6 @@ interface WinnerPassProps {
   claim: PublicClaimResult;
   settings: EventSettings;
   googleCalendarUrl: string;
-  latestReplay?: { gameId: GameId; score: number } | null;
   onPassUpdated: (next: PublicClaimResult) => void;
   onKeepPlayingSamePlayer: () => void;
   onStartFreshFriend: () => void;
@@ -36,7 +35,6 @@ export function WinnerPass({
   claim,
   settings,
   googleCalendarUrl,
-  latestReplay,
   onPassUpdated,
   onKeepPlayingSamePlayer,
   onStartFreshFriend,
@@ -44,6 +42,8 @@ export function WinnerPass({
   const [giftClaimed, setGiftClaimed] = useState(claim.giftClaimed);
   const [markingClaim, setMarkingClaim] = useState(false);
   const [nowDate, setNowDate] = useState(() => new Date());
+  const [boards, setBoards] = useState<GameLeaderboard[] | null>(null);
+  const [boardsError, setBoardsError] = useState(false);
 
   useEffect(() => {
     setGiftClaimed(claim.giftClaimed);
@@ -53,6 +53,20 @@ export function WinnerPass({
     const id = setInterval(() => setNowDate(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetchLeaderboards(claim.claimToken)
+      .then((res) => {
+        if (active) setBoards(res.games);
+      })
+      .catch(() => {
+        if (active) setBoardsError(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [claim.claimToken]);
 
   const ticketDataUrl = useMemo(
     () =>
@@ -112,20 +126,6 @@ export function WinnerPass({
       aria-labelledby="winner-pass-heading"
       style={{ maxInlineSize: '27rem', inlineSize: '100%', marginInline: 'auto', display: 'grid', gap: '0.85rem' }}
     >
-      {latestReplay && (
-        <div className="saved-pass-banner" role="status">
-          <strong style={{ fontSize: '0.92rem' }}>
-            ★ {latestReplay.score} pts in {GAME_LABELS_MAP[latestReplay.gameId] || latestReplay.gameId}
-          </strong>
-          <button
-            type="button"
-            className="btn btn--primary btn--sm"
-            onClick={onKeepPlayingSamePlayer}
-          >
-            Play More
-          </button>
-        </div>
-      )}
 
       <div className="wallet-pass">
         <div className="wallet-pass__header" aria-live="off">
@@ -268,6 +268,49 @@ export function WinnerPass({
           </div>
         </div>
       </div>
+
+      <section className="card-panel my-ranks" aria-labelledby="my-ranks-heading">
+        <h2 id="my-ranks-heading" className="section-title">
+          🏆 My ranks
+        </h2>
+        {boardsError && !boards && <p className="top3-empty">Ranks unavailable offline.</p>}
+        {!boardsError && !boards && <p className="top3-empty">Loading…</p>}
+        {boards && (
+          <ul role="list" className="my-ranks__list">
+            {ACTIVE_ARCADE_GAMES.map((game) => {
+              const board = boards.find((b) => b.gameId === game.id);
+              const leader = board?.top[0];
+              return (
+                <li key={game.id} className="my-ranks__row">
+                  <span className="my-ranks__game">
+                    <span aria-hidden="true">{game.emoji}</span> {game.title}
+                  </span>
+                  <span className="my-ranks__me">
+                    {board?.me ? (
+                      <>
+                        <strong>#{board.me.rank}</strong> · ★ {board.me.score}
+                      </>
+                    ) : (
+                      <span className="subtle-text">No score yet</span>
+                    )}
+                  </span>
+                  <span className="my-ranks__leader">
+                    {leader ? (
+                      <>
+                        <span aria-hidden="true">🥇</span>
+                        <span className="visually-hidden">Leader:</span> {leader.isMe ? 'You' : leader.name}{' '}
+                        {leader.score}
+                      </>
+                    ) : (
+                      '—'
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <div style={{ textAlign: 'center' }}>
         <button type="button" className="btn btn--ghost btn--sm" onClick={onStartFreshFriend}>

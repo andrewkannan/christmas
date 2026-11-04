@@ -1,11 +1,15 @@
 import type {
+  ActiveGameId,
   EventSettings,
   LeadSubmissionInput,
+  LeaderboardResponse,
   MasterAnalyticsResponse,
   PublicClaimResult,
+  RunFinishResult,
   TeamLeadRecord,
   TeamLeadsResponse,
 } from '../types.ts';
+import type { RoundEndReason } from '../games/rules.ts';
 
 async function parseJsonOrThrow<T>(res: Response): Promise<T> {
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
@@ -27,6 +31,45 @@ export async function fetchSavedPass(
   claimToken: string
 ): Promise<{ claim: PublicClaimResult }> {
   const res = await fetch(`/api/public/pass/${encodeURIComponent(claimToken)}`);
+  return parseJsonOrThrow(res);
+}
+
+const ROUND_REQUEST_TIMEOUT_MS = 8000;
+
+export async function startGameRun(payload: {
+  gameId: ActiveGameId;
+  visitorId: string;
+  claimToken?: string;
+  volunteerName?: string;
+}): Promise<{ runId: string }> {
+  const res = await fetch('/api/runs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(ROUND_REQUEST_TIMEOUT_MS),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function finishGameRun(
+  runId: string,
+  payload: { visitorId: string; score: number; endReason: RoundEndReason }
+): Promise<RunFinishResult> {
+  const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/finish`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    keepalive: true,
+    signal: AbortSignal.timeout(ROUND_REQUEST_TIMEOUT_MS),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function fetchLeaderboards(claimToken?: string): Promise<LeaderboardResponse> {
+  const qs = claimToken ? `?claimToken=${encodeURIComponent(claimToken)}` : '';
+  const res = await fetch(`/api/leaderboard${qs}`, {
+    signal: AbortSignal.timeout(ROUND_REQUEST_TIMEOUT_MS),
+  });
   return parseJsonOrThrow(res);
 }
 

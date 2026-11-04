@@ -106,7 +106,7 @@ export function QrBoardMaker({ settings }: QrBoardMakerProps) {
               Target Score to Beat (10–30 pts)
             </label>
             <span id={`${uid}-target-hint`} className="field-hint">
-              16–18 pts gives players an exciting close win in 20s.
+              Shown on every results screen as &ldquo;beat {volunteerName.trim() || 'the team'}&rsquo;s score&rdquo;.
             </span>
             <input
               id={`${uid}-target`}

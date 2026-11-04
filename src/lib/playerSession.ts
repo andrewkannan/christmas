@@ -1,4 +1,4 @@
-import type { PublicClaimResult, TrackEventInput } from '../types.ts';
+import type { ActiveGameId, PublicClaimResult, TrackEventInput } from '../types.ts';
 
 const VISITOR_KEY = 'xmas_arcade_visitor_id_v1';
 const SAVED_PASS_KEY = 'xmas_arcade_saved_pass_v1';
@@ -61,6 +61,45 @@ export function savePassLocally(claim: PublicClaimResult): void {
 export function clearSavedPassLocally(): void {
   try {
     window.localStorage.removeItem(SAVED_PASS_KEY);
+  } catch {
+    // Ignore
+  }
+}
+
+const LOCAL_BEST_KEY = 'xmas_arcade_local_best_v1';
+
+function readLocalBestMap(): Partial<Record<ActiveGameId, number>> {
+  try {
+    const raw = window.localStorage.getItem(LOCAL_BEST_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    return parsed && typeof parsed === 'object' ? (parsed as Partial<Record<ActiveGameId, number>>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Best score on this phone for one game (0 if never played). */
+export function loadLocalBest(gameId: ActiveGameId): number {
+  const value = readLocalBestMap()[gameId];
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+export function saveLocalBest(gameId: ActiveGameId, score: number): void {
+  try {
+    const map = readLocalBestMap();
+    if (score > (map[gameId] ?? 0)) {
+      map[gameId] = score;
+      window.localStorage.setItem(LOCAL_BEST_KEY, JSON.stringify(map));
+    }
+  } catch {
+    // Ignore private mode restrictions
+  }
+}
+
+/** Clears per-phone bests when a different friend takes over the phone. */
+export function clearLocalBests(): void {
+  try {
+    window.localStorage.removeItem(LOCAL_BEST_KEY);
   } catch {
     // Ignore
   }

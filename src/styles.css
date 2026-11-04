@@ -564,6 +564,359 @@ body {
   background: var(--accent-crimson-hover);
 }
 
+/* Shared Game Shell: HUD states */
+.hud-icon-btn {
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--ink-primary);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.hud-icon-btn:hover {
+  background: var(--bg-tinted);
+}
+
+.hud-score-bump {
+  display: inline-block;
+  animation: scoreBump 220ms ease-out;
+}
+
+@keyframes scoreBump {
+  0% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.hud-lives {
+  gap: 0.15rem;
+  color: var(--accent-crimson);
+  letter-spacing: 0.04em;
+}
+
+.heart--lost {
+  color: var(--ink-secondary);
+}
+
+.hud-moves {
+  color: var(--ink-primary);
+}
+
+.hud-pill--warn {
+  background: var(--accent-crimson);
+  animation: pulseWarn 1s ease-in-out infinite;
+}
+
+@keyframes pulseWarn {
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+/* Playfield + overlays */
+.game-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.game-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: var(--space-4);
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  text-align: center;
+}
+
+.game-overlay--hit {
+  background: rgba(255, 241, 242, 0.82);
+}
+
+.game-overlay__title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--ink-primary);
+}
+
+.game-overlay__title--big {
+  font-size: clamp(1.6rem, 1.3rem + 2vw, 2.2rem);
+  letter-spacing: -0.02em;
+}
+
+.game-overlay__hint {
+  margin: 0;
+  max-inline-size: 18rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--ink-secondary);
+}
+
+.countdown-num {
+  font-size: clamp(4rem, 3rem + 8vw, 6rem);
+  font-weight: 900;
+  line-height: 1;
+  color: var(--accent-crimson);
+  font-variant-numeric: tabular-nums;
+  animation: countPop 600ms ease-out;
+}
+
+.countdown-num--score {
+  font-size: clamp(2.6rem, 2rem + 4vw, 3.6rem);
+  color: var(--ink-primary);
+}
+
+@keyframes countPop {
+  0% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.life-lost {
+  font-size: 2.6rem;
+  font-weight: 900;
+  color: var(--danger-ink);
+  animation: countPop 500ms ease-out;
+}
+
+/* Results screen */
+.results-card {
+  display: grid;
+  gap: 0.9rem;
+  text-align: center;
+  max-inline-size: 26rem;
+  inline-size: 100%;
+  margin-inline: auto;
+}
+
+.results-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.results-title:focus {
+  outline: none;
+}
+
+.results-score {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.results-score__num {
+  font-size: clamp(3.4rem, 2.6rem + 5vw, 4.6rem);
+  font-weight: 900;
+  line-height: 1;
+  color: var(--accent-crimson);
+  font-variant-numeric: tabular-nums;
+}
+
+.results-score__unit {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink-secondary);
+}
+
+.results-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  background: var(--bg-tinted);
+  color: var(--ink-primary);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.chip--gold {
+  background: var(--accent-gold-soft);
+  color: var(--accent-gold-bright);
+  border: 1px solid rgba(180, 83, 9, 0.3);
+}
+
+.chip--green {
+  background: var(--accent-emerald-soft);
+  color: var(--accent-emerald);
+}
+
+.rank-summary {
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 0.95rem;
+  background: var(--bg-elevated);
+  color: var(--ink-primary);
+}
+
+.rank-summary--good {
+  background: var(--accent-emerald-soft);
+  color: var(--accent-emerald);
+}
+
+.rank-summary--warn {
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+}
+
+.results-board {
+  text-align: start;
+}
+
+.results-board__title {
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.results-actions {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+}
+
+/* All-time Top 3 */
+.top3-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.top3-row {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.95rem;
+}
+
+.top3-row--me {
+  background: var(--accent-crimson-soft);
+  border-color: rgba(215, 0, 21, 0.35);
+}
+
+.top3-medal {
+  font-size: 1.25rem;
+  text-align: center;
+}
+
+.top3-name {
+  font-weight: 700;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top3-you {
+  color: var(--accent-crimson);
+  font-weight: 800;
+}
+
+.top3-score {
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.top3-empty {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: 0.9rem;
+}
+
+.arcade-tile__leader {
+  display: inline-block;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  background: var(--bg-tinted);
+  color: var(--ink-primary);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+/* My ranks (pass page) */
+.my-ranks {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.my-ranks__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.my-ranks__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.15rem 0.6rem;
+  align-items: center;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.9rem;
+}
+
+.my-ranks__game {
+  font-weight: 700;
+}
+
+.my-ranks__me {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.my-ranks__leader {
+  grid-column: 1 / -1;
+  font-size: 0.8rem;
+  color: var(--ink-secondary);
+}
+
 /* Cards & Forms */
 .card-panel {
   background: var(--bg-surface);

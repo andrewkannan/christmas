@@ -1,7 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ActiveGameId, EventSettings, GameId, PublicClaimResult } from './types.ts';
-import { checkTeamSession, fetchPublicConfig, fetchSavedPass } from './lib/api.ts';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import {
+  ACTIVE_ARCADE_GAMES,
+  type ActiveGameId,
+  type EventSettings,
+  type GameLeaderboard,
+  type PublicClaimResult,
+  type RunFinishResult,
+} from './types.ts';
+import type { PlayfieldProps } from './games/playfield.ts';
+import { checkTeamSession, fetchLeaderboards, fetchPublicConfig, fetchSavedPass } from './lib/api.ts';
+import {
+  clearLocalBests,
   clearSavedPassLocally,
   loadSavedPass,
   resetVisitorIdForNewFriend,
@@ -10,6 +19,7 @@ import {
 } from './lib/playerSession.ts';
 import { isSoundMuted, toggleSoundMuted } from './lib/sound.ts';
 import { ArcadeLobby } from './components/ArcadeLobby.tsx';
+import { GameShell } from './components/games/GameShell.tsx';
 import { ClawMachineGame } from './components/games/ClawMachineGame.tsx';
 import { SantaStreetDash } from './components/games/SantaStreetDash.tsx';
 import { ChristmasTetris } from './components/games/ChristmasTetris.tsx';
@@ -19,6 +29,14 @@ import { ClaimForm } from './components/ClaimForm.tsx';
 import { WinnerPass } from './components/WinnerPass.tsx';
 import { TeamLogin } from './team/TeamLogin.tsx';
 import { TeamDashboard } from './team/TeamDashboard.tsx';
+
+const PLAYFIELDS: Record<ActiveGameId, ComponentType<PlayfieldProps>> = {
+  'claw-machine': ClawMachineGame,
+  'santa-dash': SantaStreetDash,
+  'gift-tetris': ChristmasTetris,
+  'gift-slash': FruitSlashGame,
+  'candy-match': CandyMatchGame,
+};
 
 const FALLBACK_SETTINGS: EventSettings = {
   churchName: 'Hope Community',
@@ -40,11 +58,7 @@ type PlayerStep =
   | { kind: 'lobby' }
   | { kind: 'playing'; game: ActiveGameId }
   | { kind: 'claim'; game: ActiveGameId; score: number }
-  | {
-      kind: 'winner';
-      claim: PublicClaimResult;
-      replay?: { gameId: GameId; score: number } | null;
-    };
+  | { kind: 'winner'; claim: PublicClaimResult };
 
 export function App() {
   const [routeMode, setRouteMode] = useState<'player' | 'team'>(() =>
@@ -58,6 +72,7 @@ export function App() {
   const [soundMuted, setSoundMuted] = useState(() => isSoundMuted());
   const [savedPass, setSavedPass] = useState<PublicClaimResult | null>(() => loadSavedPass());
   const [step, setStep] = useState<PlayerStep>({ kind: 'lobby' });
+  const [boards, setBoards] = useState<GameLeaderboard[] | null>(null);
   const initialViewLoggedRef = useRef(false);
 
   const { volunteerName, targetScore, urlPassToken } = useMemo(() => {
@@ -108,7 +123,7 @@ export function App() {
               isPostInteraction: true,
               volunteerName: claim.volunteerName,
             });
-            setStep({ kind: 'winner', claim, replay: null });
+            setStep({ kind: 'winner', claim });
           }
         })
         .catch(() => {
@@ -163,67 +178,32 @@ export function App() {
     setRouteMode(nextMode);
   };
 
+  // Refresh the all-time boards whenever the guest is back on the game shelf.
+  useEffect(() => {
+    if (routeMode !== 'player' || step.kind !== 'lobby') return;
+    let active = true;
+    fetchLeaderboards(savedPass?.claimToken)
+      .then((res) => {
+        if (active) setBoards(res.games);
+      })
+      .catch(() => {
+        // Lobby still works without leaderboard data (e.g. offline).
+      });
+    return () => {
+      active = false;
+    };
+  }, [routeMode, step.kind, savedPass?.claimToken]);
+
   const handleSelectGame = (game: ActiveGameId) => {
-    void trackArcadeEvent(
-      {
-        eventType: 'game_start',
-        gameId: game,
-        claimToken: savedPass?.claimToken,
-        isPostInteraction: Boolean(savedPass),
-        volunteerName: volunteerName || savedPass?.volunteerName || undefined,
-      },
-      (updated) => setSavedPass(updated)
-    );
     setStep({ kind: 'playing', game });
   };
 
-  const handleGameFinished = (game: ActiveGameId, score: number) => {
-    if (savedPass) {
-      const optimisticClaim: PublicClaimResult = {
-        ...savedPass,
-        totalGamesPlayed: (savedPass.totalGamesPlayed || 1) + 1,
-        gamesAfterInteraction: (savedPass.gamesAfterInteraction || 0) + 1,
-        bestScores: {
-          ...savedPass.bestScores,
-          [game]: Math.max(savedPass.bestScores?.[game] || 0, score),
-        },
-      };
-      savePassLocally(optimisticClaim);
-      setSavedPass(optimisticClaim);
-      setStep({
-        kind: 'winner',
-        claim: optimisticClaim,
-        replay: { gameId: game, score },
-      });
-
-      void trackArcadeEvent(
-        {
-          eventType: 'game_complete',
-          gameId: game,
-          score,
-          claimToken: savedPass.claimToken,
-          isPostInteraction: true,
-          volunteerName: volunteerName || savedPass.volunteerName || undefined,
-        },
-        (refreshed) => {
-          setSavedPass(refreshed);
-          setStep((curr) =>
-            curr.kind === 'winner' ? { ...curr, claim: refreshed } : curr
-          );
-        }
-      );
-      return;
+  const handleRoundRecorded = useCallback((result: RunFinishResult) => {
+    if (result.claim) {
+      savePassLocally(result.claim);
+      setSavedPass(result.claim);
     }
-
-    void trackArcadeEvent({
-      eventType: 'game_complete',
-      gameId: game,
-      score,
-      isPostInteraction: false,
-      volunteerName: volunteerName || undefined,
-    });
-    setStep({ kind: 'claim', game, score });
-  };
+  }, []);
 
   const handleOpenSavedInvite = () => {
     if (!savedPass) return;
@@ -236,11 +216,12 @@ export function App() {
       },
       (updated) => setSavedPass(updated)
     );
-    setStep({ kind: 'winner', claim: savedPass, replay: null });
+    setStep({ kind: 'winner', claim: savedPass });
   };
 
   const handleStartFreshFriend = () => {
     clearSavedPassLocally();
+    clearLocalBests();
     resetVisitorIdForNewFriend();
     setSavedPass(null);
     const params = new URLSearchParams(window.location.search);
@@ -254,6 +235,9 @@ export function App() {
     });
     setStep({ kind: 'lobby' });
   };
+
+  const playingGame =
+    step.kind === 'playing' ? ACTIVE_ARCADE_GAMES.find((g) => g.id === step.game) : undefined;
 
   return (
     <div className={`app-shell ${routeMode === 'team' ? 'app-shell--wide' : ''}`}>
@@ -298,13 +282,11 @@ export function App() {
               {soundMuted ? '🔇' : '🔊'}
             </button>
           )}
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm"
-            onClick={() => navigateMode(routeMode === 'team' ? 'player' : 'team')}
-          >
-            {routeMode === 'team' ? 'Arcade' : 'Team'}
-          </button>
+          {routeMode === 'team' && (
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => navigateMode('player')}>
+              Arcade
+            </button>
+          )}
         </nav>
       </header>
 
@@ -338,48 +320,27 @@ export function App() {
                 targetScore={targetScore}
                 settings={settings}
                 savedPass={savedPass}
+                boards={boards}
                 onOpenSavedPass={handleOpenSavedInvite}
                 onSelectGame={handleSelectGame}
               />
             )}
 
-            {step.kind === 'playing' && step.game === 'claw-machine' && (
-              <ClawMachineGame
+            {step.kind === 'playing' && playingGame && (
+              <GameShell
+                key={playingGame.id}
+                game={playingGame}
+                Playfield={PLAYFIELDS[playingGame.id]}
+                claimToken={savedPass?.claimToken}
+                passBest={savedPass?.bestScores?.[playingGame.id] ?? 0}
+                volunteerName={volunteerName}
                 targetScore={targetScore}
-                onBack={() => setStep({ kind: 'lobby' })}
-                onFinish={(score) => handleGameFinished('claw-machine', score)}
-              />
-            )}
-
-            {step.kind === 'playing' && step.game === 'santa-dash' && (
-              <SantaStreetDash
-                targetScore={targetScore}
-                onBack={() => setStep({ kind: 'lobby' })}
-                onFinish={(score) => handleGameFinished('santa-dash', score)}
-              />
-            )}
-
-            {step.kind === 'playing' && step.game === 'gift-tetris' && (
-              <ChristmasTetris
-                targetScore={targetScore}
-                onBack={() => setStep({ kind: 'lobby' })}
-                onFinish={(score) => handleGameFinished('gift-tetris', score)}
-              />
-            )}
-
-            {step.kind === 'playing' && step.game === 'gift-slash' && (
-              <FruitSlashGame
-                targetScore={targetScore}
-                onBack={() => setStep({ kind: 'lobby' })}
-                onFinish={(score) => handleGameFinished('gift-slash', score)}
-              />
-            )}
-
-            {step.kind === 'playing' && step.game === 'candy-match' && (
-              <CandyMatchGame
-                targetScore={targetScore}
-                onBack={() => setStep({ kind: 'lobby' })}
-                onFinish={(score) => handleGameFinished('candy-match', score)}
+                onExit={() => setStep({ kind: 'lobby' })}
+                onClaim={(sessionBest) =>
+                  setStep({ kind: 'claim', game: playingGame.id, score: sessionBest })
+                }
+                onOpenPass={handleOpenSavedInvite}
+                onRoundRecorded={handleRoundRecorded}
               />
             )}
 
@@ -399,7 +360,7 @@ export function App() {
                     isPostInteraction: false,
                     volunteerName: claim.volunteerName || volunteerName || undefined,
                   });
-                  setStep({ kind: 'winner', claim, replay: null });
+                  setStep({ kind: 'winner', claim });
                 }}
                 onReplay={() => setStep({ kind: 'lobby' })}
               />
@@ -410,7 +371,6 @@ export function App() {
                 claim={step.claim}
                 settings={settings}
                 googleCalendarUrl={googleCalendarUrl}
-                latestReplay={step.replay}
                 onPassUpdated={(next) => {
                   setSavedPass(next);
                   setStep((curr) => (curr.kind === 'winner' ? { ...curr, claim: next } : curr));
