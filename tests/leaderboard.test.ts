@@ -187,6 +187,66 @@ describe('Verified rounds & all-time leaderboard', () => {
       .send({ visitorId: 'vis-x-00001', score: 1, endReason: 'time' })
       .expect(400);
     await request(app).get('/api/leaderboard').query({ claimToken: 'x' }).expect(400);
+    await request(app).get('/api/leaderboard/gift-rush').expect(400);
+    await request(app).get('/api/leaderboard/santa-dash').query({ claimToken: 'x' }).expect(400);
+  });
+
+  it('returns unlimited full player ranking history per game with only each player best score', async () => {
+    const roster = [
+      { name: 'Alicia Tan', vis: 'vis-full-01', trials: [15, 88, 42] },
+      { name: 'Brandon Lim', vis: 'vis-full-02', trials: [76, 31] },
+      { name: 'Chloe Ng', vis: 'vis-full-03', trials: [70] },
+      { name: 'Darren Ong', vis: 'vis-full-04', trials: [22, 64, 59, 18] },
+      { name: 'Esther Yap', vis: 'vis-full-05', trials: [55] },
+      { name: 'Farhan Ali', vis: 'vis-full-06', trials: [48, 48] },
+      { name: 'Grace Ho', vis: 'vis-full-07', trials: [39] },
+      { name: 'Hannah Koh', vis: 'vis-full-08', trials: [9, 27, 14] },
+    ];
+
+    const tokens: Record<string, string> = {};
+    for (const p of roster) {
+      tokens[p.name] = await register(p.name, p.vis);
+      for (const s of p.trials) {
+        await playRound({
+          gameId: 'santa-dash',
+          visitorId: p.vis,
+          score: s,
+          seconds: 35,
+          claimToken: tokens[p.name],
+        });
+      }
+    }
+
+    const res = await request(app)
+      .get('/api/leaderboard/santa-dash')
+      .query({ claimToken: tokens['Darren Ong'] })
+      .expect(200);
+
+    expect(res.body.gameId).toBe('santa-dash');
+    expect(res.body.totalPlayers).toBe(8);
+    expect(res.body.entries).toHaveLength(8);
+    expect(
+      res.body.entries.map((e: { rank: number; name: string; score: number; isMe: boolean }) => [
+        e.rank,
+        e.name,
+        e.score,
+        e.isMe,
+      ])
+    ).toEqual([
+      [1, 'Alicia T.', 88, false],
+      [2, 'Brandon L.', 76, false],
+      [3, 'Chloe N.', 70, false],
+      [4, 'Darren O.', 64, true],
+      [5, 'Esther Y.', 55, false],
+      [6, 'Farhan A.', 48, false],
+      [7, 'Grace H.', 39, false],
+      [8, 'Hannah K.', 27, false],
+    ]);
+    expect(res.body.me).toEqual({ rank: 4, score: 64 });
+
+    const serialized = JSON.stringify(res.body);
+    expect(serialized).not.toContain('Darren Ong');
+    expect(serialized).not.toMatch(/3456\d{3}/);
   });
 
   it('feeds rounds into the master analytics (rejected rounds count as 0 points)', async () => {

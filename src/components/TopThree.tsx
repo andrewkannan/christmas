@@ -1,5 +1,5 @@
 import type { LeaderboardEntry } from '../types.ts';
-import { MedalEmblem } from './Icons.tsx';
+import { CrownIcon, MedalEmblem, SparkleIcon } from './Icons.tsx';
 
 interface TopThreeProps {
   entries: LeaderboardEntry[];
@@ -14,9 +14,9 @@ interface TopThreeProps {
 const SLOT_NAMES = ['Gold #1 Spot', 'Silver #2 Spot', 'Bronze #3 Spot'] as const;
 
 /**
- * 3-Spot Championship Podium for one game.
- * Always displays the Gold, Silver, and Bronze podium slots so even a fresh board
- * invites the player to claim the #1 crown instead of showing flat empty text.
+ * Glowing 3-Spot Championship Podium for one game.
+ * Displays Gold, Silver, and Bronze podium slots with metallic glow & specular shimmer
+ * so winning or holding a podium spot feels celebratory and electric.
  */
 export function TopThree({
   entries,
@@ -37,23 +37,37 @@ export function TopThree({
           Boolean(entry) && projectedRank === rank && projectedScore > 0;
 
         if (entry) {
+          const rowClasses = [
+            'top3-row',
+            'top3-row--filled',
+            `top3-row--rank-${rank}`,
+            entry.isMe ? 'top3-row--me top3-row--champion-me' : '',
+          ]
+            .filter(Boolean)
+            .join(' ');
+
           return (
-            <li
-              key={rank}
-              className={`top3-row top3-row--rank-${rank}${entry.isMe ? ' top3-row--me' : ''}`}
-            >
+            <li key={rank} className={rowClasses}>
               <span className="top3-medal">
-                <MedalEmblem rank={rank} size={28} />
+                <MedalEmblem rank={rank} size={30} />
               </span>
               <span className="visually-hidden">Rank {rank}: </span>
               <span className="top3-name">
-                {entry.name}
-                {entry.isMe && <span className="top3-you">YOU</span>}
+                <span className="top3-player">{entry.name}</span>
+                {entry.isMe && (
+                  <span className={`top3-you top3-you--rank-${rank}`}>
+                    {rank === 1 ? <CrownIcon size={11} /> : <SparkleIcon size={10} />}
+                    <span>{rank === 1 ? 'CHAMPION · YOU' : 'YOU'}</span>
+                  </span>
+                )}
                 {isProjectedBump && (
                   <span className="top3-projected-tag">Beat by you ({projectedScore})</span>
                 )}
               </span>
-              <span className="top3-score">{entry.score}</span>
+              <span className="top3-score">
+                {entry.score}
+                <span className="top3-pts">pts</span>
+              </span>
             </li>
           );
         }
@@ -64,14 +78,17 @@ export function TopThree({
             className={`top3-row top3-row--open${isProjectedSlot ? ' top3-row--projected' : ''}`}
           >
             <span className="top3-medal">
-              <MedalEmblem rank={rank} open={!isProjectedSlot} size={28} />
+              <MedalEmblem rank={rank} open={!isProjectedSlot} size={30} />
             </span>
             <span className="visually-hidden">Rank {rank}: </span>
             <span className="top3-name">
               {isProjectedSlot ? (
                 <>
                   <strong>Your Score Ready!</strong>
-                  <span className="top3-projected-tag">Claim to lock #{rank}</span>
+                  <span className="top3-projected-tag">
+                    <SparkleIcon size={10} />
+                    <span>Claim to lock #{rank}</span>
+                  </span>
                 </>
               ) : (
                 <span className="top3-open-label">
@@ -88,3 +105,4 @@ export function TopThree({
     </ol>
   );
 }
+

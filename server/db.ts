@@ -6,6 +6,7 @@ import type {
   ActiveGameId,
   AnalyticsEventType,
   EventSettings,
+  FullGameLeaderboard,
   GameAnalyticsRow,
   GameId,
   GameLeaderboard,
@@ -41,8 +42,9 @@ export const DEFAULT_EVENT_SETTINGS: EventSettings = {
   venueName: 'Starlight Atrium Hall, Level 3',
   venueAddress: '18 Central Walk (2 mins from Central Station)',
   mapsUrl: 'https://maps.google.com',
+  wazeUrl: '',
   defaultCountryCode: '60',
-  giftDescription: 'Christmas Blessing Gift Pack',
+  giftDescription: 'Christmas Blessing Gift',
   whatsappTemplate:
     'Hey {name}! 🎄 So fun playing the Christmas Arcade with you earlier ({volunteer} here!).\n\nHere is your personal invite to *{eventTitle}*:\n📅 {eventDate}\n📍 {venueName} ({venueAddress})\n\n🎟 Open your E-Ticket & play more games anytime: {inviteUrl}\n\nBring a friend along—we would love to host you! ✨',
 };
@@ -173,6 +175,18 @@ export class ArcadeDatabase {
       this.db
         .prepare('INSERT INTO settings (id, json, updated_at) VALUES (1, ?, ?)')
         .run(JSON.stringify(DEFAULT_EVENT_SETTINGS), new Date().toISOString());
+    } else {
+      try {
+        const parsed = JSON.parse(existing.json) as Partial<EventSettings>;
+        if (parsed.giftDescription === 'Christmas Blessing Gift Pack') {
+          parsed.giftDescription = 'Christmas Blessing Gift';
+          this.db
+            .prepare('UPDATE settings SET json = ?, updated_at = ? WHERE id = 1')
+            .run(JSON.stringify({ ...DEFAULT_EVENT_SETTINGS, ...parsed }), new Date().toISOString());
+        }
+      } catch {
+        // Leave corrupted row for getSettings() fallback
+      }
     }
   }
 
@@ -972,6 +986,58 @@ export class ArcadeDatabase {
       viewerLeadId = lead?.id ?? null;
     }
     return ACTIVE_GAMES.map((gameId) => this.getGameBoard(gameId, viewerLeadId));
+  }
+
+  /**
+   * Unlimited all-time standings for a single game.
+   * Deduplicates strictly to one row per registered player (their all-time best verified score),
+   * never showing repeated lower trials, ordered by score DESC then earliest achievement.
+   */
+  getFullGameLeaderboard(gameId: ActiveGameId, claimToken?: string): FullGameLeaderboard {
+    let viewerLeadId: number | null = null;
+    if (claimToken) {
+      const lead = this.db
+        .prepare('SELECT id FROM leads WHERE claim_token = ?')
+        .get(claimToken.trim()) as { id: number } | undefined;
+      viewerLeadId = lead?.id ?? null;
+    }
+
+    const rows = this.db
+      .prepare(
+        `WITH best AS (
+           SELECT lead_id, score, finished_ms,
+                  ROW_NUMBER() OVER (PARTITION BY lead_id ORDER BY score DESC, finished_ms ASC) AS rn
+           FROM game_runs
+           WHERE game_id = ? AND status = 'verified' AND lead_id IS NOT NULL AND score > 0
+         )
+         SELECT b.lead_id, b.score, b.finished_ms, l.name,
+                ROW_NUMBER() OVER (ORDER BY b.score DESC, b.finished_ms ASC, b.lead_id ASC) AS rank
+         FROM best b JOIN leads l ON l.id = b.lead_id
+         WHERE b.rn = 1
+         ORDER BY rank`
+      )
+      .all(gameId) as Array<{
+      lead_id: number;
+      score: number;
+      finished_ms: number | null;
+      name: string;
+      rank: number;
+    }>;
+
+    const mine = viewerLeadId !== null ? rows.find((r) => r.lead_id === viewerLeadId) : undefined;
+
+    return {
+      gameId,
+      totalPlayers: rows.length,
+      entries: rows.map((r) => ({
+        rank: r.rank,
+        name: formatBoardName(r.name),
+        score: r.score,
+        isMe: r.lead_id === viewerLeadId,
+        achievedAt: new Date(r.finished_ms ?? this.now()).toISOString(),
+      })),
+      me: mine ? { rank: mine.rank, score: mine.score } : null,
+    };
   }
 
   close(): void {

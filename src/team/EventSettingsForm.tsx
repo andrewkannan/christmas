@@ -206,18 +206,42 @@ export function EventSettingsForm({ initialSettings, onSaved }: EventSettingsFor
           </div>
         </div>
 
-        <div className="form-group">
-          <label htmlFor={`${uid}-maps`} className="form-label">
-            Google Maps Link (Optional)
-          </label>
-          <input
-            id={`${uid}-maps`}
-            type="url"
-            maxLength={300}
-            className="form-input"
-            value={form.mapsUrl}
-            onChange={(e) => setForm({ ...form, mapsUrl: e.target.value })}
-          />
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(15rem, 1fr))',
+            gap: '0 1rem',
+          }}
+        >
+          <div className="form-group">
+            <label htmlFor={`${uid}-maps`} className="form-label">
+              Google Maps Link (Optional)
+            </label>
+            <input
+              id={`${uid}-maps`}
+              type="url"
+              maxLength={300}
+              placeholder="Auto-generated from Venue if blank"
+              className="form-input"
+              value={form.mapsUrl}
+              onChange={(e) => setForm({ ...form, mapsUrl: e.target.value })}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor={`${uid}-waze`} className="form-label">
+              Waze Link (Optional)
+            </label>
+            <input
+              id={`${uid}-waze`}
+              type="url"
+              maxLength={300}
+              placeholder="Auto-generated from Venue if blank"
+              className="form-input"
+              value={form.wazeUrl ?? ''}
+              onChange={(e) => setForm({ ...form, wazeUrl: e.target.value })}
+            />
+          </div>
         </div>
 
         <div className="form-group">

@@ -106,6 +106,7 @@ export interface EventSettings {
   venueName: string;
   venueAddress: string;
   mapsUrl: string;
+  wazeUrl?: string;
   defaultCountryCode: string; // digits only, e.g. "60" or "65"
   giftDescription: string;
   whatsappTemplate: string;
@@ -268,6 +269,22 @@ export interface GameLeaderboard {
 
 export interface LeaderboardResponse {
   games: GameLeaderboard[];
+}
+
+/** One player's all-time personal best row in the unlimited game standings. */
+export interface FullLeaderboardEntry {
+  rank: number;
+  name: string;
+  score: number;
+  isMe: boolean;
+  achievedAt: string;
+}
+
+export interface FullGameLeaderboard {
+  gameId: ActiveGameId;
+  totalPlayers: number;
+  entries: FullLeaderboardEntry[];
+  me: { rank: number; score: number } | null;
 }
 
 export type RunStatus = 'verified' | 'rejected';

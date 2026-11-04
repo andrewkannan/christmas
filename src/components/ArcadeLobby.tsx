@@ -46,7 +46,7 @@ export function ArcadeLobby({
           {savedPass ? (
             <span className="marquee-pill marquee-pill--gold">
               <CheckCircleIcon size={14} />
-              <span>VIP Pass · {savedPass.redemptionCode}</span>
+              <span>VIP Invitation Unlocked</span>
             </span>
           ) : volunteerName ? (
             <span className="marquee-pill marquee-pill--gold">
@@ -73,7 +73,7 @@ export function ArcadeLobby({
 
         <p className="hero-marquee__subtitle">
           {savedPass
-            ? `Welcome back, ${savedPass.name}. Tap any cabinet to climb the all-time Top 3.`
+            ? `Welcome back, ${savedPass.name}. Defend your Top 3 trophies or conquer a new cabinet!`
             : 'Pick any cabinet, chase the #1 trophy & unlock your gift in 45 seconds.'}
         </p>
 
@@ -96,7 +96,7 @@ export function ArcadeLobby({
               onClick={onOpenSavedPass}
             >
               <TicketPassIcon size={15} />
-              <span>Open VIP Pass</span>
+              <span>VIP Invitation</span>
             </button>
           </div>
         ) : (
@@ -105,8 +105,10 @@ export function ArcadeLobby({
               <GiftBoxIcon size={18} />
             </span>
             <div className="hero-reward-strip__text">
-              <strong>{settings.giftDescription}</strong>
-              <span>+ {settings.eventTitle} VIP Pass</span>
+              <strong>
+                {(settings.giftDescription || 'Christmas Blessing Gift').replace(/\s+Pack$/i, '')}
+              </strong>
+              <span>+ {settings.eventTitle} VIP Invitation</span>
             </div>
           </div>
         )}
@@ -118,12 +120,16 @@ export function ArcadeLobby({
           const board = boards?.find((b) => b.gameId === game.id);
           const leader = board?.top[0];
           const myRank = board?.me?.rank ?? null;
+          const tilePodiumClass =
+            myRank !== null && myRank <= 3
+              ? ` arcade-tile--champion arcade-tile--rank-${myRank}`
+              : '';
 
           return (
             <li key={game.id}>
               <button
                 type="button"
-                className={`arcade-tile${myRank === 1 ? ' arcade-tile--champion' : ''}`}
+                className={`arcade-tile${tilePodiumClass}`}
                 onClick={() => onSelectGame(game.id)}
               >
                 <div
@@ -136,9 +142,16 @@ export function ArcadeLobby({
                 <div className="arcade-tile__meta">
                   <div className="arcade-tile__title-row">
                     <h2 className="arcade-tile__title">{game.title}</h2>
-                    <span className="arcade-tile__tag">
-                      {game.shortTag} · {game.durationLabel}
-                    </span>
+                    {myRank !== null && myRank <= 3 ? (
+                      <span className={`podium-tier-tag podium-tier-tag--${myRank}`}>
+                        <CrownIcon size={10} />
+                        <span>#{myRank} HELD</span>
+                      </span>
+                    ) : (
+                      <span className="arcade-tile__tag">
+                        {game.shortTag} · {game.durationLabel}
+                      </span>
+                    )}
                   </div>
 
                   <div className="arcade-tile__sub">
@@ -171,7 +184,7 @@ export function ArcadeLobby({
                 </div>
 
                 <span className="arcade-tile__play">
-                  <span>Play</span>
+                  <span>{myRank === 1 ? 'Defend' : 'Play'}</span>
                   <PlayTriangleIcon size={11} />
                 </span>
               </button>

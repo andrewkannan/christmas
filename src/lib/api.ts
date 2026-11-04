@@ -1,6 +1,7 @@
 import type {
   ActiveGameId,
   EventSettings,
+  FullGameLeaderboard,
   LeadSubmissionInput,
   LeaderboardResponse,
   MasterAnalyticsResponse,
@@ -68,6 +69,17 @@ export async function finishGameRun(
 export async function fetchLeaderboards(claimToken?: string): Promise<LeaderboardResponse> {
   const qs = claimToken ? `?claimToken=${encodeURIComponent(claimToken)}` : '';
   const res = await fetch(`/api/leaderboard${qs}`, {
+    signal: AbortSignal.timeout(ROUND_REQUEST_TIMEOUT_MS),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function fetchFullGameLeaderboard(
+  gameId: ActiveGameId,
+  claimToken?: string
+): Promise<FullGameLeaderboard> {
+  const qs = claimToken ? `?claimToken=${encodeURIComponent(claimToken)}` : '';
+  const res = await fetch(`/api/leaderboard/${encodeURIComponent(gameId)}${qs}`, {
     signal: AbortSignal.timeout(ROUND_REQUEST_TIMEOUT_MS),
   });
   return parseJsonOrThrow(res);

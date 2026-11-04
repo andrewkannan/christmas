@@ -583,3 +583,67 @@ export function ArrowRightIcon({ size = 14, className }: IconProps) {
     </svg>
   );
 }
+
+export function WazeIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <path
+        d="M19.8 11.6C19.8 7.5 16.4 4.2 12.1 4.2C7.8 4.2 4.4 7.5 4.4 11.6C4.4 13.4 5 14.9 6.1 16.1C5.6 17.1 4.6 17.7 3.5 17.9C4.7 18.8 6.5 19.1 8.2 18.6C9.4 19 10.7 19.2 12.1 19.2C16.4 19.2 19.8 15.8 19.8 11.6Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <circle cx="9.6" cy="10.6" r="1.2" fill="currentColor" />
+      <circle cx="14.6" cy="10.6" r="1.2" fill="currentColor" />
+      <path
+        d="M9.4 13.8C10.1 14.8 11.1 15.3 12.1 15.3C13.1 15.3 14.1 14.8 14.8 13.8"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+      />
+      <circle cx="8.2" cy="19.6" r="1.7" fill="currentColor" />
+      <circle cx="15.8" cy="19.6" r="1.7" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function TrophyBoardIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <path
+        d="M7 4.5H17V9.5C17 12.3 14.8 14.5 12 14.5C9.2 14.5 7 12.3 7 9.5V4.5Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path d="M7 6.5H4.5C3.9 6.5 3.5 7 3.5 7.6C3.5 9.8 5 11.4 7 11.8" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M17 6.5H19.5C20.1 6.5 20.5 7 20.5 7.6C20.5 9.8 19 11.4 17 11.8" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M12 14.5V18.5M8.5 19.5H15.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function MusicNoteIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <path
+        d="M9 17.5V6.2L19 4.2V15.5"
+        stroke="currentColor"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="6.5" cy="17.5" r="2.7" fill="currentColor" />
+      <circle cx="16.5" cy="15.5" r="2.7" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function FlameIcon({ size = 15, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="currentColor">
+      <path d="M12.6 2.3C12.9 5.2 11.3 7.3 9.7 8.9C8 10.6 7.2 12.2 7.2 14.3C7.2 17.5 9.6 20 12.7 20C15.9 20 18.4 17.4 18.4 13.9C18.4 10.1 16.2 6.8 12.6 2.3ZM12.5 17.6C11 17.6 9.9 16.5 9.9 15C9.9 13.6 10.8 12.6 12.3 11.3C13.6 12.5 14.6 13.8 14.6 15.1C14.6 16.5 13.7 17.6 12.5 17.6Z" />
+    </svg>
+  );
+}
+

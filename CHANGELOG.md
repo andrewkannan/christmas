@@ -2,6 +2,20 @@
 
 All notable changes to **Christmas Pocket Arcade** are documented in this file.
 
+## [1.4.0] - 2026-11-05
+
+### Added
+- **Royal VIP Celebration Service Invitation (`WinnerPass.tsx`, `ticketCanvas.ts`):** Promoted the Velvet-Crimson & 24k Gold VIP Celebration Invitation to the hero center of the Winner Pass (and downloadable 1080×1350 PNG), highlighting *"Join our Celebration Service & receive the Greatest Gift there"*.
+- **Live Celebration Countdown Tab & Dual Navigation (`WinnerPass.tsx`, `EventSettingsForm.tsx`):** Added a live `d / h / m / s` countdown tab directly beneath the VIP Invitation plus side-by-side **Google Maps** and **Waze** navigation buttons (with optional custom `wazeUrl` in `/team`).
+- **One-Click Smart Calendar (`WinnerPass.tsx`, `server/routes.ts`):** Unified Apple Calendar (`inline` `.ics` on iOS/iPadOS/macOS Safari) and Android/Google Calendar into a single 1-click **Add to Calendar** button.
+- **Viral WhatsApp Friend Challenge (`WinnerPass.tsx`, `App.tsx`, `ArcadeLobby.tsx`):** Replaced plain share text with **Challenge Friends to Play** (`/?friend=<FirstName>&target=<Score>`), displaying a live friend-challenge banner on the Lobby while keeping `/team` volunteer attribution strictly scoped to `?vs=`.
+- **Unlimited All-Time Player Rankings Modal (`FullLeaderboardModal.tsx`, `server/db.ts`, `server/routes.ts`):** Added `GET /api/leaderboard/:gameId` and a native `<dialog>` Hall of Champions showing the unlimited full ranking history of all players using strictly each player's single all-time best verified score (`"Mei L."` initials, zero phone PII).
+- **Glowing Rank 1–3 Cards, Filter Tabs & Crown Quest (`TopThree.tsx`, `WinnerPass.tsx`, `ArcadeLobby.tsx`):** Added metallic Gold/Silver/Bronze glow and specular sheen sweeps for Rank `#1–#3`, `All Games / Top 1–3 / Chase #1` tabs, and a `Crown Quest` replay motivator with exact point-gap nudges.
+- **Polyphonic Christmas, Game & Victory Music (`src/lib/sound.ts`):** Added Web Audio lookahead music scenes for Lobby/Pass Christmas background music (`We Wish You a Merry Christmas` + `Deck the Halls`), 5 distinct game soundtracks, and `Joy to the World` victory chorus controlled by the top-bar Mute toggle.
+
+### Changed
+- **Gift Redemption Flow (`WinnerPass.tsx`, `ClaimForm.tsx`, `server/db.ts`):** Removed the `SHOW CODE TO COLLECT GIFT / XMAS-XXXX` display block and standardized gift naming to **Christmas Blessing Gift** (*"Show our team to collect with us"*), with an automatic SQLite migration updating legacy default settings.
+
 ## [1.3.0] - 2026-11-04
 
 ### Added

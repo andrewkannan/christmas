@@ -52,10 +52,10 @@ for (const title of GAME_TITLES) {
 
     await playToResults(page, title);
 
-    // Results: final score, best chip, rank spotlight, and 3-slot podium (#1, #2, #3).
+    // Results: final score, best chip, rank spotlight, and 3-slot Champion Board (#1, #2, #3).
     await expect(page.getByLabel(/You scored \d+ points/)).toBeVisible();
     await expect(page.getByText(/New best!|Best \d+/)).toBeVisible();
-    await expect(page.getByRole('heading', { name: new RegExp(`${title} · Top 3`) })).toBeVisible();
+    await expect(page.getByRole('heading', { name: new RegExp(`${title} · Champion Board`) })).toBeVisible();
     const podium = page.getByRole('list', { name: `${title} top 3` });
     await expect(podium.getByRole('listitem')).toHaveCount(3);
     await expect(page.getByText(/Checking your rank/)).toHaveCount(0);
@@ -69,7 +69,9 @@ for (const title of GAME_TITLES) {
   });
 }
 
-test('claim after a round → VIP pass has Safari-safe Save Pass & interactive 5-game Trophy Board', async ({ page }) => {
+test('claim after a round → VIP Celebration Invitation, countdown, Maps+Waze, 1-click Calendar, Friend Challenge & unlimited rankings dialog', async ({
+  page,
+}) => {
   await openGame(page, 'Claw Grab');
   await playToResults(page, 'Claw Grab');
 
@@ -79,37 +81,72 @@ test('claim after a round → VIP pass has Safari-safe Save Pass & interactive 5
   await page.getByRole('button', { name: /Get Gift/ }).click();
 
   await expect(page.getByRole('heading', { name: 'Mei Ling Tan' })).toBeVisible();
-  await expect(page.getByText(/XMAS-[A-Z0-9]{4}/)).toBeVisible();
 
-  // Save Pass uses Blob/Share API, never an <a href="data:..."> link that hijacks Safari's URL bar.
+  // Show code / XMAS-XXXX is removed; Christmas Blessing Gift asks to show our team to collect with us.
+  await expect(page.getByText(/XMAS-[A-Z0-9]{4}/)).toHaveCount(0);
+  await expect(page.getByText(/SHOW CODE TO COLLECT/i)).toHaveCount(0);
+  await expect(page.getByText('Christmas Blessing Gift', { exact: true })).toBeVisible();
+  await expect(page.getByText('Show our team to collect with us')).toBeVisible();
+
+  // VIP Celebration Invitation + Greatest Gift + Live Countdown Tab + Google Maps & Waze + 1-click Calendar.
+  const invite = page.getByRole('article', { name: 'VIP Celebration Service Invitation' });
+  await expect(invite).toBeVisible();
+  await expect(invite.getByText(/Greatest Gift/)).toBeVisible();
+  await expect(invite.getByRole('link', { name: /Google Maps/ })).toBeVisible();
+  await expect(invite.getByRole('link', { name: /Waze/ })).toBeVisible();
+  await expect(page.getByRole('timer')).toBeVisible();
+  await expect(page.getByRole('link', { name: /Add to Calendar/ })).toHaveCount(1);
+
+  // Save Invitation uses Blob/Share API, never an <a href="data:..."> link that hijacks Safari's URL bar.
   await expect(page.locator('a[href^="data:"]')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /Save Pass/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Save Invitation/ })).toBeVisible();
 
-  const ranks = page.getByRole('region', { name: /My ranks/ });
+  // Goal-driven WhatsApp friend challenge link invites friends to play & beat score.
+  const shareCard = page.getByRole('link', { name: /Challenge Friends to Play/ });
+  await expect(shareCard).toBeVisible();
+  await expect(shareCard).toHaveAttribute('href', /wa\.me\/\?text=.*friend%3DMei/);
+
+  const ranks = page.getByRole('region', { name: /My Ranks & Champions/ });
   await expect(ranks).toBeVisible();
   for (const title of GAME_TITLES) {
-    await expect(ranks.getByText(title)).toBeVisible();
+    await expect(
+      ranks.getByRole('button', { name: `View full player rankings for ${title}` })
+    ).toBeVisible();
   }
 
-  // Tapping Play directly inside My ranks launches that game immediately.
+  // Clicking a game row opens the unlimited full player rankings modal (<dialog>).
+  await ranks.getByRole('button', { name: 'View full player rankings for Claw Grab' }).click();
+  const dialog = page.locator('dialog.leaderboard-dialog[open]');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: 'Claw Grab Rankings' })).toBeVisible();
+  await expect(dialog.getByText(/Best personal score per player · Unlimited full history/)).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close rankings' }).click();
+  await expect(dialog).toHaveCount(0);
+
+  // Tapping Play directly inside My Ranks launches that game immediately.
   await ranks.getByRole('button', { name: 'Play Block Stack' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Block Stack' })).toBeVisible();
 });
 
+test('friend challenge link displays personalized Beat Friend banner on the lobby', async ({ page }) => {
+  await page.goto('/?friend=Andrew&target=135');
+  await expect(page.getByText(/Challenge · Beat Andrew \(135 pts\)/)).toBeVisible();
+});
+
 test('a registered player keeps playing from the pass without re-entering details', async ({ page }) => {
-  await openGame(page, 'Candy Match');
-  await playToResults(page, 'Candy Match');
+  await openGame(page, 'Berry Slash');
+  await playToResults(page, 'Berry Slash');
   await page.getByRole('button', { name: /Claim my gift/ }).click();
   await page.getByLabel('Name').fill('Aaron Lee');
   await page.getByLabel('WhatsApp Number').fill('012 777 1234');
   await page.getByRole('button', { name: /Get Gift/ }).click();
   await expect(page.getByRole('heading', { name: 'Aaron Lee' })).toBeVisible();
 
-  await page.getByRole('button', { name: /Play All 5 Games/ }).click();
+  await page.getByRole('button', { name: /Play More Arcade Games/ }).click();
   await page.getByRole('button', { name: /Santa Dash/ }).click();
   await playToResults(page, 'Santa Dash');
 
-  // With a pass, results offer Play again + My pass instead of the claim form.
+  // With a pass, results offer Play again + VIP Invitation & Ranks instead of the claim form.
   await expect(page.getByRole('button', { name: /Claim my gift/ })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /My pass/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /VIP Invitation & Ranks/ })).toBeVisible();
 });

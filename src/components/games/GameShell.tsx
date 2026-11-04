@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
-import type { ArcadeGameMeta, RunFinishResult } from '../../types.ts';
+import type { ActiveGameId, ArcadeGameMeta, RunFinishResult } from '../../types.ts';
 import { GAME_RULES, LIFE_LOST_PAUSE_MS, type RoundEndReason } from '../../games/rules.ts';
 import type { PlayfieldApi, PlayfieldProps } from '../../games/playfield.ts';
 import { finishGameRun, startGameRun } from '../../lib/api.ts';
 import { getOrCreateVisitorId, loadLocalBest, saveLocalBest } from '../../lib/playerSession.ts';
-import { playArcadeTone, triggerHaptic } from '../../lib/sound.ts';
+import { playArcadeTone, setMusicScene, triggerHaptic } from '../../lib/sound.ts';
 import { ConfettiBurst } from '../ConfettiBurst.tsx';
+import { FullLeaderboardModal } from '../FullLeaderboardModal.tsx';
 import {
   BoltMovesIcon,
   CloseIcon,
@@ -20,6 +21,7 @@ import {
   SparkleIcon,
   TicketPassIcon,
   TimerClockIcon,
+  TrophyBoardIcon,
 } from '../Icons.tsx';
 import { TopThree } from '../TopThree.tsx';
 
@@ -43,8 +45,10 @@ interface GameShellProps {
   /** Best score already on the player's saved pass for this game. */
   passBest: number;
   volunteerName: string;
+  challengerName?: string;
   targetScore: number;
   onExit: () => void;
+  onSelectGame?: (game: ActiveGameId) => void;
   onClaim: (sessionBest: number, projectedRank: number | null) => void;
   onOpenPass: () => void;
   onRoundRecorded: (result: RunFinishResult) => void;
@@ -104,14 +108,17 @@ export function GameShell({
   claimToken,
   passBest,
   volunteerName,
+  challengerName,
   targetScore,
   onExit,
+  onSelectGame,
   onClaim,
   onOpenPass,
   onRoundRecorded,
 }: GameShellProps) {
   const rules = GAME_RULES[game.id];
   const hasPass = Boolean(claimToken);
+  const displayChallenger = challengerName || volunteerName;
 
   const [roundKey, setRoundKey] = useState(0);
   const [phase, setPhase] = useState<Phase>('countdown');
@@ -194,6 +201,17 @@ export function GameShell({
 
   const endRoundRef = useRef(endRound);
   endRoundRef.current = endRound;
+
+  // Dynamic per-game & victory soundtrack switching
+  useEffect(() => {
+    if (phase === 'paused') {
+      setMusicScene('none');
+    } else if (phase === 'ending' || phase === 'results') {
+      setMusicScene('victory');
+    } else {
+      setMusicScene(game.id);
+    }
+  }, [phase, game.id]);
 
   // Start (or restart) a round: countdown, then live play. Runs on mount and on every retry.
   useEffect(() => {
@@ -440,10 +458,12 @@ export function GameShell({
           result={roundResult}
           remote={remote}
           hasPass={hasPass}
-          volunteerName={volunteerName}
+          claimToken={claimToken}
+          volunteerName={displayChallenger}
           targetScore={targetScore}
           headingRef={resultsHeadingRef}
           onRetry={retry}
+          onSelectGame={onSelectGame}
           onClaim={(projectedRank) => onClaim(sessionBestRef.current, projectedRank)}
           onOpenPass={onOpenPass}
           onExit={onExit}
@@ -458,10 +478,12 @@ interface RoundResultsProps {
   result: RoundResult;
   remote: RemoteResult;
   hasPass: boolean;
+  claimToken?: string;
   volunteerName: string;
   targetScore: number;
   headingRef: React.RefObject<HTMLHeadingElement | null>;
   onRetry: () => void;
+  onSelectGame?: (game: ActiveGameId) => void;
   onClaim: (projectedRank: number | null) => void;
   onOpenPass: () => void;
   onExit: () => void;
@@ -472,14 +494,17 @@ function RoundResults({
   result,
   remote,
   hasPass,
+  claimToken,
   volunteerName,
   targetScore,
   headingRef,
   onRetry,
+  onSelectGame,
   onClaim,
   onOpenPass,
   onExit,
 }: RoundResultsProps) {
+  const [fullBoardOpen, setFullBoardOpen] = useState(false);
   const isNewBest = result.score > 0 && result.score > result.previousBest;
   const best = Math.max(result.score, result.previousBest);
   const displayScore = useCountUp(result.score);
@@ -488,6 +513,7 @@ function RoundResults({
     remote.state === 'done' ? (remote.result.rank ?? remote.result.wouldRank) : null;
   const projectedRank =
     remote.state === 'done' && !hasPass ? remote.result.wouldRank : null;
+  const isPodiumWin = effectiveRank !== null && effectiveRank <= 3 && result.score > 0;
 
   const trophyTier: 'gold' | 'silver' | 'bronze' =
     effectiveRank === 2 ? 'silver' : effectiveRank === 3 ? 'bronze' : 'gold';
@@ -509,6 +535,24 @@ function RoundResults({
     projectedRank !== null && projectedRank <= 3
       ? `Claim my gift · Lock #${projectedRank}`
       : 'Claim my gift & VIP pass';
+
+  const topLeaderScore =
+    remote.state === 'done' && remote.result.board.top[0]
+      ? remote.result.board.top[0].score
+      : null;
+
+  let replayLabel = 'Play again';
+  if (hasPass) {
+    if (effectiveRank === 1 && best > 0) {
+      replayLabel = `Play again · Push ${best} pts record`;
+    } else if (topLeaderScore !== null && best < topLeaderScore) {
+      const ptsToFirst = topLeaderScore - best + 1;
+      replayLabel =
+        ptsToFirst <= 35 ? `Play again · +${ptsToFirst} pts for #1!` : 'Play again · Climb higher';
+    } else if (best > 0) {
+      replayLabel = `Play again · Beat ${best} pts`;
+    }
+  }
 
   return (
     <div className="victory-card stage-enter">
@@ -559,7 +603,7 @@ function RoundResults({
       <div className="victory-body">
         <RankSpotlight remote={remote} score={result.score} gameTitle={game.title} />
 
-        <div className="results-board">
+        <div className={`results-board${isPodiumWin ? ' results-board--winner-glow' : ''}`}>
           <div className="results-board__header">
             <h3 className="results-board__title">
               <span
@@ -568,14 +612,21 @@ function RoundResults({
               >
                 <GameEmblem gameId={game.id} size={18} />
               </span>
-              <span>{game.title} · Top 3</span>
+              <span>{game.title} · Champion Board</span>
             </h3>
-            {remote.state === 'done' && remote.result.board.totalPlayers > 0 && (
-              <span className="results-board__count">
-                {remote.result.board.totalPlayers}{' '}
-                {remote.result.board.totalPlayers === 1 ? 'player' : 'players'}
+
+            <button
+              type="button"
+              className="results-board__view-all"
+              onClick={() => setFullBoardOpen(true)}
+            >
+              <TrophyBoardIcon size={13} />
+              <span>
+                {remote.state === 'done' && remote.result.board.totalPlayers > 0
+                  ? `All ${remote.result.board.totalPlayers} ›`
+                  : 'Full Board ›'}
               </span>
-            )}
+            </button>
           </div>
 
           {remote.state === 'loading' && <div className="podium-skeleton" aria-hidden="true" />}
@@ -601,11 +652,11 @@ function RoundResults({
                 onClick={onRetry}
               >
                 <ReplayIcon size={18} />
-                <span>Play again</span>
+                <span>{replayLabel}</span>
               </button>
               <button type="button" className="btn btn--ghost btn--full" onClick={onOpenPass}>
                 <TicketPassIcon size={18} />
-                <span>My pass</span>
+                <span>VIP Invitation &amp; Ranks</span>
               </button>
             </>
           ) : (
@@ -631,6 +682,20 @@ function RoundResults({
           </button>
         </div>
       </div>
+
+      <FullLeaderboardModal
+        open={fullBoardOpen}
+        initialGameId={game.id}
+        claimToken={claimToken}
+        onClose={() => setFullBoardOpen(false)}
+        onPlayGame={(nextGameId) => {
+          if (nextGameId === game.id) {
+            onRetry();
+          } else if (onSelectGame) {
+            onSelectGame(nextGameId);
+          }
+        }}
+      />
     </div>
   );
 }

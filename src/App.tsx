@@ -17,7 +17,7 @@ import {
   savePassLocally,
   trackArcadeEvent,
 } from './lib/playerSession.ts';
-import { isSoundMuted, playArcadeTone, toggleSoundMuted } from './lib/sound.ts';
+import { isSoundMuted, playArcadeTone, setMusicScene, toggleSoundMuted } from './lib/sound.ts';
 import {
   StarMarkIcon,
   TicketPassIcon,
@@ -54,8 +54,9 @@ const FALLBACK_SETTINGS: EventSettings = {
   venueName: 'Starlight Atrium Hall, Level 3',
   venueAddress: '18 Central Walk (2 mins from Central Station)',
   mapsUrl: 'https://maps.google.com',
+  wazeUrl: '',
   defaultCountryCode: '60',
-  giftDescription: 'Christmas Blessing Gift Pack',
+  giftDescription: 'Christmas Blessing Gift',
   whatsappTemplate:
     'Hey {name}! 🎄 So fun playing the Christmas Arcade with you earlier ({volunteer} here!).\n\nHere is your personal invite to *{eventTitle}*:\n📅 {eventDate}\n📍 {venueName} ({venueAddress})\n\n🎟 Open your E-Ticket & play more games anytime: {inviteUrl}\n\nBring a friend along—we would love to host you! ✨',
 };
@@ -81,14 +82,20 @@ export function App() {
   const [boards, setBoards] = useState<GameLeaderboard[] | null>(null);
   const initialViewLoggedRef = useRef(false);
 
-  const { volunteerName, targetScore, urlPassToken } = useMemo(() => {
+  const { volunteerName, challengerName, targetScore, urlPassToken } = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
     const vs = (params.get('vs') || params.get('challenger') || '').trim().slice(0, 40);
+    const friend = (params.get('friend') || '').trim().slice(0, 40);
     const rawTarget = Number(params.get('target'));
     const validTarget =
-      Number.isFinite(rawTarget) && rawTarget >= 5 && rawTarget <= 60 ? Math.round(rawTarget) : 18;
+      Number.isFinite(rawTarget) && rawTarget >= 5 && rawTarget <= 999 ? Math.round(rawTarget) : 18;
     const passToken = (params.get('pass') || '').trim();
-    return { volunteerName: vs, targetScore: validTarget, urlPassToken: passToken };
+    return {
+      volunteerName: vs,
+      challengerName: vs || friend,
+      targetScore: validTarget,
+      urlPassToken: passToken,
+    };
   }, []);
 
   useEffect(() => {
@@ -170,13 +177,24 @@ export function App() {
         document.title = `Playing | Christmas Arcade`;
         break;
       case 'claim':
-        document.title = `Unlock Gift & Pass | ${settings.churchName}`;
+        document.title = `Unlock Gift & VIP Invitation | ${settings.churchName}`;
         break;
       case 'winner':
-        document.title = `Pass ${step.claim.redemptionCode} | ${settings.eventTitle}`;
+        document.title = `VIP Invitation | ${settings.eventTitle}`;
         break;
     }
   }, [routeMode, step, settings.churchName, settings.eventTitle]);
+
+  // Background Christmas music on Lobby, Claim & VIP Invitation (GameShell manages per-game & victory scenes)
+  useEffect(() => {
+    if (routeMode === 'team') {
+      setMusicScene('none');
+      return;
+    }
+    if (step.kind !== 'playing') {
+      setMusicScene('christmas-bg');
+    }
+  }, [routeMode, step.kind]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -282,15 +300,15 @@ export function App() {
               onClick={handleOpenSavedInvite}
             >
               <TicketPassIcon size={15} />
-              <span>Pass</span>
+              <span>VIP Invite</span>
             </button>
           )}
           {routeMode === 'player' && (
             <button
               type="button"
-              className="icon-round-btn"
+              className={`icon-round-btn${soundMuted ? '' : ' icon-round-btn--music-on'}`}
               aria-pressed={soundMuted}
-              aria-label={soundMuted ? 'Unmute sound' : 'Mute sound'}
+              aria-label={soundMuted ? 'Unmute music and sound' : 'Mute music and sound'}
               onClick={() => setSoundMuted(toggleSoundMuted())}
             >
               {soundMuted ? <VolumeOffIcon size={18} /> : <VolumeOnIcon size={18} />}
@@ -330,7 +348,7 @@ export function App() {
           <>
             {step.kind === 'lobby' && (
               <ArcadeLobby
-                volunteerName={volunteerName}
+                volunteerName={challengerName}
                 targetScore={targetScore}
                 settings={settings}
                 savedPass={savedPass}
@@ -348,8 +366,10 @@ export function App() {
                 claimToken={savedPass?.claimToken}
                 passBest={savedPass?.bestScores?.[playingGame.id] ?? 0}
                 volunteerName={volunteerName}
+                challengerName={challengerName}
                 targetScore={targetScore}
                 onExit={() => setStep({ kind: 'lobby' })}
+                onSelectGame={handleSelectGame}
                 onClaim={(sessionBest, projectedRank) =>
                   setStep({
                     kind: 'claim',

@@ -57,10 +57,12 @@ describe('Christmas Pocket Arcade API & Security', () => {
   it('serves public event config and valid RFC 5545 .ics calendar file', async () => {
     const cfg = await request(app).get('/api/public/config').expect(200);
     expect(cfg.body.settings.eventTitle).toContain('Christmas');
+    expect(cfg.body.settings.giftDescription).toBe('Christmas Blessing Gift');
     expect(cfg.body.googleCalendarUrl).toContain('calendar.google.com');
 
     const ics = await request(app).get('/api/calendar.ics').expect(200);
     expect(ics.headers['content-type']).toContain('text/calendar');
+    expect(ics.headers['content-disposition']).toContain('inline');
     expect(ics.text).toContain('BEGIN:VCALENDAR');
     expect(ics.text).toContain('BEGIN:VEVENT');
   });
@@ -153,10 +155,16 @@ describe('Christmas Pocket Arcade API & Security', () => {
     const currentSettings = (await agent.get('/api/public/config').expect(200)).body.settings;
     const updatedSettingsRes = await agent
       .put('/api/team/settings')
-      .send({ ...currentSettings, defaultCountryCode: '65', churchName: 'City Light Youth' })
+      .send({
+        ...currentSettings,
+        defaultCountryCode: '65',
+        churchName: 'City Light Youth',
+        wazeUrl: 'https://waze.com/ul?q=City%20Light%20Youth&navigate=yes',
+      })
       .expect(200);
     expect(updatedSettingsRes.body.settings.defaultCountryCode).toBe('65');
     expect(updatedSettingsRes.body.settings.churchName).toBe('City Light Youth');
+    expect(updatedSettingsRes.body.settings.wazeUrl).toContain('waze.com');
 
     const qrRes = await agent
       .get('/api/team/qr.svg?url=https%3A%2F%2Farcade.example.com%2F%3Fvs%3DAndrew')

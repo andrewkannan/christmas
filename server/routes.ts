@@ -75,6 +75,7 @@ const SettingsSchema = z.object({
   venueName: z.string().trim().min(1).max(120),
   venueAddress: z.string().trim().max(200),
   mapsUrl: z.string().trim().max(300),
+  wazeUrl: z.string().trim().max(300).optional().default(''),
   defaultCountryCode: z.string().regex(/^\d{1,4}$/),
   giftDescription: z.string().trim().min(1).max(100),
   whatsappTemplate: z.string().trim().min(10).max(1000),
@@ -150,7 +151,7 @@ export function createApiRouter(db: ArcadeDatabase) {
     const settings = db.getSettings();
     const ics = buildIcsContent(settings, getPublicBaseUrl(req));
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="christmas-invitation.ics"');
+    res.setHeader('Content-Disposition', 'inline; filename="christmas-invitation.ics"');
     res.send(ics);
   });
 
@@ -222,6 +223,23 @@ export function createApiRouter(db: ArcadeDatabase) {
     }
     res.setHeader('Cache-Control', 'no-store');
     res.json({ games: db.getLeaderboards(token.data) });
+  });
+
+  router.get('/leaderboard/:gameId', (req, res) => {
+    const gameParsed = ActiveGameIdEnum.safeParse(req.params.gameId);
+    if (!gameParsed.success) {
+      res.status(400).json({ error: 'Invalid game ID.' });
+      return;
+    }
+    const token = ClaimTokenQuerySchema.safeParse(
+      typeof req.query.claimToken === 'string' && req.query.claimToken ? req.query.claimToken : undefined
+    );
+    if (!token.success) {
+      res.status(400).json({ error: 'Invalid pass token.' });
+      return;
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(db.getFullGameLeaderboard(gameParsed.data, token.data));
   });
 
   router.get('/public/pass/:claimToken', (req, res) => {

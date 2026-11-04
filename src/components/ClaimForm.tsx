@@ -151,8 +151,8 @@ export function ClaimForm({
               <GiftBoxIcon size={18} />
             </span>
             <div className="unlock-perk__copy">
-              <strong>{settings.giftDescription}</strong>
-              <span>Show pass code to collect right now</span>
+              <strong>{(settings.giftDescription || 'Christmas Blessing Gift').replace(/\s+Pack$/i, '')}</strong>
+              <span>Show our team to collect with us</span>
             </div>
           </div>
 
@@ -161,11 +161,11 @@ export function ClaimForm({
               <TicketPassIcon size={18} />
             </span>
             <div className="unlock-perk__copy">
-              <strong>{settings.eventTitle}</strong>
+              <strong>{settings.eventTitle} · VIP Invitation</strong>
               <span>
                 {projectedRank !== null
-                  ? `VIP E-Pass + Lock Rank #${projectedRank} on Board`
-                  : 'VIP E-Pass + Official Leaderboard Access'}
+                  ? `Lock Rank #${projectedRank} + Join our Celebration Service`
+                  : 'Join our Celebration Service & receive the Greatest Gift'}
               </span>
             </div>
           </div>
