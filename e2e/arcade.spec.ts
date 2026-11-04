@@ -32,7 +32,7 @@ test('player page has no Team/admin entry point', async ({ page }) => {
 });
 
 for (const title of GAME_TITLES) {
-  test(`${title}: countdown → HUD → round ends → results with score + top 3 → retry`, async ({ page }) => {
+  test(`${title}: countdown → HUD → round ends → results with score + 3-slot podium → retry`, async ({ page }) => {
     const consoleErrors: string[] = [];
     page.on('pageerror', (err) => consoleErrors.push(err.message));
     page.on('console', (msg) => {
@@ -52,10 +52,12 @@ for (const title of GAME_TITLES) {
 
     await playToResults(page, title);
 
-    // Results: final score, best chip, rank line, and the game's all-time top 3 section.
+    // Results: final score, best chip, rank spotlight, and 3-slot podium (#1, #2, #3).
     await expect(page.getByLabel(/You scored \d+ points/)).toBeVisible();
     await expect(page.getByText(/New best!|Best \d+/)).toBeVisible();
     await expect(page.getByRole('heading', { name: new RegExp(`${title} · Top 3`) })).toBeVisible();
+    const podium = page.getByRole('list', { name: `${title} top 3` });
+    await expect(podium.getByRole('listitem')).toHaveCount(3);
     await expect(page.getByText(/Checking your rank/)).toHaveCount(0);
 
     // Retry starts a brand-new round with full lives/moves.
@@ -67,7 +69,7 @@ for (const title of GAME_TITLES) {
   });
 }
 
-test('claim after a round → pass shows the gift code and My ranks for all 5 games', async ({ page }) => {
+test('claim after a round → VIP pass has Safari-safe Save Pass & interactive 5-game Trophy Board', async ({ page }) => {
   await openGame(page, 'Claw Grab');
   await playToResults(page, 'Claw Grab');
 
@@ -78,11 +80,20 @@ test('claim after a round → pass shows the gift code and My ranks for all 5 ga
 
   await expect(page.getByRole('heading', { name: 'Mei Ling Tan' })).toBeVisible();
   await expect(page.getByText(/XMAS-[A-Z0-9]{4}/)).toBeVisible();
+
+  // Save Pass uses Blob/Share API, never an <a href="data:..."> link that hijacks Safari's URL bar.
+  await expect(page.locator('a[href^="data:"]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Save Pass/ })).toBeVisible();
+
   const ranks = page.getByRole('region', { name: /My ranks/ });
   await expect(ranks).toBeVisible();
   for (const title of GAME_TITLES) {
     await expect(ranks.getByText(title)).toBeVisible();
   }
+
+  // Tapping Play directly inside My ranks launches that game immediately.
+  await ranks.getByRole('button', { name: 'Play Block Stack' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Block Stack' })).toBeVisible();
 });
 
 test('a registered player keeps playing from the pass without re-entering details', async ({ page }) => {
