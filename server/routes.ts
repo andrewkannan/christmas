@@ -86,6 +86,23 @@ const LeadPatchSchema = z.object({
   notes: z.string().max(300).optional(),
 });
 
+const ActiveGameIdEnum = z.enum(['claw-machine', 'santa-dash', 'gift-tetris', 'gift-slash', 'candy-match']);
+
+const RunStartSchema = z.object({
+  gameId: ActiveGameIdEnum,
+  visitorId: z.string().trim().min(3).max(80),
+  claimToken: z.string().trim().max(80).optional(),
+  volunteerName: z.string().trim().max(40).optional(),
+});
+
+const RunFinishSchema = z.object({
+  visitorId: z.string().trim().min(3).max(80),
+  score: z.number().int().min(0).max(100000),
+  endReason: z.enum(['time', 'lives', 'moves']),
+});
+
+const ClaimTokenQuerySchema = z.string().trim().min(10).max(80).optional();
+
 function getClientIp(req: Request): string {
   const forwarded = req.headers['x-forwarded-for'];
   if (typeof forwarded === 'string' && forwarded.length > 0) {
@@ -158,6 +175,53 @@ export function createApiRouter(db: ArcadeDatabase) {
       : null;
 
     res.status(201).json({ ok: true, claim: refreshedPass });
+  });
+
+  router.post('/runs', (req, res) => {
+    const ip = getClientIp(req);
+    if (!telemetryLimiter.isAllowed(ip)) {
+      res.status(429).json({ error: 'Rate limit exceeded.' });
+      return;
+    }
+    const parsed = RunStartSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid round payload.' });
+      return;
+    }
+    const runId = db.startRun(parsed.data);
+    res.status(201).json({ runId });
+  });
+
+  router.post('/runs/:runId/finish', (req, res) => {
+    const ip = getClientIp(req);
+    if (!telemetryLimiter.isAllowed(ip)) {
+      res.status(429).json({ error: 'Rate limit exceeded.' });
+      return;
+    }
+    const runId = String(req.params.runId || '').trim();
+    const parsed = RunFinishSchema.safeParse(req.body);
+    if (runId.length < 10 || runId.length > 80 || !parsed.success) {
+      res.status(400).json({ error: 'Invalid round result.' });
+      return;
+    }
+    const outcome = db.finishRun({ runId, ...parsed.data });
+    if (!outcome.ok) {
+      res.status(outcome.status).json({ error: outcome.error });
+      return;
+    }
+    res.json(outcome.result);
+  });
+
+  router.get('/leaderboard', (req, res) => {
+    const token = ClaimTokenQuerySchema.safeParse(
+      typeof req.query.claimToken === 'string' && req.query.claimToken ? req.query.claimToken : undefined
+    );
+    if (!token.success) {
+      res.status(400).json({ error: 'Invalid pass token.' });
+      return;
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ games: db.getLeaderboards(token.data) });
   });
 
   router.get('/public/pass/:claimToken', (req, res) => {

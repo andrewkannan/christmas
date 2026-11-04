@@ -25,7 +25,7 @@ export const ACTIVE_ARCADE_GAMES: readonly ArcadeGameMeta[] = [
     id: 'claw-machine',
     title: 'Claw Grab',
     shortTag: 'UFO Crane',
-    durationLabel: '22s',
+    durationLabel: '3 lives',
     controlHint: 'Slide & Drop Claw',
     emoji: '🧸',
     accentBg: 'linear-gradient(135deg, #ff3b30, #d70015)',
@@ -35,7 +35,7 @@ export const ACTIVE_ARCADE_GAMES: readonly ArcadeGameMeta[] = [
     id: 'santa-dash',
     title: 'Santa Dash',
     shortTag: '3-Lane Run',
-    durationLabel: '20s',
+    durationLabel: '3 lives',
     controlHint: 'Swipe Left / Right',
     emoji: '🛷',
     accentBg: 'linear-gradient(135deg, #15803d, #0f5132)',
@@ -45,7 +45,7 @@ export const ACTIVE_ARCADE_GAMES: readonly ArcadeGameMeta[] = [
     id: 'gift-tetris',
     title: 'Block Stack',
     shortTag: 'Gift Tetris',
-    durationLabel: '25s',
+    durationLabel: '3 lives',
     controlHint: 'Tap Rotate · Drop Rows',
     emoji: '🧱',
     accentBg: 'linear-gradient(135deg, #d97706, #b45309)',
@@ -55,7 +55,7 @@ export const ACTIVE_ARCADE_GAMES: readonly ArcadeGameMeta[] = [
     id: 'gift-slash',
     title: 'Berry Slash',
     shortTag: 'Fruit Ninja',
-    durationLabel: '20s',
+    durationLabel: '3 lives',
     controlHint: 'Swipe Across Ornaments',
     emoji: '⚔️',
     accentBg: 'linear-gradient(135deg, #e11d48, #9f1239)',
@@ -65,7 +65,7 @@ export const ACTIVE_ARCADE_GAMES: readonly ArcadeGameMeta[] = [
     id: 'candy-match',
     title: 'Candy Match',
     shortTag: 'Candy Crush',
-    durationLabel: '25s',
+    durationLabel: '20 moves',
     controlHint: 'Swap 3 Candies',
     emoji: '🍬',
     accentBg: 'linear-gradient(135deg, #0284c7, #0369a1)',
@@ -248,4 +248,39 @@ export interface MasterAnalyticsResponse {
   byGame: GameAnalyticsRow[];
   byVolunteer: VolunteerAnalyticsRow[];
   recentActivity: RecentActivityItem[];
+}
+
+/** One row on a public leaderboard. Names are always privacy-formatted ("Mei L."). */
+export interface LeaderboardEntry {
+  rank: number;
+  name: string;
+  score: number;
+  isMe: boolean;
+}
+
+export interface GameLeaderboard {
+  gameId: ActiveGameId;
+  totalPlayers: number;
+  top: LeaderboardEntry[];
+  /** The requesting player's own all-time best and rank, when a valid claim token was supplied. */
+  me: { rank: number; score: number } | null;
+}
+
+export interface LeaderboardResponse {
+  games: GameLeaderboard[];
+}
+
+export type RunStatus = 'verified' | 'rejected';
+
+export interface RunFinishResult {
+  status: RunStatus;
+  score: number;
+  /** Rank of this player's all-time best on this game (registered players only). */
+  rank: number | null;
+  /** Where this score WOULD place if the player registered (unregistered players only). */
+  wouldRank: number | null;
+  /** True when this run beat the player's previous best on the board. */
+  isPersonalBest: boolean;
+  board: GameLeaderboard;
+  claim: PublicClaimResult | null;
 }

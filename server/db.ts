@@ -3,21 +3,26 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import type {
+  ActiveGameId,
   AnalyticsEventType,
   EventSettings,
   GameAnalyticsRow,
   GameId,
+  GameLeaderboard,
   MasterAnalyticsResponse,
   PublicClaimResult,
   RecentActivityItem,
+  RunFinishResult,
   TeamDashboardStats,
   TeamLeadRecord,
   TrackEventInput,
   VolunteerAnalyticsRow,
 } from '../src/types.ts';
+import { RUN_EXPIRY_MS, isPlausibleScore, type RoundEndReason } from '../src/games/rules.ts';
+import { formatBoardName } from '../src/games/boardName.ts';
 import { buildPersonalWhatsAppUrl } from './phone.ts';
 
-const ACTIVE_GAMES: GameId[] = [
+const ACTIVE_GAMES: ActiveGameId[] = [
   'claw-machine',
   'santa-dash',
   'gift-tetris',
@@ -74,12 +79,14 @@ interface LeadEventAggRow {
 
 export class ArcadeDatabase {
   private readonly db: DatabaseSync;
+  private readonly now: () => number;
 
-  constructor(dbPath: string) {
+  constructor(dbPath: string, options: { now?: () => number } = {}) {
     if (dbPath !== ':memory:') {
       fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     }
     this.db = new DatabaseSync(dbPath);
+    this.now = options.now ?? Date.now;
     this.init();
   }
 
@@ -132,6 +139,25 @@ export class ArcadeDatabase {
       CREATE INDEX IF NOT EXISTS idx_events_lead_id ON analytics_events(lead_id);
       CREATE INDEX IF NOT EXISTS idx_events_visitor_id ON analytics_events(visitor_id);
       CREATE INDEX IF NOT EXISTS idx_events_created_at ON analytics_events(created_at DESC);
+
+      -- One row per played round. Timing comes from the server clock, never the client.
+      CREATE TABLE IF NOT EXISTS game_runs (
+        id TEXT PRIMARY KEY,
+        visitor_id TEXT NOT NULL,
+        lead_id INTEGER,
+        game_id TEXT NOT NULL,
+        is_post_interaction INTEGER NOT NULL DEFAULT 0,
+        volunteer_name TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'started',
+        score INTEGER NOT NULL DEFAULT 0,
+        end_reason TEXT NOT NULL DEFAULT '',
+        started_ms INTEGER NOT NULL,
+        finished_ms INTEGER
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_runs_board ON game_runs(game_id, status, score DESC);
+      CREATE INDEX IF NOT EXISTS idx_runs_visitor ON game_runs(visitor_id);
+      CREATE INDEX IF NOT EXISTS idx_runs_lead ON game_runs(lead_id);
     `);
 
     // Safe backwards-compatible migration for pre-existing leads tables without visitor_id
@@ -287,10 +313,13 @@ export class ArcadeDatabase {
       .prepare('SELECT * FROM leads WHERE client_request_id = ?')
       .get(params.clientRequestId) as unknown as RawLeadRow;
 
-    // Retroactively link pre-registration street events from this phone's visitorId to this lead
+    // Retroactively link pre-registration street events and rounds from this phone's visitorId to this lead
     if (cleanVisitorId) {
       this.db
         .prepare('UPDATE analytics_events SET lead_id = ? WHERE visitor_id = ? AND lead_id IS NULL')
+        .run(inserted.id, cleanVisitorId);
+      this.db
+        .prepare('UPDATE game_runs SET lead_id = ? WHERE visitor_id = ? AND lead_id IS NULL')
         .run(inserted.id, cleanVisitorId);
     }
 
@@ -718,6 +747,231 @@ export class ArcadeDatabase {
       byVolunteer,
       recentActivity,
     };
+  }
+
+  private resolveLeadId(claimToken: string | undefined, visitorId: string): number | null {
+    if (claimToken) {
+      const byToken = this.db
+        .prepare('SELECT id FROM leads WHERE claim_token = ?')
+        .get(claimToken.trim()) as { id: number } | undefined;
+      if (byToken) return byToken.id;
+    }
+    if (visitorId) {
+      const byVisitor = this.db
+        .prepare('SELECT id FROM leads WHERE visitor_id = ? ORDER BY id DESC LIMIT 1')
+        .get(visitorId) as { id: number } | undefined;
+      if (byVisitor) return byVisitor.id;
+    }
+    return null;
+  }
+
+  /**
+   * Starts a server-timed round and logs the game_start analytics event. Returns the opaque run id.
+   * A round counts as "after the street interaction" when the player already has a registered pass.
+   */
+  startRun(params: {
+    gameId: ActiveGameId;
+    visitorId: string;
+    claimToken?: string;
+    volunteerName?: string;
+  }): string {
+    const visitorId = params.visitorId.trim().slice(0, 80);
+    const runId = crypto.randomBytes(18).toString('base64url');
+    const leadId = this.resolveLeadId(params.claimToken, visitorId);
+    const isPostInteraction = leadId !== null;
+
+    this.db
+      .prepare(
+        `INSERT INTO game_runs (id, visitor_id, lead_id, game_id, is_post_interaction, volunteer_name, started_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        runId,
+        visitorId,
+        leadId,
+        params.gameId,
+        isPostInteraction ? 1 : 0,
+        (params.volunteerName || '').trim().slice(0, 40),
+        this.now()
+      );
+
+    this.recordAnalyticsEvent({
+      eventType: 'game_start',
+      visitorId,
+      claimToken: params.claimToken,
+      gameId: params.gameId,
+      isPostInteraction,
+      volunteerName: params.volunteerName,
+    });
+
+    return runId;
+  }
+
+  /**
+   * Finishes a round. The score is verified against the server-measured duration and the game's caps.
+   * Rejected scores are kept for audit but never reach the leaderboard (and count as 0 in analytics).
+   */
+  finishRun(params: {
+    runId: string;
+    visitorId: string;
+    score: number;
+    endReason: RoundEndReason;
+  }): { ok: true; result: RunFinishResult } | { ok: false; status: 404 | 409; error: string } {
+    const run = this.db.prepare('SELECT * FROM game_runs WHERE id = ?').get(params.runId) as
+      | {
+          id: string;
+          visitor_id: string;
+          lead_id: number | null;
+          game_id: ActiveGameId;
+          is_post_interaction: number;
+          volunteer_name: string;
+          status: string;
+          started_ms: number;
+        }
+      | undefined;
+
+    // Same response for "missing" and "someone else's run" so run ids can't be probed.
+    if (!run || run.visitor_id !== params.visitorId.trim()) {
+      return { ok: false, status: 404, error: 'Round not found.' };
+    }
+    if (run.status !== 'started') {
+      return { ok: false, status: 409, error: 'Round already finished.' };
+    }
+
+    const nowMs = this.now();
+    const elapsedSec = (nowMs - run.started_ms) / 1000;
+    const expired = nowMs - run.started_ms > RUN_EXPIRY_MS;
+    const score = Math.max(0, Math.round(params.score));
+    const verified = !expired && isPlausibleScore(run.game_id, score, elapsedSec);
+
+    // Link to a lead registered since the run started (e.g. claimed gift mid-session).
+    const leadId = run.lead_id ?? this.resolveLeadId(undefined, run.visitor_id);
+
+    const previousBest = this.db
+      .prepare(
+        `SELECT MAX(score) AS best FROM game_runs
+         WHERE game_id = ? AND status = 'verified' AND id != ?
+           AND (${leadId !== null ? 'lead_id = ?' : 'visitor_id = ?'})`
+      )
+      .get(run.game_id, run.id, leadId ?? run.visitor_id) as { best: number | null };
+
+    this.db
+      .prepare(
+        `UPDATE game_runs SET status = ?, score = ?, end_reason = ?, finished_ms = ?, lead_id = ?
+         WHERE id = ?`
+      )
+      .run(verified ? 'verified' : 'rejected', score, params.endReason, nowMs, leadId, run.id);
+
+    this.db
+      .prepare(
+        `INSERT INTO analytics_events (
+          visitor_id, lead_id, event_type, game_id, score, is_post_interaction, volunteer_name, created_at
+        ) VALUES (?, ?, 'game_complete', ?, ?, ?, ?, ?)`
+      )
+      .run(
+        run.visitor_id,
+        leadId,
+        run.game_id,
+        verified ? score : 0,
+        run.is_post_interaction,
+        run.volunteer_name,
+        new Date(nowMs).toISOString()
+      );
+
+    const board = this.getGameBoard(run.game_id, leadId);
+    const isPersonalBest = verified && score > 0 && score > (previousBest.best ?? 0);
+
+    let claim: PublicClaimResult | null = null;
+    if (leadId !== null) {
+      const leadRow = this.db
+        .prepare('SELECT * FROM leads WHERE id = ?')
+        .get(leadId) as unknown as RawLeadRow | undefined;
+      claim = leadRow ? this.toEnrichedPublicClaimResult(leadRow) : null;
+    }
+
+    return {
+      ok: true,
+      result: {
+        status: verified ? 'verified' : 'rejected',
+        score,
+        rank: leadId !== null ? (board.me?.rank ?? null) : null,
+        wouldRank: leadId === null && verified && score > 0 ? this.getWouldRank(run.game_id, score) : null,
+        isPersonalBest,
+        board,
+        claim,
+      },
+    };
+  }
+
+  /** All-time top 3 for one game (best verified score per registered player), plus the viewer's own rank. */
+  getGameBoard(gameId: ActiveGameId, viewerLeadId: number | null): GameLeaderboard {
+    const rows = this.db
+      .prepare(
+        `WITH best AS (
+           SELECT lead_id, score, finished_ms,
+                  ROW_NUMBER() OVER (PARTITION BY lead_id ORDER BY score DESC, finished_ms ASC) AS rn
+           FROM game_runs
+           WHERE game_id = ? AND status = 'verified' AND lead_id IS NOT NULL AND score > 0
+         ),
+         board AS (
+           SELECT b.lead_id, b.score, l.name,
+                  ROW_NUMBER() OVER (ORDER BY b.score DESC, b.finished_ms ASC, b.lead_id ASC) AS rank
+           FROM best b JOIN leads l ON l.id = b.lead_id
+           WHERE b.rn = 1
+         )
+         SELECT lead_id, score, name, rank, (SELECT COUNT(*) FROM board) AS total
+         FROM board
+         WHERE rank <= 3 OR lead_id = ?
+         ORDER BY rank`
+      )
+      .all(gameId, viewerLeadId ?? -1) as Array<{
+      lead_id: number;
+      score: number;
+      name: string;
+      rank: number;
+      total: number;
+    }>;
+
+    const mine = viewerLeadId !== null ? rows.find((r) => r.lead_id === viewerLeadId) : undefined;
+
+    return {
+      gameId,
+      totalPlayers: rows[0]?.total ?? 0,
+      top: rows
+        .filter((r) => r.rank <= 3)
+        .map((r) => ({
+          rank: r.rank,
+          name: formatBoardName(r.name),
+          score: r.score,
+          isMe: r.lead_id === viewerLeadId,
+        })),
+      me: mine ? { rank: mine.rank, score: mine.score } : null,
+    };
+  }
+
+  /** Rank an unregistered score would take (ties go to whoever got there first). */
+  private getWouldRank(gameId: ActiveGameId, score: number): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS ahead FROM (
+           SELECT lead_id, MAX(score) AS best FROM game_runs
+           WHERE game_id = ? AND status = 'verified' AND lead_id IS NOT NULL AND score > 0
+           GROUP BY lead_id
+         ) WHERE best >= ?`
+      )
+      .get(gameId, score) as { ahead: number };
+    return row.ahead + 1;
+  }
+
+  getLeaderboards(claimToken?: string): GameLeaderboard[] {
+    let viewerLeadId: number | null = null;
+    if (claimToken) {
+      const lead = this.db
+        .prepare('SELECT id FROM leads WHERE claim_token = ?')
+        .get(claimToken.trim()) as { id: number } | undefined;
+      viewerLeadId = lead?.id ?? null;
+    }
+    return ACTIVE_GAMES.map((gameId) => this.getGameBoard(gameId, viewerLeadId));
   }
 
   close(): void {

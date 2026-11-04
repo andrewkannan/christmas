@@ -15,9 +15,12 @@ if (process.argv.includes('--production') && !process.env.NODE_ENV) {
   process.env.NODE_ENV = 'production';
 }
 
-export function createApp(dbPath = process.env.DB_PATH || './data/christmas.db') {
+export function createApp(
+  dbPath = process.env.DB_PATH || './data/christmas.db',
+  options: { now?: () => number } = {}
+) {
   const app = express();
-  const db = new ArcadeDatabase(dbPath);
+  const db = new ArcadeDatabase(dbPath, options);
 
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
