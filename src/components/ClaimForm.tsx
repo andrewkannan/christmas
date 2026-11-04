@@ -1,11 +1,26 @@
 import { useId, useRef, useState } from 'react';
-import type { EventSettings, GameId, PublicClaimResult } from '../types.ts';
+import {
+  ACTIVE_ARCADE_GAMES,
+  type EventSettings,
+  type GameId,
+  type PublicClaimResult,
+} from '../types.ts';
 import { submitWinnerLead } from '../lib/api.ts';
 import { getOrCreateVisitorId } from '../lib/playerSession.ts';
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  CrownIcon,
+  GiftBoxIcon,
+  ShieldCheckIcon,
+  ShiningTrophy,
+  TicketPassIcon,
+} from './Icons.tsx';
 
 interface ClaimFormProps {
   gamePlayed: GameId;
   score: number;
+  projectedRank: number | null;
   targetScore: number;
   volunteerName: string;
   settings: EventSettings;
@@ -14,16 +29,16 @@ interface ClaimFormProps {
 }
 
 const COUNTRY_OPTIONS = [
-  { code: '60', label: '🇲🇾 +60' },
-  { code: '65', label: '🇸🇬 +65' },
-  { code: '62', label: '🇮🇩 +62' },
-  { code: '63', label: '🇵🇭 +63' },
-  { code: '66', label: '🇹🇭 +66' },
-  { code: '61', label: '🇦🇺 +61' },
-  { code: '44', label: '🇬🇧 +44' },
-  { code: '1', label: '🇺🇸 +1' },
-  { code: '91', label: '🇮🇳 +91' },
-  { code: '86', label: '🇨🇳 +86' },
+  { code: '60', label: 'MY +60' },
+  { code: '65', label: 'SG +65' },
+  { code: '62', label: 'ID +62' },
+  { code: '63', label: 'PH +63' },
+  { code: '66', label: 'TH +66' },
+  { code: '61', label: 'AU +61' },
+  { code: '44', label: 'UK +44' },
+  { code: '1', label: 'US +1' },
+  { code: '91', label: 'IN +91' },
+  { code: '86', label: 'CN +86' },
 ];
 
 function createClientRequestId(): string {
@@ -36,6 +51,7 @@ function createClientRequestId(): string {
 export function ClaimForm({
   gamePlayed,
   score,
+  projectedRank,
   targetScore,
   volunteerName,
   settings,
@@ -50,6 +66,10 @@ export function ClaimForm({
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+
+  const gameMeta = ACTIVE_ARCADE_GAMES.find((g) => g.id === gamePlayed);
+  const trophyTier: 'gold' | 'silver' | 'bronze' =
+    projectedRank === 2 ? 'silver' : projectedRank === 3 ? 'bronze' : 'gold';
 
   const syncAriaInvalid = (el: HTMLInputElement) => {
     const invalid = !el.checkValidity();
@@ -100,19 +120,57 @@ export function ClaimForm({
   return (
     <section
       aria-labelledby={`${uid}-win-heading`}
-      style={{ maxInlineSize: '26rem', inlineSize: '100%', marginInline: 'auto' }}
+      className="unlock-card stage-enter"
     >
-      <div style={{ textAlign: 'center', marginBlockEnd: '1rem' }}>
-        <span className="challenger-tag">★ {score} pts · Winner</span>
-        <h1 id={`${uid}-win-heading`} className="hero-title" style={{ marginBlockStart: '0.45rem' }}>
-          Claim Your Gift
+      <div className="unlock-hero">
+        <div className="unlock-hero__glow" aria-hidden="true" />
+        <ShiningTrophy
+          tier={trophyTier}
+          size={78}
+          rankBadge={projectedRank && projectedRank <= 3 ? projectedRank : null}
+        />
+
+        <span className="marquee-pill marquee-pill--gold">
+          <CrownIcon size={13} />
+          <span>
+            {gameMeta ? `${gameMeta.title} · ` : ''}
+            {score} PTS
+            {projectedRank !== null ? ` · RANK #${projectedRank}` : ' · WINNER'}
+          </span>
+        </span>
+
+        <h1 id={`${uid}-win-heading`} className="unlock-hero__title">
+          Unlock Gift &amp; VIP Pass
         </h1>
-        <p className="subtle-text" style={{ marginBlockStart: '0.25rem' }}>
-          🎁 {settings.giftDescription} + {settings.eventTitle} Pass
-        </p>
       </div>
 
-      <form method="post" action="/api/leads" noValidate onSubmit={handleSubmit} className="card-panel">
+      <form method="post" action="/api/leads" noValidate onSubmit={handleSubmit} className="unlock-body">
+        <div className="unlock-perks" aria-label="Included rewards">
+          <div className="unlock-perk">
+            <span className="unlock-perk__icon unlock-perk__icon--crimson">
+              <GiftBoxIcon size={18} />
+            </span>
+            <div className="unlock-perk__copy">
+              <strong>{settings.giftDescription}</strong>
+              <span>Show pass code to collect right now</span>
+            </div>
+          </div>
+
+          <div className="unlock-perk">
+            <span className="unlock-perk__icon unlock-perk__icon--gold">
+              <TicketPassIcon size={18} />
+            </span>
+            <div className="unlock-perk__copy">
+              <strong>{settings.eventTitle}</strong>
+              <span>
+                {projectedRank !== null
+                  ? `VIP E-Pass + Lock Rank #${projectedRank} on Board`
+                  : 'VIP E-Pass + Official Leaderboard Access'}
+              </span>
+            </div>
+          </div>
+        </div>
+
         <div className="form-group">
           <label htmlFor={`${uid}-name`} className="form-label">
             Name
@@ -127,7 +185,7 @@ export function ClaimForm({
             required
             minLength={1}
             maxLength={80}
-            placeholder="Your name"
+            placeholder="e.g. Mei Ling"
             value={name}
             onChange={(e) => {
               setName(e.target.value);
@@ -138,7 +196,7 @@ export function ClaimForm({
             onBlur={(e) => syncAriaInvalid(e.currentTarget)}
           />
           <div className="field-error" role="alert">
-            <span aria-hidden="true">⚠ </span>Please enter your name.
+            Please enter your name.
           </div>
         </div>
 
@@ -174,7 +232,7 @@ export function ClaimForm({
               enterKeyHint="done"
               className="form-input"
               required
-              pattern="[+0-9 ()\-]{7,20}"
+              pattern="[0-9+\-\s\(\)]{7,20}"
               placeholder="012 345 6789"
               value={phone}
               onChange={(e) => {
@@ -187,35 +245,35 @@ export function ClaimForm({
             />
           </div>
           <div className="field-error" role="alert">
-            <span aria-hidden="true">⚠ </span>Enter a valid 7–15 digit mobile number.
+            Enter a valid 7–15 digit mobile number.
           </div>
         </div>
 
         {serverError && (
-          <div
-            role="alert"
-            style={{
-              marginBlockEnd: '0.9rem',
-              padding: '0.65rem 0.8rem',
-              borderRadius: 'var(--radius-sm)',
-              background: 'var(--danger-bg)',
-              border: '1px solid var(--danger-border)',
-              color: 'var(--danger-ink)',
-              fontWeight: 600,
-              fontSize: '0.88rem',
-            }}
-          >
-            ⚠ {serverError}
+          <div role="alert" className="form-alert">
+            {serverError}
           </div>
         )}
 
-        <button type="submit" className="btn btn--primary btn--full" disabled={submitting}>
-          {submitting ? 'Opening Pass…' : 'Get Gift & E-Pass'}
+        <button
+          type="submit"
+          className="btn btn--primary btn--shimmer btn--full"
+          disabled={submitting}
+        >
+          <GiftBoxIcon size={18} />
+          <span>{submitting ? 'Opening VIP Pass…' : 'Get Gift & VIP Pass'}</span>
+          <ArrowRightIcon size={15} />
         </button>
 
-        <div style={{ marginBlockStart: '0.65rem', textAlign: 'center' }}>
-          <button type="button" className="btn btn--ghost btn--sm" onClick={onReplay}>
-            ← Back to Arcade
+        <p className="privacy-reassurance">
+          <ShieldCheckIcon size={14} />
+          <span>Public board shows initials only (e.g. Mei L.) · Never shared.</span>
+        </p>
+
+        <div className="unlock-back">
+          <button type="button" className="btn btn--subtle btn--sm" onClick={onReplay}>
+            <ArrowLeftIcon size={14} />
+            <span>Back to Arcade</span>
           </button>
         </div>
       </form>

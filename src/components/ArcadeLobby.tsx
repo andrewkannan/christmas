@@ -5,6 +5,15 @@ import {
   type GameLeaderboard,
   type PublicClaimResult,
 } from '../types.ts';
+import {
+  CheckCircleIcon,
+  CrownIcon,
+  GameEmblem,
+  GiftBoxIcon,
+  PlayTriangleIcon,
+  SparkleIcon,
+  TicketPassIcon,
+} from './Icons.tsx';
 
 interface ArcadeLobbyProps {
   volunteerName: string;
@@ -25,80 +34,146 @@ export function ArcadeLobby({
   onOpenSavedPass,
   onSelectGame,
 }: ArcadeLobbyProps) {
-  return (
-    <section aria-labelledby="lobby-heading">
-      {savedPass ? (
-        <div className="saved-pass-banner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-            <span className="challenger-tag" style={{ background: 'var(--accent-emerald-soft)', color: 'var(--accent-emerald)' }}>
-              ✓ Saved Pass
-            </span>
-            <strong style={{ fontSize: '0.95rem' }}>
-              {savedPass.name} · {savedPass.redemptionCode}
-            </strong>
-          </div>
-          <button type="button" className="btn btn--primary btn--sm" onClick={onOpenSavedPass}>
-            🎟 Open Pass
-          </button>
-        </div>
-      ) : (
-        <div className="status-strip">
-          <span className="challenger-tag">
-            {volunteerName ? `🎄 Beat ${volunteerName} · ${targetScore} pts` : '🎄 Free Gift'}
-          </span>
-          <span style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--ink-secondary)' }}>
-            🎁 {settings.giftDescription}
-          </span>
-        </div>
-      )}
+  const conqueredCount = savedPass
+    ? ACTIVE_ARCADE_GAMES.filter((g) => (savedPass.bestScores?.[g.id] ?? 0) > 0).length
+    : 0;
 
-      <div style={{ paddingInline: '0.15rem' }}>
-        <h1 id="lobby-heading" className="hero-title">
+  return (
+    <section aria-labelledby="lobby-heading" className="lobby-stage stage-enter">
+      <div className="hero-marquee">
+        <div className="hero-marquee__glow" aria-hidden="true" />
+        <div className="hero-marquee__top">
+          {savedPass ? (
+            <span className="marquee-pill marquee-pill--gold">
+              <CheckCircleIcon size={14} />
+              <span>VIP Pass · {savedPass.redemptionCode}</span>
+            </span>
+          ) : volunteerName ? (
+            <span className="marquee-pill marquee-pill--gold">
+              <CrownIcon size={14} />
+              <span>Challenge · Beat {volunteerName} ({targetScore} pts)</span>
+            </span>
+          ) : (
+            <span className="marquee-pill marquee-pill--gold">
+              <SparkleIcon size={14} />
+              <span>Play &amp; Win Free Gift</span>
+            </span>
+          )}
+
+          {savedPass && (
+            <span className="marquee-count">
+              {conqueredCount}/{ACTIVE_ARCADE_GAMES.length} Scored
+            </span>
+          )}
+        </div>
+
+        <h1 id="lobby-heading" className="hero-marquee__title">
           Christmas Arcade
         </h1>
-        <p className="subtle-text" style={{ marginBlockStart: '0.25rem' }}>
-          {savedPass ? 'Tap any game · Beat your best score' : 'Tap any game · Win your gift & pass'}
+
+        <p className="hero-marquee__subtitle">
+          {savedPass
+            ? `Welcome back, ${savedPass.name}. Tap any cabinet to climb the all-time Top 3.`
+            : 'Pick any cabinet, chase the #1 trophy & unlock your gift in 45 seconds.'}
         </p>
+
+        {savedPass ? (
+          <div className="hero-marquee__pass-row">
+            <div className="cabinet-dots" aria-hidden="true">
+              {ACTIVE_ARCADE_GAMES.map((g) => {
+                const played = (savedPass.bestScores?.[g.id] ?? 0) > 0;
+                return (
+                  <span
+                    key={g.id}
+                    className={`cabinet-dot${played ? ' cabinet-dot--done' : ''}`}
+                  />
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              className="btn btn--gold-light btn--sm"
+              onClick={onOpenSavedPass}
+            >
+              <TicketPassIcon size={15} />
+              <span>Open VIP Pass</span>
+            </button>
+          </div>
+        ) : (
+          <div className="hero-reward-strip">
+            <span className="hero-reward-strip__icon">
+              <GiftBoxIcon size={18} />
+            </span>
+            <div className="hero-reward-strip__text">
+              <strong>{settings.giftDescription}</strong>
+              <span>+ {settings.eventTitle} VIP Pass</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <ul role="list" className="arcade-shelf">
         {ACTIVE_ARCADE_GAMES.map((game) => {
           const best = savedPass?.bestScores?.[game.id];
-          const leader = boards?.find((b) => b.gameId === game.id)?.top[0];
+          const board = boards?.find((b) => b.gameId === game.id);
+          const leader = board?.top[0];
+          const myRank = board?.me?.rank ?? null;
+
           return (
             <li key={game.id}>
               <button
                 type="button"
-                className="arcade-tile"
+                className={`arcade-tile${myRank === 1 ? ' arcade-tile--champion' : ''}`}
                 onClick={() => onSelectGame(game.id)}
               >
                 <div
                   className="arcade-tile__icon"
                   style={{ background: game.accentBg, color: game.accentFg }}
-                  aria-hidden="true"
                 >
-                  {game.emoji}
+                  <GameEmblem gameId={game.id} size={36} />
                 </div>
 
                 <div className="arcade-tile__meta">
-                  <h2 className="arcade-tile__title">{game.title}</h2>
-                  <div className="arcade-tile__sub">
-                    <span>
+                  <div className="arcade-tile__title-row">
+                    <h2 className="arcade-tile__title">{game.title}</h2>
+                    <span className="arcade-tile__tag">
                       {game.shortTag} · {game.durationLabel}
                     </span>
-                    {typeof best === 'number' && best > 0 && (
-                      <span className="arcade-tile__best">★ {best}</span>
+                  </div>
+
+                  <div className="arcade-tile__sub">
+                    {leader ? (
+                      <span
+                        className={`arcade-tile__leader${leader.isMe ? ' arcade-tile__leader--me' : ''}`}
+                      >
+                        <CrownIcon size={12} />
+                        <span className="visually-hidden">Top score:</span>
+                        <span>
+                          #1 {leader.isMe ? 'You' : leader.name} · {leader.score}
+                        </span>
+                      </span>
+                    ) : boards ? (
+                      <span className="arcade-tile__leader arcade-tile__leader--open">
+                        <CrownIcon size={12} />
+                        <span>#1 Spot Open</span>
+                      </span>
+                    ) : (
+                      <span className="arcade-tile__hint">{game.controlHint}</span>
                     )}
-                    {leader && (
-                      <span className="arcade-tile__leader">
-                        <span aria-hidden="true">🏆</span>
-                        <span className="visually-hidden">Top score:</span> {leader.score} {leader.name}
+
+                    {typeof best === 'number' && best > 0 && (
+                      <span className="arcade-tile__best">
+                        <SparkleIcon size={11} />
+                        <span>Best {best}</span>
                       </span>
                     )}
                   </div>
                 </div>
 
-                <span className="arcade-tile__play">Play</span>
+                <span className="arcade-tile__play">
+                  <span>Play</span>
+                  <PlayTriangleIcon size={11} />
+                </span>
               </button>
             </li>
           );

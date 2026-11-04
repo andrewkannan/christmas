@@ -1,35 +1,90 @@
 import type { LeaderboardEntry } from '../types.ts';
-
-const MEDALS = ['🥇', '🥈', '🥉'] as const;
+import { MedalEmblem } from './Icons.tsx';
 
 interface TopThreeProps {
   entries: LeaderboardEntry[];
   /** Accessible label, e.g. "Claw Grab top 3". */
   label: string;
   compact?: boolean;
+  /** Optional projected rank (1..3) for an unregistered player who hasn't claimed yet. */
+  projectedRank?: number | null;
+  projectedScore?: number;
 }
 
-/** All-time top 3 for one game. Names arrive pre-formatted by the server ("Mei L."). */
-export function TopThree({ entries, label, compact = false }: TopThreeProps) {
-  if (entries.length === 0) {
-    return <p className="top3-empty">No one on the board yet — be the first!</p>;
-  }
+const SLOT_NAMES = ['Gold #1 Spot', 'Silver #2 Spot', 'Bronze #3 Spot'] as const;
+
+/**
+ * 3-Spot Championship Podium for one game.
+ * Always displays the Gold, Silver, and Bronze podium slots so even a fresh board
+ * invites the player to claim the #1 crown instead of showing flat empty text.
+ */
+export function TopThree({
+  entries,
+  label,
+  compact = false,
+  projectedRank = null,
+  projectedScore = 0,
+}: TopThreeProps) {
+  const ranks = [1, 2, 3] as const;
 
   return (
     <ol className={`top3-list${compact ? ' top3-list--compact' : ''}`} aria-label={label}>
-      {entries.map((entry) => (
-        <li key={entry.rank} className={`top3-row${entry.isMe ? ' top3-row--me' : ''}`}>
-          <span className="top3-medal" aria-hidden="true">
-            {MEDALS[entry.rank - 1] ?? `#${entry.rank}`}
-          </span>
-          <span className="visually-hidden">Rank {entry.rank}: </span>
-          <span className="top3-name">
-            {entry.name}
-            {entry.isMe && <span className="top3-you"> · You</span>}
-          </span>
-          <span className="top3-score">{entry.score}</span>
-        </li>
-      ))}
+      {ranks.map((rank) => {
+        const entry = entries.find((e) => e.rank === rank);
+        const isProjectedSlot =
+          !entry && projectedRank === rank && projectedScore > 0;
+        const isProjectedBump =
+          Boolean(entry) && projectedRank === rank && projectedScore > 0;
+
+        if (entry) {
+          return (
+            <li
+              key={rank}
+              className={`top3-row top3-row--rank-${rank}${entry.isMe ? ' top3-row--me' : ''}`}
+            >
+              <span className="top3-medal">
+                <MedalEmblem rank={rank} size={28} />
+              </span>
+              <span className="visually-hidden">Rank {rank}: </span>
+              <span className="top3-name">
+                {entry.name}
+                {entry.isMe && <span className="top3-you">YOU</span>}
+                {isProjectedBump && (
+                  <span className="top3-projected-tag">Beat by you ({projectedScore})</span>
+                )}
+              </span>
+              <span className="top3-score">{entry.score}</span>
+            </li>
+          );
+        }
+
+        return (
+          <li
+            key={rank}
+            className={`top3-row top3-row--open${isProjectedSlot ? ' top3-row--projected' : ''}`}
+          >
+            <span className="top3-medal">
+              <MedalEmblem rank={rank} open={!isProjectedSlot} size={28} />
+            </span>
+            <span className="visually-hidden">Rank {rank}: </span>
+            <span className="top3-name">
+              {isProjectedSlot ? (
+                <>
+                  <strong>Your Score Ready!</strong>
+                  <span className="top3-projected-tag">Claim to lock #{rank}</span>
+                </>
+              ) : (
+                <span className="top3-open-label">
+                  {SLOT_NAMES[rank - 1]} · {rank === 1 && entries.length === 0 ? 'Be first!' : 'Open'}
+                </span>
+              )}
+            </span>
+            <span className="top3-score top3-score--open">
+              {isProjectedSlot ? projectedScore : '—'}
+            </span>
+          </li>
+        );
+      })}
     </ol>
   );
 }

@@ -17,7 +17,13 @@ import {
   savePassLocally,
   trackArcadeEvent,
 } from './lib/playerSession.ts';
-import { isSoundMuted, toggleSoundMuted } from './lib/sound.ts';
+import { isSoundMuted, playArcadeTone, toggleSoundMuted } from './lib/sound.ts';
+import {
+  StarMarkIcon,
+  TicketPassIcon,
+  VolumeOffIcon,
+  VolumeOnIcon,
+} from './components/Icons.tsx';
 import { ArcadeLobby } from './components/ArcadeLobby.tsx';
 import { GameShell } from './components/games/GameShell.tsx';
 import { ClawMachineGame } from './components/games/ClawMachineGame.tsx';
@@ -57,8 +63,8 @@ const FALLBACK_SETTINGS: EventSettings = {
 type PlayerStep =
   | { kind: 'lobby' }
   | { kind: 'playing'; game: ActiveGameId }
-  | { kind: 'claim'; game: ActiveGameId; score: number }
-  | { kind: 'winner'; claim: PublicClaimResult };
+  | { kind: 'claim'; game: ActiveGameId; score: number; projectedRank: number | null }
+  | { kind: 'winner'; claim: PublicClaimResult; justUnlocked?: boolean };
 
 export function App() {
   const [routeMode, setRouteMode] = useState<'player' | 'team'>(() =>
@@ -123,7 +129,7 @@ export function App() {
               isPostInteraction: true,
               volunteerName: claim.volunteerName,
             });
-            setStep({ kind: 'winner', claim });
+            setStep({ kind: 'winner', claim, justUnlocked: false });
           }
         })
         .catch(() => {
@@ -164,13 +170,17 @@ export function App() {
         document.title = `Playing | Christmas Arcade`;
         break;
       case 'claim':
-        document.title = `Claim Gift | ${settings.churchName}`;
+        document.title = `Unlock Gift & Pass | ${settings.churchName}`;
         break;
       case 'winner':
         document.title = `Pass ${step.claim.redemptionCode} | ${settings.eventTitle}`;
         break;
     }
   }, [routeMode, step, settings.churchName, settings.eventTitle]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [routeMode, step.kind]);
 
   const navigateMode = (nextMode: 'player' | 'team') => {
     const targetPath = nextMode === 'team' ? '/team' : `/${window.location.search}`;
@@ -216,7 +226,7 @@ export function App() {
       },
       (updated) => setSavedPass(updated)
     );
-    setStep({ kind: 'winner', claim: savedPass });
+    setStep({ kind: 'winner', claim: savedPass, justUnlocked: false });
   };
 
   const handleStartFreshFriend = () => {
@@ -255,31 +265,35 @@ export function App() {
             setStep({ kind: 'lobby' });
           }}
         >
-          <span className="brand-badge" aria-hidden="true">
-            🎄
+          <span className="brand-badge">
+            <StarMarkIcon size={18} />
           </span>
-          <span>{settings.churchName}</span>
+          <span className="brand-copy">
+            <span className="brand-copy__name">{settings.churchName}</span>
+            <span className="brand-copy__sub">Christmas Arcade</span>
+          </span>
         </a>
 
-        <nav aria-label="Controls" style={{ display: 'flex', gap: '0.38rem', alignItems: 'center' }}>
+        <nav aria-label="Controls" className="top-bar__controls">
           {routeMode === 'player' && savedPass && step.kind !== 'winner' && (
             <button
               type="button"
               className="btn btn--primary btn--sm"
               onClick={handleOpenSavedInvite}
             >
-              🎟 Pass
+              <TicketPassIcon size={15} />
+              <span>Pass</span>
             </button>
           )}
           {routeMode === 'player' && (
             <button
               type="button"
-              className="btn btn--ghost btn--sm"
+              className="icon-round-btn"
               aria-pressed={soundMuted}
               aria-label={soundMuted ? 'Unmute sound' : 'Mute sound'}
               onClick={() => setSoundMuted(toggleSoundMuted())}
             >
-              {soundMuted ? '🔇' : '🔊'}
+              {soundMuted ? <VolumeOffIcon size={18} /> : <VolumeOnIcon size={18} />}
             </button>
           )}
           {routeMode === 'team' && (
@@ -293,7 +307,7 @@ export function App() {
       <main
         id="main-content"
         tabIndex={-1}
-        style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+        className="app-main"
       >
         {routeMode === 'team' ? (
           teamAuthed === null ? (
@@ -336,8 +350,13 @@ export function App() {
                 volunteerName={volunteerName}
                 targetScore={targetScore}
                 onExit={() => setStep({ kind: 'lobby' })}
-                onClaim={(sessionBest) =>
-                  setStep({ kind: 'claim', game: playingGame.id, score: sessionBest })
+                onClaim={(sessionBest, projectedRank) =>
+                  setStep({
+                    kind: 'claim',
+                    game: playingGame.id,
+                    score: sessionBest,
+                    projectedRank,
+                  })
                 }
                 onOpenPass={handleOpenSavedInvite}
                 onRoundRecorded={handleRoundRecorded}
@@ -348,19 +367,21 @@ export function App() {
               <ClaimForm
                 gamePlayed={step.game}
                 score={step.score}
+                projectedRank={step.projectedRank}
                 targetScore={targetScore}
                 volunteerName={volunteerName}
                 settings={settings}
                 onClaimed={(claim) => {
                   savePassLocally(claim);
                   setSavedPass(claim);
+                  playArcadeTone('fanfare');
                   void trackArcadeEvent({
                     eventType: 'e_invite_view',
                     claimToken: claim.claimToken,
                     isPostInteraction: false,
                     volunteerName: claim.volunteerName || volunteerName || undefined,
                   });
-                  setStep({ kind: 'winner', claim });
+                  setStep({ kind: 'winner', claim, justUnlocked: true });
                 }}
                 onReplay={() => setStep({ kind: 'lobby' })}
               />
@@ -369,12 +390,14 @@ export function App() {
             {step.kind === 'winner' && (
               <WinnerPass
                 claim={step.claim}
+                justUnlocked={Boolean(step.justUnlocked)}
                 settings={settings}
                 googleCalendarUrl={googleCalendarUrl}
                 onPassUpdated={(next) => {
                   setSavedPass(next);
                   setStep((curr) => (curr.kind === 'winner' ? { ...curr, claim: next } : curr));
                 }}
+                onSelectGame={handleSelectGame}
                 onKeepPlayingSamePlayer={() => setStep({ kind: 'lobby' })}
                 onStartFreshFriend={handleStartFreshFriend}
               />

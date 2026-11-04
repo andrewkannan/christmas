@@ -1,19 +1,37 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ACTIVE_ARCADE_GAMES,
+  type ActiveGameId,
   type EventSettings,
   type GameLeaderboard,
   type PublicClaimResult,
 } from '../types.ts';
 import { fetchLeaderboards, markGiftClaimedPublic } from '../lib/api.ts';
 import { savePassLocally, trackArcadeEvent } from '../lib/playerSession.ts';
-import { renderPersonalizedETicketPng } from '../lib/ticketCanvas.ts';
+import { renderPersonalizedETicketBlob } from '../lib/ticketCanvas.ts';
+import { ConfettiBurst } from './ConfettiBurst.tsx';
+import {
+  ArrowRightIcon,
+  CalendarIcon,
+  CheckCircleIcon,
+  CrownIcon,
+  DownloadPassIcon,
+  GameEmblem,
+  GiftBoxIcon,
+  MapPinIcon,
+  MedalEmblem,
+  PlayTriangleIcon,
+  StarMarkIcon,
+  WhatsAppIcon,
+} from './Icons.tsx';
 
 interface WinnerPassProps {
   claim: PublicClaimResult;
+  justUnlocked?: boolean;
   settings: EventSettings;
   googleCalendarUrl: string;
   onPassUpdated: (next: PublicClaimResult) => void;
+  onSelectGame: (game: ActiveGameId) => void;
   onKeepPlayingSamePlayer: () => void;
   onStartFreshFriend: () => void;
 }
@@ -33,14 +51,18 @@ function formatReadableDate(iso: string): string {
 
 export function WinnerPass({
   claim,
+  justUnlocked = false,
   settings,
   googleCalendarUrl,
   onPassUpdated,
+  onSelectGame,
   onKeepPlayingSamePlayer,
   onStartFreshFriend,
 }: WinnerPassProps) {
   const [giftClaimed, setGiftClaimed] = useState(claim.giftClaimed);
   const [markingClaim, setMarkingClaim] = useState(false);
+  const [savingPass, setSavingPass] = useState(false);
+  const [passSavedNotice, setPassSavedNotice] = useState(false);
   const [nowDate, setNowDate] = useState(() => new Date());
   const [boards, setBoards] = useState<GameLeaderboard[] | null>(null);
   const [boardsError, setBoardsError] = useState(false);
@@ -68,39 +90,14 @@ export function WinnerPass({
     };
   }, [claim.claimToken]);
 
-  const ticketDataUrl = useMemo(
-    () =>
-      renderPersonalizedETicketPng({
-        guestName: claim.name,
-        redemptionCode: claim.redemptionCode,
-        settings,
-      }),
-    [claim.name, claim.redemptionCode, settings]
-  );
-
   const friendShareUrl = useMemo(() => {
     const readableDate = formatReadableDate(settings.eventDateIso);
     const shareText =
-      `Play the Christmas Arcade & join me at *${settings.eventTitle}*! 🎄🎁\n` +
-      `📅 ${readableDate}\n📍 ${settings.venueName}\n` +
+      `Play the Christmas Arcade & join me at *${settings.eventTitle}*!\n` +
+      `${readableDate}\n${settings.venueName}\n` +
       `${window.location.origin}`;
     return `https://wa.me/?text=${encodeURIComponent(shareText)}`;
   }, [settings]);
-
-  const handleMarkClaimed = async () => {
-    if (giftClaimed || markingClaim) return;
-    setMarkingClaim(true);
-    try {
-      const res = await markGiftClaimedPublic(claim.claimToken);
-      setGiftClaimed(res.claim.giftClaimed);
-      savePassLocally(res.claim);
-      onPassUpdated(res.claim);
-    } catch {
-      // Allow retry if offline
-    } finally {
-      setMarkingClaim(false);
-    }
-  };
 
   const emitAction = (
     eventType:
@@ -121,52 +118,134 @@ export function WinnerPass({
     );
   };
 
+  const handleMarkClaimed = async () => {
+    if (giftClaimed || markingClaim) return;
+    setMarkingClaim(true);
+    try {
+      const res = await markGiftClaimedPublic(claim.claimToken);
+      setGiftClaimed(res.claim.giftClaimed);
+      savePassLocally(res.claim);
+      onPassUpdated(res.claim);
+    } catch {
+      // Allow retry if offline
+    } finally {
+      setMarkingClaim(false);
+    }
+  };
+
+  const handleSavePass = async () => {
+    if (savingPass) return;
+    setSavingPass(true);
+    emitAction('ticket_download');
+
+    try {
+      const blob = await renderPersonalizedETicketBlob({
+        guestName: claim.name,
+        redemptionCode: claim.redemptionCode,
+        settings,
+      });
+      if (!blob) return;
+
+      const fileName = `christmas-pass-${claim.redemptionCode.toLowerCase()}.png`;
+      const isCoarsePointer =
+        typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
+      // On mobile browsers (iOS Safari / Android Chrome), use native Share Sheet so guests
+      // can tap "Save Image" straight to Photos without navigating to a "data:" URL!
+      if (isCoarsePointer && typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        const file = new File([blob], fileName, { type: 'image/png' });
+        if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: `${settings.eventTitle} · VIP Pass`,
+            });
+            setPassSavedNotice(true);
+            window.setTimeout(() => setPassSavedNotice(false), 2600);
+            return;
+          } catch (err) {
+            if (err instanceof DOMException && err.name === 'AbortError') {
+              return;
+            }
+            // Fall through to Blob object-URL download if share failed for another reason.
+          }
+        }
+      }
+
+      // Clean Blob Object-URL download (never navigates the address bar to "data:")
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+      setPassSavedNotice(true);
+      window.setTimeout(() => setPassSavedNotice(false), 2600);
+    } finally {
+      setSavingPass(false);
+    }
+  };
+
+  const rankedCount = useMemo(() => {
+    if (boards) {
+      return boards.filter((b) => Boolean(b.me)).length;
+    }
+    return ACTIVE_ARCADE_GAMES.filter((g) => (claim.bestScores?.[g.id] ?? 0) > 0).length;
+  }, [boards, claim.bestScores]);
+
   return (
     <section
       aria-labelledby="winner-pass-heading"
-      style={{ maxInlineSize: '27rem', inlineSize: '100%', marginInline: 'auto', display: 'grid', gap: '0.85rem' }}
+      className="pass-stage stage-enter"
     >
+      {justUnlocked && <ConfettiBurst intensity="high" />}
 
       <div className="wallet-pass">
         <div className="wallet-pass__header" aria-live="off">
-          <div style={{ fontWeight: 800, fontSize: '0.84rem', letterSpacing: '0.03em' }}>
+          <div className="wallet-pass__live">
             <span className="live-dot" aria-hidden="true" />
-            LIVE · {nowDate.toLocaleTimeString()}
+            <span>LIVE · {nowDate.toLocaleTimeString()}</span>
           </div>
-          <div style={{ fontWeight: 700, fontSize: '0.82rem', opacity: 0.92 }}>
-            {settings.churchName}
+          <div className="wallet-pass__org">
+            <StarMarkIcon size={14} />
+            <span>{settings.churchName}</span>
           </div>
         </div>
 
-        <div className="wallet-pass__body">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem' }}>
-            <div>
-              <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--ink-secondary)', textTransform: 'uppercase' }}>
-                Winner Pass
-              </div>
-              <h1 id="winner-pass-heading" style={{ margin: '0.1rem 0 0', fontSize: '1.45rem', fontWeight: 800 }}>
-                {claim.name}
-              </h1>
-            </div>
-            <span className="challenger-tag">🎁 {settings.giftDescription}</span>
-          </div>
+        <div className="wallet-pass__top">
+          <div className="wallet-pass__eyebrow">Official Winner Pass</div>
+          <h1 id="winner-pass-heading" className="wallet-pass__guest">
+            {claim.name}
+          </h1>
 
+          <div className={`gift-entitlement${giftClaimed ? ' gift-entitlement--claimed' : ''}`}>
+            <span className="gift-entitlement__icon">
+              <GiftBoxIcon size={18} />
+            </span>
+            <span className="gift-entitlement__name">{settings.giftDescription}</span>
+            <span className="gift-entitlement__badge">
+              {giftClaimed ? 'Collected' : 'Ready'}
+            </span>
+          </div>
+        </div>
+
+        <div className="wallet-pass__tear" aria-hidden="true">
+          <span className="wallet-pass__notch wallet-pass__notch--left" />
+          <span className="wallet-pass__line" />
+          <span className="wallet-pass__notch wallet-pass__notch--right" />
+        </div>
+
+        <div className="wallet-pass__body">
           <div className="redemption-code-box">
+            <div className="redemption-code-box__label">Show Code to Collect Gift</div>
             <div className="redemption-code">{claim.redemptionCode}</div>
-            <div style={{ marginBlockStart: '0.45rem' }}>
+            <div className="redemption-code-box__action">
               {giftClaimed ? (
-                <span
-                  style={{
-                    display: 'inline-block',
-                    padding: '0.28rem 0.75rem',
-                    borderRadius: '999px',
-                    background: 'var(--accent-emerald-soft)',
-                    color: 'var(--accent-emerald)',
-                    fontWeight: 800,
-                    fontSize: '0.82rem',
-                  }}
-                >
-                  ✓ Gift Claimed
+                <span className="claimed-pill">
+                  <CheckCircleIcon size={15} />
+                  <span>Gift Claimed</span>
                 </span>
               ) : (
                 <button
@@ -175,67 +254,70 @@ export function WinnerPass({
                   disabled={markingClaim}
                   onClick={handleMarkClaimed}
                 >
-                  {markingClaim ? 'Saving…' : 'Staff: Mark Gift Given ✓'}
+                  <CheckCircleIcon size={15} />
+                  <span>{markingClaim ? 'Saving…' : 'Staff: Mark Gift Given'}</span>
                 </button>
               )}
             </div>
           </div>
 
-          <div
-            style={{
-              padding: '0.9rem',
-              borderRadius: 'var(--radius-lg)',
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border-subtle)',
-            }}
-          >
-            <div style={{ fontSize: '0.73rem', fontWeight: 800, color: 'var(--accent-crimson)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              E-Invitation
-            </div>
-            <h2 style={{ margin: '0.15rem 0 0.35rem', fontSize: '1.15rem', fontWeight: 800 }}>
-              {settings.eventTitle}
-            </h2>
-            <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--ink-primary)' }}>
-              📅 {formatReadableDate(settings.eventDateIso)}
-            </div>
-            <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--ink-secondary)', marginBlockStart: '0.15rem' }}>
-              📍 {settings.venueName}
-              {settings.venueAddress ? ` · ${settings.venueAddress}` : ''}
-            </div>
-            {settings.mapsUrl && (
-              <div style={{ marginBlockStart: '0.35rem' }}>
-                <a
-                  href={settings.mapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => emitAction('maps_click')}
-                  style={{ color: 'var(--accent-crimson)', fontWeight: 700, fontSize: '0.84rem', textDecoration: 'none' }}
-                >
-                  Open in Maps →
-                </a>
+          <div className="invite-card">
+            <div className="invite-card__eyebrow">VIP E-Invitation</div>
+            <h2 className="invite-card__title">{settings.eventTitle}</h2>
+            {settings.eventSubtitle && (
+              <p className="invite-card__subtitle">{settings.eventSubtitle}</p>
+            )}
+
+            <div className="invite-card__meta">
+              <div className="invite-card__row">
+                <CalendarIcon size={15} />
+                <span>{formatReadableDate(settings.eventDateIso)}</span>
               </div>
+              <div className="invite-card__row">
+                <MapPinIcon size={15} />
+                <span>
+                  {settings.venueName}
+                  {settings.venueAddress ? ` · ${settings.venueAddress}` : ''}
+                </span>
+              </div>
+            </div>
+
+            {settings.mapsUrl && (
+              <a
+                href={settings.mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => emitAction('maps_click')}
+                className="invite-card__maps"
+              >
+                <span>Open in Maps</span>
+                <ArrowRightIcon size={13} />
+              </a>
             )}
           </div>
 
           <button
             type="button"
-            className="btn btn--primary btn--full"
+            className="btn btn--primary btn--shimmer btn--full"
             onClick={onKeepPlayingSamePlayer}
           >
-            🎮 Play All 5 Games ({claim.totalGamesPlayed || 1} Played)
+            <PlayTriangleIcon size={14} />
+            <span>
+              Play All 5 Games ({Math.max(1, claim.totalGamesPlayed || rankedCount)} Played)
+            </span>
           </button>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-            {ticketDataUrl && (
-              <a
-                href={ticketDataUrl}
-                download={`christmas-pass-${claim.redemptionCode.toLowerCase()}.png`}
-                onClick={() => emitAction('ticket_download')}
-                className="btn btn--ghost btn--sm"
-              >
-                📥 Save Pass
-              </a>
-            )}
+          <div className="pass-actions-grid">
+            <button
+              type="button"
+              onClick={handleSavePass}
+              disabled={savingPass}
+              className="btn btn--ghost btn--sm"
+            >
+              {passSavedNotice ? <CheckCircleIcon size={16} /> : <DownloadPassIcon size={16} />}
+              <span>{passSavedNotice ? 'Pass Ready' : 'Save Pass'}</span>
+            </button>
+
             <a
               href={friendShareUrl}
               target="_blank"
@@ -243,11 +325,10 @@ export function WinnerPass({
               onClick={() => emitAction('invite_share_whatsapp')}
               className="btn btn--whatsapp btn--sm"
             >
-              💬 Share Invite
+              <WhatsAppIcon size={16} />
+              <span>Share Invite</span>
             </a>
-          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
             <a
               href={googleCalendarUrl}
               target="_blank"
@@ -255,56 +336,90 @@ export function WinnerPass({
               onClick={() => emitAction('calendar_google')}
               className="btn btn--ghost btn--sm"
             >
-              📅 Google Cal
+              <CalendarIcon size={15} />
+              <span>Google Cal</span>
             </a>
+
             <a
               href="/api/calendar.ics"
               download
               onClick={() => emitAction('calendar_ics')}
               className="btn btn--ghost btn--sm"
             >
-              🍎 Apple Cal
+              <CalendarIcon size={15} />
+              <span>Apple Cal</span>
             </a>
           </div>
         </div>
       </div>
 
       <section className="card-panel my-ranks" aria-labelledby="my-ranks-heading">
-        <h2 id="my-ranks-heading" className="section-title">
-          🏆 My ranks
-        </h2>
+        <div className="my-ranks__header">
+          <h2 id="my-ranks-heading" className="section-title my-ranks__title">
+            <CrownIcon size={18} className="my-ranks__crown" />
+            <span>My ranks</span>
+          </h2>
+          <span className="my-ranks__progress">
+            {rankedCount}/{ACTIVE_ARCADE_GAMES.length} Ranked
+          </span>
+        </div>
+
         {boardsError && !boards && <p className="top3-empty">Ranks unavailable offline.</p>}
-        {!boardsError && !boards && <p className="top3-empty">Loading…</p>}
+        {!boardsError && !boards && <div className="podium-skeleton" aria-hidden="true" />}
+
         {boards && (
           <ul role="list" className="my-ranks__list">
             {ACTIVE_ARCADE_GAMES.map((game) => {
               const board = boards.find((b) => b.gameId === game.id);
               const leader = board?.top[0];
+              const me = board?.me ?? null;
+              const isPodium = me !== null && me.rank <= 3;
+
               return (
-                <li key={game.id} className="my-ranks__row">
-                  <span className="my-ranks__game">
-                    <span aria-hidden="true">{game.emoji}</span> {game.title}
-                  </span>
-                  <span className="my-ranks__me">
-                    {board?.me ? (
-                      <>
-                        <strong>#{board.me.rank}</strong> · ★ {board.me.score}
-                      </>
-                    ) : (
-                      <span className="subtle-text">No score yet</span>
+                <li
+                  key={game.id}
+                  className={`my-ranks__row${me?.rank === 1 ? ' my-ranks__row--first' : ''}`}
+                >
+                  <div
+                    className="my-ranks__emblem"
+                    style={{ background: game.accentBg, color: game.accentFg }}
+                  >
+                    <GameEmblem gameId={game.id} size={24} />
+                  </div>
+
+                  <div className="my-ranks__info">
+                    <div className="my-ranks__game">{game.title}</div>
+                    <div className="my-ranks__sub">
+                      {me ? (
+                        <span className="my-ranks__me-stat">
+                          <strong>#{me.rank}</strong> · {me.score} pts
+                          {leader && !leader.isMe ? ` · #1 ${leader.name} (${leader.score})` : ''}
+                          {leader?.isMe ? ' · All-Time Leader!' : ''}
+                        </span>
+                      ) : leader ? (
+                        <span>
+                          #1 {leader.name} · {leader.score} pts
+                        </span>
+                      ) : (
+                        <span className="my-ranks__open">#1 Spot Open — Claim It!</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="my-ranks__right">
+                    {isPodium && (
+                      <MedalEmblem rank={me.rank as 1 | 2 | 3} size={26} />
                     )}
-                  </span>
-                  <span className="my-ranks__leader">
-                    {leader ? (
-                      <>
-                        <span aria-hidden="true">🥇</span>
-                        <span className="visually-hidden">Leader:</span> {leader.isMe ? 'You' : leader.name}{' '}
-                        {leader.score}
-                      </>
-                    ) : (
-                      '—'
-                    )}
-                  </span>
+                    <button
+                      type="button"
+                      className={`rank-play-pill${me ? '' : ' rank-play-pill--cta'}`}
+                      onClick={() => onSelectGame(game.id)}
+                      aria-label={`Play ${game.title}`}
+                    >
+                      <span>{me ? (me.rank === 1 ? 'Defend' : 'Beat') : 'Play'}</span>
+                      <PlayTriangleIcon size={10} />
+                    </button>
+                  </div>
                 </li>
               );
             })}
@@ -312,8 +427,8 @@ export function WinnerPass({
         )}
       </section>
 
-      <div style={{ textAlign: 'center' }}>
-        <button type="button" className="btn btn--ghost btn--sm" onClick={onStartFreshFriend}>
+      <div className="switch-player-row">
+        <button type="button" className="btn btn--subtle btn--sm" onClick={onStartFreshFriend}>
           Switch Player
         </button>
       </div>
