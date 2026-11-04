@@ -1,7 +1,10 @@
 import type {
   ActiveGameId,
+  CreateHockeyRoomResponse,
   EventSettings,
   FullGameLeaderboard,
+  HockeyRoomSnapshot,
+  JoinHockeyRoomResponse,
   LeadSubmissionInput,
   LeaderboardResponse,
   MasterAnalyticsResponse,
@@ -103,6 +106,64 @@ export async function markGiftClaimedPublic(
     method: 'POST',
   });
   return parseJsonOrThrow(res);
+}
+
+export async function createHockeyRoom(hostName?: string): Promise<CreateHockeyRoomResponse> {
+  const res = await fetch('/api/versus/rooms', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hostName }),
+    signal: AbortSignal.timeout(ROUND_REQUEST_TIMEOUT_MS),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function joinHockeyRoom(
+  code: string,
+  joinerName?: string
+): Promise<JoinHockeyRoomResponse> {
+  const res = await fetch('/api/versus/rooms/join', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, joinerName }),
+    signal: AbortSignal.timeout(ROUND_REQUEST_TIMEOUT_MS),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function fetchHockeyRoomSnapshot(
+  code: string,
+  token: string
+): Promise<{ snapshot: HockeyRoomSnapshot }> {
+  const res = await fetch(
+    `/api/versus/rooms/${encodeURIComponent(code)}?token=${encodeURIComponent(token)}`,
+    { signal: AbortSignal.timeout(4000) }
+  );
+  return parseJsonOrThrow(res);
+}
+
+export async function sendHockeyStrikerInput(
+  code: string,
+  token: string,
+  x: number,
+  y: number
+): Promise<{ snapshot: HockeyRoomSnapshot }> {
+  const res = await fetch(`/api/versus/rooms/${encodeURIComponent(code)}/input`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, x, y }),
+    signal: AbortSignal.timeout(2500),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export function leaveHockeyRoomKeepalive(code: string, token: string): void {
+  void fetch(`/api/versus/rooms/${encodeURIComponent(code)}/leave`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+    keepalive: true,
+  }).catch(() => {});
 }
 
 export async function checkTeamSession(): Promise<{ authenticated: boolean }> {

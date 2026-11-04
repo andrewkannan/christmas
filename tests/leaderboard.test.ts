@@ -250,15 +250,15 @@ describe('Verified rounds & all-time leaderboard', () => {
   });
 
   it('feeds rounds into the master analytics (rejected rounds count as 0 points)', async () => {
-    await playRound({ gameId: 'claw-machine', visitorId: 'vis-stats-001', score: 12, seconds: 20 });
-    await playRound({ gameId: 'claw-machine', visitorId: 'vis-stats-001', score: 190, seconds: 4 });
+    await playRound({ gameId: 'ice-hockey', visitorId: 'vis-stats-001', score: 36, seconds: 20, endReason: 'time' });
+    await playRound({ gameId: 'ice-hockey', visitorId: 'vis-stats-001', score: 390, seconds: 4, endReason: 'time' });
 
     const login = await request(app).post('/api/team/login').send({ pin: '7788' });
     const cookie = login.headers['set-cookie'];
     const stats = await request(app).get('/api/team/master-stats').set('Cookie', cookie).expect(200);
-    const claw = stats.body.byGame.find((g: { gameId: string }) => g.gameId === 'claw-machine');
-    expect(claw.starts).toBe(2);
-    expect(claw.completions).toBe(2);
-    expect(claw.highScore).toBe(12);
+    const hockey = stats.body.byGame.find((g: { gameId: string }) => g.gameId === 'ice-hockey');
+    expect(hockey.starts).toBe(2);
+    expect(hockey.completions).toBe(2);
+    expect(hockey.highScore).toBe(36);
   });
 });

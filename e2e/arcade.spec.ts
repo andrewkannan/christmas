@@ -3,7 +3,7 @@ import { ACTIVE_ARCADE_GAMES } from '../src/types.ts';
 import { GAME_RULES } from '../src/games/rules.ts';
 
 const GAME_TITLES = ACTIVE_ARCADE_GAMES.map((g) => g.title);
-const END_HEADING = /time's up|out of lives|out of moves/i;
+const END_HEADING = /time's up|match point|out of lives|out of moves/i;
 
 /** Round cap + countdown + life-lost pauses + end banner, with margin. */
 function fastForwardMsFor(title: string): number {
@@ -16,6 +16,10 @@ async function openGame(page: Page, title: string) {
   await page.clock.install();
   await page.goto('/');
   await page.getByRole('button', { name: new RegExp(title) }).click();
+  if (title === 'Starlight Hockey') {
+    await expect(page.getByRole('heading', { name: 'Starlight Air Hockey' })).toBeVisible();
+    await page.getByRole('button', { name: /Play Solo vs Elf Bot/ }).click();
+  }
 }
 
 async function playToResults(page: Page, title: string) {
@@ -24,9 +28,10 @@ async function playToResults(page: Page, title: string) {
   await expect(page.getByRole('heading', { name: END_HEADING })).toBeVisible();
 }
 
-test('player page has no Team/admin entry point', async ({ page }) => {
+test('player page has no Team/admin entry point and displays CCC JB Bilingual', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Christmas Arcade' })).toBeVisible();
+  await expect(page.getByText('CCC JB Bilingual')).toBeVisible();
   await expect(page.getByRole('button', { name: /team/i })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /team|admin|console/i })).toHaveCount(0);
 });
@@ -46,6 +51,8 @@ for (const title of GAME_TITLES) {
     await expect(page.getByLabel(/^Score \d+$/)).toBeVisible();
     if (title === 'Candy Match') {
       await expect(page.getByLabel(/moves left/)).toBeVisible();
+    } else if (title === 'Starlight Hockey') {
+      await expect(page.getByLabel(/^Goals: You \d+, .+ \d+$/)).toBeVisible();
     } else {
       await expect(page.getByLabel(/of 3 lives left/)).toBeVisible();
     }
@@ -72,8 +79,8 @@ for (const title of GAME_TITLES) {
 test('claim after a round → VIP Celebration Invitation, countdown, Maps+Waze, 1-click Calendar, Friend Challenge & unlimited rankings dialog', async ({
   page,
 }) => {
-  await openGame(page, 'Claw Grab');
-  await playToResults(page, 'Claw Grab');
+  await openGame(page, 'Starlight Hockey');
+  await playToResults(page, 'Starlight Hockey');
 
   await page.getByRole('button', { name: /Claim my gift/ }).click();
   await page.getByLabel('Name').fill('Mei Ling Tan');
@@ -88,9 +95,10 @@ test('claim after a round → VIP Celebration Invitation, countdown, Maps+Waze, 
   await expect(page.getByText('Christmas Blessing Gift', { exact: true })).toBeVisible();
   await expect(page.getByText('Show our team to collect with us')).toBeVisible();
 
-  // VIP Celebration Invitation + Greatest Gift + Live Countdown Tab + Google Maps & Waze + 1-click Calendar.
+  // VIP Celebration Invitation + CCC JB Bilingual + Greatest Gift + Live Countdown Tab + Google Maps & Waze + 1-click Calendar.
   const invite = page.getByRole('article', { name: 'VIP Celebration Service Invitation' });
   await expect(invite).toBeVisible();
+  await expect(invite.getByText(/CCC JB Bilingual/i)).toBeVisible();
   await expect(invite.getByText(/Greatest Gift/)).toBeVisible();
   await expect(invite.getByRole('link', { name: /Google Maps/ })).toBeVisible();
   await expect(invite.getByRole('link', { name: /Waze/ })).toBeVisible();
@@ -115,10 +123,10 @@ test('claim after a round → VIP Celebration Invitation, countdown, Maps+Waze, 
   }
 
   // Clicking a game row opens the unlimited full player rankings modal (<dialog>).
-  await ranks.getByRole('button', { name: 'View full player rankings for Claw Grab' }).click();
+  await ranks.getByRole('button', { name: 'View full player rankings for Starlight Hockey' }).click();
   const dialog = page.locator('dialog.leaderboard-dialog[open]');
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('heading', { name: 'Claw Grab Rankings' })).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: 'Starlight Hockey Rankings' })).toBeVisible();
   await expect(dialog.getByText(/Best personal score per player · Unlimited full history/)).toBeVisible();
   await dialog.getByRole('button', { name: 'Close rankings' }).click();
   await expect(dialog).toHaveCount(0);
@@ -126,6 +134,112 @@ test('claim after a round → VIP Celebration Invitation, countdown, Maps+Waze, 
   // Tapping Play directly inside My Ranks launches that game immediately.
   await ranks.getByRole('button', { name: 'Play Block Stack' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Block Stack' })).toBeVisible();
+});
+
+test('2-phone live versus: guest generates 4-digit code, evangelist joins on 2nd phone, live match pairs & protects guest-only leaderboard', async ({
+  browser,
+}) => {
+  const guestContext = await browser.newContext();
+  const evangelistContext = await browser.newContext();
+  const guestPage = await guestContext.newPage();
+  const evangelistPage = await evangelistContext.newPage();
+
+  try {
+    // 1. Guest opens Starlight Hockey and receives a live 4-digit room code
+    await guestPage.goto('/');
+    await guestPage.getByRole('button', { name: /Starlight Hockey/ }).click();
+    const codeRegion = guestPage.locator('.hockey-code-tiles');
+    await expect(codeRegion).toHaveAttribute('data-room-code', /^\d{4}$/);
+    const roomCode = (await codeRegion.getAttribute('data-room-code')) ?? '';
+    expect(roomCode).toMatch(/^\d{4}$/);
+
+    // 2. Evangelist opens Starlight Hockey on Phone 2, validates 4-digit input, and enters the code
+    await evangelistPage.goto('/');
+    await evangelistPage.getByRole('button', { name: /Starlight Hockey/ }).click();
+    await evangelistPage.getByRole('tab', { name: 'Enter 4-Digit Code' }).click();
+
+    const codeInput = evangelistPage.getByLabel('4-Digit Room Code');
+    await codeInput.fill('12');
+    await codeInput.blur();
+    await expect(codeInput).toHaveAttribute('aria-invalid', 'true');
+
+    await codeInput.fill(roomCode);
+    await expect(codeInput).toHaveAttribute('aria-invalid', 'false');
+    await evangelistPage.getByLabel(/Your Display Name/).fill('Daniel');
+    await evangelistPage.getByRole('button', { name: 'Join Live Match' }).click();
+
+    // 3. Both phones automatically pair and transition into live Starlight Hockey!
+    await expect(guestPage.getByLabel(/^Goals: You \d+, Daniel \d+$/)).toBeVisible();
+    await expect(evangelistPage.getByLabel(/^Goals: You \d+, Guest Player \d+$/)).toBeVisible();
+
+    // Wait past the 2.4s countdown so live physics are running
+    await guestPage.waitForTimeout(2600);
+
+    // Evangelist pulls striker to the side corner while Guest sweeps center ice to score goals!
+    const evCanvas = evangelistPage.locator('canvas.game-canvas');
+    const evBox = await evCanvas.boundingBox();
+    if (evBox) {
+      await evangelistPage.mouse.move(evBox.x + 28, evBox.y + evBox.height - 40);
+      await evangelistPage.mouse.down();
+      await evangelistPage.mouse.move(evBox.x + 26, evBox.y + evBox.height - 45);
+      await evangelistPage.mouse.up();
+    }
+
+    const guestCanvas = guestPage.locator('canvas.game-canvas');
+    const gBox = await guestCanvas.boundingBox();
+    expect(gBox).not.toBeNull();
+
+    // Sweep Guest striker upward repeatedly until 7-goal knockout or match end (fast, real physics!)
+    for (let cycle = 0; cycle < 45; cycle++) {
+      const done = await guestPage
+        .getByRole('heading', { name: END_HEADING })
+        .isVisible()
+        .catch(() => false);
+      if (done) break;
+
+      if (gBox) {
+        const cx = gBox.x + gBox.width * (0.35 + ((cycle % 5) * 0.075));
+        await guestPage.mouse.move(cx, gBox.y + gBox.height * 0.84);
+        await guestPage.mouse.down();
+        await guestPage.mouse.move(gBox.x + gBox.width * 0.5, gBox.y + gBox.height * 0.28, {
+          steps: 5,
+        });
+        await guestPage.mouse.up();
+      }
+      await guestPage.waitForTimeout(320);
+    }
+
+    // Ensure both phones reach results (wait for remaining clock if <7 goals were scored)
+    await expect(guestPage.getByRole('heading', { name: END_HEADING })).toBeVisible({
+      timeout: 42_000,
+    });
+    await expect(evangelistPage.getByRole('heading', { name: END_HEADING })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // 4. Evangelist sees Challenger summary (NOT the guest Claim Gift form, NOT ranked on public board!)
+    await expect(evangelistPage.getByText('Challenger Mode · Guest Ranked Only')).toBeVisible();
+    await expect(
+      evangelistPage.getByRole('button', { name: 'Join Next 4-Digit Code' })
+    ).toBeVisible();
+    await expect(evangelistPage.getByRole('button', { name: /Claim my gift/ })).toHaveCount(0);
+
+    // 5. Guest claims gift & VIP invitation -> ranked on public Starlight Hockey board with Daniel credited!
+    await guestPage.getByRole('button', { name: /Claim my gift/ }).click();
+    await guestPage.getByLabel('Name').fill('Rachel Lim');
+    await guestPage.getByLabel('WhatsApp Number').fill('016 888 4321');
+    await guestPage.getByRole('button', { name: /Get Gift/ }).click();
+
+    await expect(guestPage.getByRole('heading', { name: 'Rachel Lim' })).toBeVisible();
+    await expect(
+      guestPage
+        .getByRole('article', { name: 'VIP Celebration Service Invitation' })
+        .getByText(/CCC JB Bilingual/)
+    ).toBeVisible();
+  } finally {
+    await guestContext.close();
+    await evangelistContext.close();
+  }
 });
 
 test('friend challenge link displays personalized Beat Friend banner on the lobby', async ({ page }) => {

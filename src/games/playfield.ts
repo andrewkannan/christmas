@@ -1,3 +1,4 @@
+import type { HockeyMatchTallies, HockeySessionConfig } from '../types.ts';
 import type { RoundEndReason } from './rules.ts';
 
 /**
@@ -33,4 +34,7 @@ export interface PlayfieldApi {
 
 export interface PlayfieldProps {
   api: PlayfieldApi;
+  hockeySession?: HockeySessionConfig;
+  onMatchTallies?: (tallies: HockeyMatchTallies) => void;
 }
+

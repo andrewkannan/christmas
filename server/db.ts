@@ -24,16 +24,16 @@ import { formatBoardName } from '../src/games/boardName.ts';
 import { buildPersonalWhatsAppUrl } from './phone.ts';
 
 const ACTIVE_GAMES: ActiveGameId[] = [
-  'claw-machine',
+  'ice-hockey',
   'santa-dash',
   'gift-tetris',
   'gift-slash',
   'candy-match',
 ];
-const LEGACY_GAMES: GameId[] = ['gift-rush', 'tap-duel', 'starlight-drop'];
+const LEGACY_GAMES: GameId[] = ['claw-machine', 'gift-rush', 'tap-duel', 'starlight-drop'];
 
 export const DEFAULT_EVENT_SETTINGS: EventSettings = {
-  churchName: 'Hope Community',
+  churchName: 'CCC JB Bilingual',
   eventTitle: 'Christmas Night of Wonder',
   eventSubtitle: 'Live Acoustic Carols, Hot Cocoa, Festive Games & A Story of Hope',
   eventDateIso: '2026-12-24T19:30',
@@ -178,8 +178,16 @@ export class ArcadeDatabase {
     } else {
       try {
         const parsed = JSON.parse(existing.json) as Partial<EventSettings>;
+        let changed = false;
         if (parsed.giftDescription === 'Christmas Blessing Gift Pack') {
           parsed.giftDescription = 'Christmas Blessing Gift';
+          changed = true;
+        }
+        if (parsed.churchName === 'Hope Community') {
+          parsed.churchName = 'CCC JB Bilingual';
+          changed = true;
+        }
+        if (changed) {
           this.db
             .prepare('UPDATE settings SET json = ?, updated_at = ? WHERE id = 1')
             .run(JSON.stringify({ ...DEFAULT_EVENT_SETTINGS, ...parsed }), new Date().toISOString());

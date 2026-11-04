@@ -2,6 +2,19 @@
 
 All notable changes to **Christmas Pocket Arcade** are documented in this file.
 
+## [1.5.0] - 2026-11-05
+
+### Added
+- **2-Phone Live 4-Digit Versus — Starlight Air Hockey (`StarlightAirHockey.tsx`, `HockeyMatchmaker.tsx`, `hockeyLogic.ts`, `server/hockeyRooms.ts`):**
+  - Replaced Claw Grab (`claw-machine`) with **Starlight Hockey (`ice-hockey`)**, a 60fps cross-phone neon Christmas ice rink (`First to 7 Goals or 45s`) with a top **Opponent Phone Radar**, blazing **Starlight Portal** seam, roaming **Star Gate** (`+5` Turbo Puck), and final-12s **Double Puck Fever**.
+  - **4-Digit Room Code Matchmaking:** Guests open `Show 4-Digit Code` (`1000`–`9999`) while evangelists or friends tap `Enter 4-Digit Code` on their own phone to pair live over Express SSE (`text/event-stream`) + HTTP input sync with automatic polling and Frosty Elf Bot disconnect fallback (zero new npm dependencies).
+  - **Solo vs Elf Bot Mode:** Guests playing on 1 phone or replaying from their saved VIP Pass at home can launch **Play Solo vs Elf Bot** immediately.
+  - **Guest-Only Leaderboard Protection & Challenger Summary (`GameShell.tsx`):** Evangelists/challengers joining via a 4-digit code (`role === 'joiner'`) never write to `game_runs` or Rank `#1–#3`, and receive a dedicated **Challenger Match Summary** with a 1-tap `Join Next 4-Digit Code` button; when an evangelist joins with their display name, their name automatically credits `volunteerName` attribution on the guest's run and claimed pass.
+- **Property & E2E Tests (`tests/hockeyLogic.property.test.ts`, `e2e/arcade.spec.ts`):** Added `fast-check` physics/perspective invariants, `HockeyRoomManager` lifecycle/token security tests, and dual-browser-context 2-phone live versus Playwright E2E coverage.
+
+### Changed
+- **CCC JB Bilingual Branding (`server/db.ts`, `WinnerPass.tsx`, `api.ts`):** Updated default organization branding from `Hope Community` to **`CCC JB Bilingual`** across the header, VIP Celebration Service Invitation badge, fallbacks, and an automatic startup SQLite migration for existing databases while preserving historical `'claw-machine'` analytics and CSV records.
+
 ## [1.4.0] - 2026-11-05
 
 ### Added

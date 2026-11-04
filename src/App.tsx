@@ -26,7 +26,7 @@ import {
 } from './components/Icons.tsx';
 import { ArcadeLobby } from './components/ArcadeLobby.tsx';
 import { GameShell } from './components/games/GameShell.tsx';
-import { ClawMachineGame } from './components/games/ClawMachineGame.tsx';
+import { StarlightAirHockey } from './components/games/StarlightAirHockey.tsx';
 import { SantaStreetDash } from './components/games/SantaStreetDash.tsx';
 import { ChristmasTetris } from './components/games/ChristmasTetris.tsx';
 import { FruitSlashGame } from './components/games/FruitSlashGame.tsx';
@@ -37,7 +37,7 @@ import { TeamLogin } from './team/TeamLogin.tsx';
 import { TeamDashboard } from './team/TeamDashboard.tsx';
 
 const PLAYFIELDS: Record<ActiveGameId, ComponentType<PlayfieldProps>> = {
-  'claw-machine': ClawMachineGame,
+  'ice-hockey': StarlightAirHockey,
   'santa-dash': SantaStreetDash,
   'gift-tetris': ChristmasTetris,
   'gift-slash': FruitSlashGame,
@@ -45,7 +45,7 @@ const PLAYFIELDS: Record<ActiveGameId, ComponentType<PlayfieldProps>> = {
 };
 
 const FALLBACK_SETTINGS: EventSettings = {
-  churchName: 'Hope Community',
+  churchName: 'CCC JB Bilingual',
   eventTitle: 'Christmas Night of Wonder',
   eventSubtitle: 'Live Acoustic Carols, Hot Cocoa, Festive Games & A Story of Hope',
   eventDateIso: '2026-12-24T19:30',
@@ -64,7 +64,13 @@ const FALLBACK_SETTINGS: EventSettings = {
 type PlayerStep =
   | { kind: 'lobby' }
   | { kind: 'playing'; game: ActiveGameId }
-  | { kind: 'claim'; game: ActiveGameId; score: number; projectedRank: number | null }
+  | {
+      kind: 'claim';
+      game: ActiveGameId;
+      score: number;
+      projectedRank: number | null;
+      rivalVolunteerName?: string;
+    }
   | { kind: 'winner'; claim: PublicClaimResult; justUnlocked?: boolean };
 
 export function App() {
@@ -364,18 +370,20 @@ export function App() {
                 game={playingGame}
                 Playfield={PLAYFIELDS[playingGame.id]}
                 claimToken={savedPass?.claimToken}
+                guestName={savedPass?.name}
                 passBest={savedPass?.bestScores?.[playingGame.id] ?? 0}
                 volunteerName={volunteerName}
                 challengerName={challengerName}
                 targetScore={targetScore}
                 onExit={() => setStep({ kind: 'lobby' })}
                 onSelectGame={handleSelectGame}
-                onClaim={(sessionBest, projectedRank) =>
+                onClaim={(sessionBest, projectedRank, rivalVolunteerName) =>
                   setStep({
                     kind: 'claim',
                     game: playingGame.id,
                     score: sessionBest,
                     projectedRank,
+                    rivalVolunteerName,
                   })
                 }
                 onOpenPass={handleOpenSavedInvite}
@@ -389,7 +397,7 @@ export function App() {
                 score={step.score}
                 projectedRank={step.projectedRank}
                 targetScore={targetScore}
-                volunteerName={volunteerName}
+                volunteerName={volunteerName || step.rivalVolunteerName || ''}
                 settings={settings}
                 onClaimed={(claim) => {
                   savePassLocally(claim);
@@ -399,7 +407,8 @@ export function App() {
                     eventType: 'e_invite_view',
                     claimToken: claim.claimToken,
                     isPostInteraction: false,
-                    volunteerName: claim.volunteerName || volunteerName || undefined,
+                    volunteerName:
+                      claim.volunteerName || volunteerName || step.rivalVolunteerName || undefined,
                   });
                   setStep({ kind: 'winner', claim, justUnlocked: true });
                 }}

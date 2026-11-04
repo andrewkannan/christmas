@@ -31,7 +31,7 @@ export function createApp(
   });
 
   app.use(express.json({ limit: '64kb' }));
-  app.use('/api', createApiRouter(db));
+  app.use('/api', createApiRouter(db, options));
 
   const distDir = path.resolve(__dirname, '../dist');
   if (fs.existsSync(distDir)) {

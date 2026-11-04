@@ -23,13 +23,13 @@ export interface GameRules {
 }
 
 export const GAME_RULES: Record<ActiveGameId, GameRules> = {
-  'claw-machine': {
-    lives: 3,
+  'ice-hockey': {
+    lives: null,
     moves: null,
     timeLimitSec: 45,
-    maxPointsPerSec: 4,
-    maxScore: 200,
-    controlHint: 'Move the claw · tap DROP · an empty grab costs a life',
+    maxPointsPerSec: 25,
+    maxScore: 450,
+    controlHint: 'Drag striker on your ice · smash the puck upward into their goal!',
   },
   'santa-dash': {
     lives: 3,
@@ -75,7 +75,7 @@ export const MIN_ROUND_SEC = 3;
 /** Unfinished runs older than this are rejected. */
 export const RUN_EXPIRY_MS = 30 * 60 * 1000;
 
-export type RoundEndReason = 'time' | 'lives' | 'moves';
+export type RoundEndReason = 'time' | 'lives' | 'moves' | 'knockout';
 
 /**
  * Server-side plausibility check for a finished run.

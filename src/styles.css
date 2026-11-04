@@ -3632,6 +3632,328 @@ dialog::backdrop {
 }
 
 /* Forced Colors Mode (Windows High Contrast) Fallbacks */
+/* ==========================================================================
+   Starlight Air Hockey — 2-Phone 4-Digit Matchmaker & Live Versus HUD
+   ========================================================================== */
+.hud-pill--versus {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  color: #fef08a;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  padding: 0.34rem 0.68rem;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.16);
+}
+
+.hud-versus-sep {
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 700;
+}
+
+.game-overlay__versus-pill {
+  margin-block-top: -0.2rem;
+  padding: 0.26rem 0.72rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #fde047;
+  font-size: 0.76rem;
+  font-weight: 800;
+  border: 1px solid rgba(253, 224, 71, 0.38);
+}
+
+.hockey-matchmaker {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.1);
+  padding: 1.15rem 1.1rem 1.2rem;
+  display: grid;
+  gap: 0.95rem;
+}
+
+.hockey-matchmaker__hero {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.hockey-matchmaker__emblem {
+  inline-size: 3.25rem;
+  block-size: 3.25rem;
+  border-radius: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 8px 18px rgba(215, 0, 21, 0.25);
+}
+
+.hockey-matchmaker__headings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-inline-size: 0;
+}
+
+.hockey-matchmaker__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.73rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent-crimson);
+}
+
+.hockey-matchmaker__title {
+  margin: 0;
+  font-size: 1.28rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--ink-primary);
+  line-height: 1.15;
+}
+
+.hockey-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  padding: 0.28rem;
+  border-radius: 0.85rem;
+  background: #eef2f7;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.hockey-tabs__btn {
+  min-block-size: 42px;
+  border: 0;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: var(--ink-secondary);
+  font-family: inherit;
+  font-size: 0.83rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.hockey-tabs__btn--active {
+  background: #ffffff;
+  color: var(--ink-primary);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
+}
+
+.hockey-host-panel {
+  display: grid;
+  gap: 0.85rem;
+  text-align: center;
+}
+
+.hockey-host-panel__lead {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  color: var(--ink-secondary);
+}
+
+.hockey-host-panel__lead strong {
+  color: var(--ink-primary);
+}
+
+.hockey-code-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.55rem;
+  max-inline-size: 17.5rem;
+  margin-inline: auto;
+  inline-size: 100%;
+}
+
+.hockey-code-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 4.1rem;
+  border-radius: 0.95rem;
+  background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%);
+  color: #fde047;
+  border: 2px solid rgba(251, 191, 36, 0.65);
+  box-shadow:
+    0 10px 22px rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  font-size: 2rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.hockey-code-tiles--loading .hockey-code-tile {
+  opacity: 0.65;
+}
+
+.hockey-waiting-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.48rem 0.85rem;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-inline: auto;
+}
+
+.hockey-waiting-pill__dot {
+  inline-size: 0.52rem;
+  block-size: 0.52rem;
+  border-radius: 999px;
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.24);
+  animation: waitingPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes waitingPulse {
+  0%,
+  100% {
+    opacity: 1;
+    scale: 1;
+  }
+  50% {
+    opacity: 0.45;
+    scale: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hockey-waiting-pill__dot {
+    animation: none;
+  }
+}
+
+.hockey-inline-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 0.75rem;
+  background: #fef2f2;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: #991b1b;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.hockey-solo-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.hockey-solo-divider::before,
+.hockey-solo-divider::after {
+  content: '';
+  flex: 1;
+  block-size: 1px;
+  background: rgba(15, 23, 42, 0.1);
+}
+
+.hockey-solo-btn {
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.hockey-join-form {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.hockey-field {
+  display: grid;
+  gap: 0.32rem;
+  text-align: left;
+}
+
+.hockey-field__label {
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: var(--ink-primary);
+}
+
+.hockey-field__optional {
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.hockey-field__hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--ink-secondary);
+}
+
+.hockey-code-input {
+  inline-size: 100%;
+  min-block-size: 3.5rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 0.9rem;
+  border: 2px solid rgba(15, 23, 42, 0.18);
+  background: #ffffff;
+  color: var(--ink-primary);
+  font-family: inherit;
+  font-size: 1.75rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.35em;
+  text-align: center;
+  text-indent: 0.35em;
+}
+
+.hockey-code-input:focus-visible,
+.hockey-name-input:focus-visible {
+  outline: 3px solid rgba(2, 132, 199, 0.32);
+  border-color: #0284c7;
+}
+
+.hockey-code-input--invalid,
+.hockey-code-input:user-invalid {
+  border-color: #dc2626;
+  background: #fffafa;
+}
+
+.hockey-name-input {
+  inline-size: 100%;
+  min-block-size: 2.9rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: 0.75rem;
+  border: 1.5px solid rgba(15, 23, 42, 0.16);
+  background: #ffffff;
+  color: var(--ink-primary);
+  font-family: inherit;
+  font-size: 0.96rem;
+  font-weight: 700;
+}
+
+.hockey-field__error {
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #b91c1c;
+}
+
 @media (forced-colors: active) {
   .arcade-tile,
   .card-panel,
@@ -3650,7 +3972,9 @@ dialog::backdrop {
   .my-ranks__row,
   .kpi-card,
   .top-bar,
-  .game-hud {
+  .game-hud,
+  .hockey-matchmaker,
+  .hockey-code-tile {
     border: 1.5px solid CanvasText;
   }
 
@@ -3659,7 +3983,8 @@ dialog::backdrop {
   .rank-play-pill,
   .direction-pill,
   .arcade-tile__play,
-  .arcade-pad__btn {
+  .arcade-pad__btn,
+  .hockey-tabs__btn {
     border: 1.5px solid ButtonText;
   }
 }

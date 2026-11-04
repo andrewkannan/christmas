@@ -266,18 +266,21 @@ export function MedalEmblem({
  */
 export function GameEmblem({ gameId, size = 34 }: { gameId: ActiveGameId; size?: number }) {
   switch (gameId) {
-    case 'claw-machine':
+    case 'ice-hockey':
       return (
         <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden="true" fill="none">
-          {/* Cable & Chrome Claw */}
-          <line x1="20" y1="3" x2="20" y2="11" stroke="#ffffff" strokeWidth="2.6" strokeLinecap="round" />
-          <rect x="15" y="10" width="10" height="5" rx="2.5" fill="#fef08a" />
-          <path d="M16 14C11 16.5 10 22 13.5 26" stroke="#ffffff" strokeWidth="2.6" strokeLinecap="round" />
-          <path d="M24 14C29 16.5 30 22 26.5 26" stroke="#ffffff" strokeWidth="2.6" strokeLinecap="round" />
-          {/* Golden Star Gift */}
-          <rect x="13.5" y="23.5" width="13" height="11.5" rx="2.8" fill="#fef08a" />
-          <path d="M20 23.5V35M13.5 29H26.5" stroke="#d70015" strokeWidth="2.4" />
-          <circle cx="20" cy="22.5" r="2" fill="#ffffff" />
+          {/* Rink Portal Seam & Speed Trail */}
+          <line x1="6" y1="9" x2="34" y2="9" stroke="rgba(255,255,255,0.45)" strokeWidth="1.8" strokeDasharray="3 2.5" strokeLinecap="round" />
+          <path d="M16 25L20 13M24 26L21.5 15" stroke="#fde047" strokeWidth="2.1" strokeLinecap="round" opacity="0.85" />
+          {/* Glowing Starlight Puck Flying Upward */}
+          <circle cx="20" cy="12" r="5.5" fill="#fef08a" />
+          <circle cx="20" cy="12" r="2.6" fill="#d70015" />
+          {/* Sculpted Striker Mallet */}
+          <ellipse cx="20" cy="29.5" rx="10.5" ry="5.5" fill="#ffffff" />
+          <ellipse cx="20" cy="28" rx="7.5" ry="3.7" fill="#fef08a" />
+          <ellipse cx="20" cy="26.5" rx="4" ry="2.2" fill="#d70015" />
+          {/* Sparkle */}
+          <path d="M31.5 14L32.5 16.4L35 17.4L32.5 18.4L31.5 20.8L30.5 18.4L28 17.4L30.5 16.4L31.5 14Z" fill="#fde047" />
         </svg>
       );
     case 'santa-dash':
@@ -646,4 +649,16 @@ export function FlameIcon({ size = 15, className }: IconProps) {
     </svg>
   );
 }
+
+export function VersusPhonesIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <rect x="2.5" y="4" width="7.5" height="16" rx="2" stroke="currentColor" strokeWidth="1.9" />
+      <rect x="14" y="4" width="7.5" height="16" rx="2" stroke="currentColor" strokeWidth="1.9" />
+      <path d="M10.5 9.5L13.5 7.5M13.5 14.5L10.5 16.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+    </svg>
+  );
+}
+
 

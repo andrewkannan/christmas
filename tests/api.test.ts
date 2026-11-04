@@ -56,6 +56,7 @@ describe('Christmas Pocket Arcade API & Security', () => {
 
   it('serves public event config and valid RFC 5545 .ics calendar file', async () => {
     const cfg = await request(app).get('/api/public/config').expect(200);
+    expect(cfg.body.settings.churchName).toBe('CCC JB Bilingual');
     expect(cfg.body.settings.eventTitle).toContain('Christmas');
     expect(cfg.body.settings.giftDescription).toBe('Christmas Blessing Gift');
     expect(cfg.body.googleCalendarUrl).toContain('calendar.google.com');
@@ -422,5 +423,65 @@ describe('Christmas Pocket Arcade API & Security', () => {
     const csvExport = await agent.get('/api/team/leads/export.csv').expect(200);
     expect(csvExport.text).toContain('Games Played After Interaction');
     expect(csvExport.text).toContain('Invitations Shared');
+  });
+
+  it('hosts and joins a 4-digit Starlight Hockey versus room with mirrored player perspectives and token security', async () => {
+    const createRes = await request(app)
+      .post('/api/versus/rooms')
+      .send({ hostName: 'Rachel Lim' })
+      .expect(201);
+
+    const code = createRes.body.code as string;
+    const hostToken = createRes.body.playerToken as string;
+    expect(code).toMatch(/^\d{4}$/);
+    expect(createRes.body.snapshot.status).toBe('waiting');
+
+    // Non-existent 4-digit code returns 404
+    const missingCode = code === '9999' ? '9998' : '9999';
+    await request(app)
+      .post('/api/versus/rooms/join')
+      .send({ code: missingCode, joinerName: 'Joshua' })
+      .expect(404);
+
+    // Evangelist joins the 4-digit room
+    const joinRes = await request(app)
+      .post('/api/versus/rooms/join')
+      .send({ code, joinerName: 'Joshua' })
+      .expect(200);
+    const joinerToken = joinRes.body.playerToken as string;
+    expect(joinRes.body.snapshot.status).toBe('countdown');
+    expect(joinRes.body.snapshot.oppStriker.name).toBe('Rachel Lim');
+
+    // Second joiner is blocked with 409
+    await request(app)
+      .post('/api/versus/rooms/join')
+      .send({ code, joinerName: 'Third Wheel' })
+      .expect(409);
+
+    // Unauthorized token is blocked with 403
+    await request(app)
+      .get(`/api/versus/rooms/${code}?token=invalidtoken12345678`)
+      .expect(403);
+
+    // Host moves striker to x=110, y=750 -> Joiner sees opponent striker mirrored at x=250, y=150!
+    await request(app)
+      .post(`/api/versus/rooms/${code}/input`)
+      .send({ token: hostToken, x: 110, y: 750 })
+      .expect(200);
+
+    const joinerView = await request(app)
+      .get(`/api/versus/rooms/${code}?token=${joinerToken}`)
+      .expect(200);
+    expect(joinerView.body.snapshot.oppStriker.x).toBeCloseTo(250, 0);
+    expect(joinerView.body.snapshot.oppStriker.y).toBeCloseTo(150, 0);
+
+    await request(app)
+      .post(`/api/versus/rooms/${code}/leave`)
+      .send({ token: hostToken })
+      .expect(200);
+    await request(app)
+      .post(`/api/versus/rooms/${code}/leave`)
+      .send({ token: joinerToken })
+      .expect(200);
   });
 });

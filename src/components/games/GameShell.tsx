@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
-import type { ActiveGameId, ArcadeGameMeta, RunFinishResult } from '../../types.ts';
+import type {
+  ActiveGameId,
+  ArcadeGameMeta,
+  HockeyMatchTallies,
+  HockeySessionConfig,
+  RunFinishResult,
+} from '../../types.ts';
 import { GAME_RULES, LIFE_LOST_PAUSE_MS, type RoundEndReason } from '../../games/rules.ts';
 import type { PlayfieldApi, PlayfieldProps } from '../../games/playfield.ts';
 import { finishGameRun, startGameRun } from '../../lib/api.ts';
@@ -22,10 +28,12 @@ import {
   TicketPassIcon,
   TimerClockIcon,
   TrophyBoardIcon,
+  VersusPhonesIcon,
 } from '../Icons.tsx';
 import { TopThree } from '../TopThree.tsx';
+import { HockeyMatchmaker } from './HockeyMatchmaker.tsx';
 
-type Phase = 'countdown' | 'playing' | 'hit' | 'paused' | 'ending' | 'results';
+type Phase = 'matchmaking' | 'countdown' | 'playing' | 'hit' | 'paused' | 'ending' | 'results';
 
 type RemoteResult =
   | { state: 'loading' }
@@ -42,6 +50,7 @@ interface GameShellProps {
   game: ArcadeGameMeta;
   Playfield: ComponentType<PlayfieldProps>;
   claimToken?: string;
+  guestName?: string;
   /** Best score already on the player's saved pass for this game. */
   passBest: number;
   volunteerName: string;
@@ -49,7 +58,7 @@ interface GameShellProps {
   targetScore: number;
   onExit: () => void;
   onSelectGame?: (game: ActiveGameId) => void;
-  onClaim: (sessionBest: number, projectedRank: number | null) => void;
+  onClaim: (sessionBest: number, projectedRank: number | null, rivalVolunteerName?: string) => void;
   onOpenPass: () => void;
   onRoundRecorded: (result: RunFinishResult) => void;
 }
@@ -61,6 +70,7 @@ const END_TITLES: Record<RoundEndReason, string> = {
   time: "Time's up!",
   lives: 'Out of lives',
   moves: 'Out of moves',
+  knockout: 'Match Point!',
 };
 
 function useCountUp(target: number, durationMs = 520): number {
@@ -106,6 +116,7 @@ export function GameShell({
   game,
   Playfield,
   claimToken,
+  guestName,
   passBest,
   volunteerName,
   challengerName,
@@ -118,10 +129,20 @@ export function GameShell({
 }: GameShellProps) {
   const rules = GAME_RULES[game.id];
   const hasPass = Boolean(claimToken);
-  const displayChallenger = challengerName || volunteerName;
+  const isHockey = game.id === 'ice-hockey';
+
+  const [hockeySession, setHockeySession] = useState<HockeySessionConfig | null>(null);
+  const [matchmakerInitialTab, setMatchmakerInitialTab] = useState<'host' | 'join'>('host');
+  const [matchTallies, setMatchTallies] = useState<HockeyMatchTallies | null>(null);
+
+  const isJoinerRole = hockeySession?.mode === 'joiner';
+  const isLiveVersus = hockeySession?.mode === 'host' || hockeySession?.mode === 'joiner';
+  const livePartnerName =
+    hockeySession?.mode === 'host' ? hockeySession.opponentName : '';
+  const displayChallenger = challengerName || volunteerName || livePartnerName;
 
   const [roundKey, setRoundKey] = useState(0);
-  const [phase, setPhase] = useState<Phase>('countdown');
+  const [phase, setPhase] = useState<Phase>(isHockey ? 'matchmaking' : 'countdown');
   const [countdown, setCountdown] = useState(3);
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState<number | null>(rules.lives);
@@ -130,7 +151,7 @@ export function GameShell({
   const [roundResult, setRoundResult] = useState<RoundResult | null>(null);
   const [remote, setRemote] = useState<RemoteResult>({ state: 'loading' });
 
-  const phaseRef = useRef<Phase>('countdown');
+  const phaseRef = useRef<Phase>(isHockey ? 'matchmaking' : 'countdown');
   const scoreRef = useRef(0);
   const livesRef = useRef<number | null>(rules.lives);
   const movesRef = useRef<number | null>(rules.moves);
@@ -183,20 +204,26 @@ export function GameShell({
       endedRef.current = true;
       const finalScore = scoreRef.current;
       const previousBest = Math.max(loadLocalBest(game.id), passBest);
-      saveLocalBest(game.id, finalScore);
-      sessionBestRef.current = Math.max(sessionBestRef.current, finalScore);
+
+      // Only rank the guest (solo or room host) — evangelist/challenger joiners never pollute local/public boards.
+      if (!isJoinerRole) {
+        saveLocalBest(game.id, finalScore);
+        sessionBestRef.current = Math.max(sessionBestRef.current, finalScore);
+      }
 
       setRoundResult({ score: finalScore, reason, previousBest });
       setPhaseBoth('ending');
       playArcadeTone(finalScore > 0 ? 'win' : 'pickup');
       triggerHaptic(45);
-      void submitRound(finalScore, reason);
+      if (!isJoinerRole) {
+        void submitRound(finalScore, reason);
+      }
       schedule(() => {
         playArcadeTone('fanfare');
         setPhaseBoth('results');
       }, ENDING_BANNER_MS);
     },
-    [game.id, passBest, schedule, setPhaseBoth, submitRound]
+    [game.id, isJoinerRole, passBest, schedule, setPhaseBoth, submitRound]
   );
 
   const endRoundRef = useRef(endRound);
@@ -208,13 +235,22 @@ export function GameShell({
       setMusicScene('none');
     } else if (phase === 'ending' || phase === 'results') {
       setMusicScene('victory');
+    } else if (phase === 'matchmaking') {
+      setMusicScene('christmas-bg');
     } else {
       setMusicScene(game.id);
     }
   }, [phase, game.id]);
 
-  // Start (or restart) a round: countdown, then live play. Runs on mount and on every retry.
+  // Start (or restart) a round: wait in 'matchmaking' for Starlight Hockey until a session is chosen,
+  // then run 3-2-1 countdown and live play.
   useEffect(() => {
+    if (isHockey && !hockeySession) {
+      clearTimers();
+      setPhaseBoth('matchmaking');
+      return clearTimers;
+    }
+
     endedRef.current = false;
     scoreRef.current = 0;
     livesRef.current = rules.lives;
@@ -231,13 +267,16 @@ export function GameShell({
     setPhaseBoth('countdown');
 
     // Guard so React StrictMode's double effect in development doesn't register two server runs.
-    if (runStartedForRoundRef.current !== roundKey) {
+    // Evangelist/friend code joiners ('joiner') skip server run registration so only guests rank publicly.
+    if (hockeySession?.mode !== 'joiner' && runStartedForRoundRef.current !== roundKey) {
       runStartedForRoundRef.current = roundKey;
+      const effectiveVolunteer =
+        volunteerName || (hockeySession?.mode === 'host' ? hockeySession.opponentName : undefined);
       runRef.current = startGameRun({
         gameId: game.id,
         visitorId: getOrCreateVisitorId(),
         claimToken,
-        volunteerName: volunteerName || undefined,
+        volunteerName: effectiveVolunteer || undefined,
       }).catch(() => null);
     }
 
@@ -257,8 +296,7 @@ export function GameShell({
     }, COUNTDOWN_STEP_MS * 3);
 
     return clearTimers;
-    // Intentionally keyed on roundKey only: a round restarts exactly when the player taps Retry.
-  }, [roundKey]);
+  }, [roundKey, isHockey, hockeySession]);
 
   // Shell clock: runs strictly during 'playing' so countdown, pauses, life-lost beats,
   // and the Victory Stage never eat the timer or spin an idle 60fps rAF loop.
@@ -266,6 +304,10 @@ export function GameShell({
     if (phase !== 'playing') return undefined;
     let raf = 0;
     let last = performance.now();
+    // Give live 2-phone rooms a 1.5s grace buffer so the server's authoritative 'finished' snapshot
+    // (including the +15 Match Win Bonus) arrives first, while still guaranteeing local fallback completion.
+    const hardCapSec = isLiveVersus ? rules.timeLimitSec + 1.5 : rules.timeLimitSec;
+
     const loop = (now: number) => {
       const dtMs = Math.min(100, Math.max(0, now - last));
       last = now;
@@ -277,7 +319,9 @@ export function GameShell({
           shownSecRef.current = shown;
           setTimeLeft(shown);
         }
-        if (left <= 0) endRoundRef.current('time');
+        if (liveMsRef.current / 1000 >= hardCapSec) {
+          endRoundRef.current('time');
+        }
       }
       if (phaseRef.current === 'playing') {
         raf = requestAnimationFrame(loop);
@@ -285,16 +329,18 @@ export function GameShell({
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [phase, rules.timeLimitSec]);
+  }, [phase, rules.timeLimitSec, isLiveVersus]);
 
-  // Auto-pause when the phone locks or the guest switches apps.
+  // Auto-pause when the phone locks or the guest switches apps (solo games only; live 2-phone matches stay synced).
   useEffect(() => {
     const onVisibility = () => {
-      if (document.hidden && phaseRef.current === 'playing') setPhaseBoth('paused');
+      if (document.hidden && phaseRef.current === 'playing' && !isLiveVersus) {
+        setPhaseBoth('paused');
+      }
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [setPhaseBoth]);
+  }, [setPhaseBoth, isLiveVersus]);
 
   useEffect(() => {
     if (phase === 'results') {
@@ -342,6 +388,22 @@ export function GameShell({
 
   const retry = () => {
     clearTimers();
+    if (isHockey && (hockeySession?.mode === 'host' || hockeySession?.mode === 'joiner')) {
+      setMatchmakerInitialTab(hockeySession.mode === 'joiner' ? 'join' : 'host');
+      setHockeySession(null);
+      setMatchTallies(null);
+      setRoundKey((k) => k + 1);
+      return;
+    }
+    setMatchTallies(null);
+    setRoundKey((k) => k + 1);
+  };
+
+  const openVersusMatchmaker = (tab: 'host' | 'join' = 'host') => {
+    clearTimers();
+    setMatchmakerInitialTab(tab);
+    setHockeySession(null);
+    setMatchTallies(null);
     setRoundKey((k) => k + 1);
   };
 
@@ -349,7 +411,40 @@ export function GameShell({
 
   return (
     <section className="game-stage" aria-label={game.title}>
-      {phase !== 'results' && (
+      {phase === 'matchmaking' && (
+        <>
+          <div className="game-hud">
+            <button
+              type="button"
+              className="hud-icon-btn"
+              onClick={onExit}
+              aria-label="Back to all games"
+            >
+              <CloseIcon size={16} />
+            </button>
+            <span className="hud-pill hud-pill--versus">
+              <VersusPhonesIcon size={14} />
+              <span>2P Live Versus · Solo</span>
+            </span>
+          </div>
+
+          <HockeyMatchmaker
+            guestName={guestName}
+            volunteerName={volunteerName}
+            initialTab={matchmakerInitialTab}
+            onStartSession={(nextSession) => {
+              setMatchTallies({
+                myGoals: 0,
+                oppGoals: 0,
+                opponentName: nextSession.opponentName,
+              });
+              setHockeySession(nextSession);
+            }}
+          />
+        </>
+      )}
+
+      {phase !== 'matchmaking' && phase !== 'results' && (
         <div className="game-hud">
           <button
             type="button"
@@ -366,6 +461,17 @@ export function GameShell({
               <span>{score}</span>
             </span>
           </span>
+
+          {isHockey && matchTallies && (
+            <span
+              className="hud-pill hud-pill--versus"
+              aria-label={`Goals: You ${matchTallies.myGoals}, ${matchTallies.opponentName} ${matchTallies.oppGoals}`}
+            >
+              <span>YOU {matchTallies.myGoals}</span>
+              <span className="hud-versus-sep">–</span>
+              <span>{matchTallies.oppGoals} RIVAL</span>
+            </span>
+          )}
 
           {lives !== null && rules.lives !== null && (
             <span className="hud-pill hud-lives" aria-label={`${lives} of ${rules.lives} lives left`}>
@@ -394,9 +500,14 @@ export function GameShell({
         </div>
       )}
 
-      {phase !== 'results' && (
+      {phase !== 'matchmaking' && phase !== 'results' && (
         <div className="game-field">
-          <Playfield key={roundKey} api={api} />
+          <Playfield
+            key={`${roundKey}-${hockeySession?.mode ?? 'std'}-${hockeySession?.roomCode ?? ''}`}
+            api={api}
+            hockeySession={hockeySession ?? undefined}
+            onMatchTallies={isHockey ? setMatchTallies : undefined}
+          />
 
           {phase === 'countdown' && (
             <div className="game-overlay" role="status" aria-live="assertive">
@@ -407,6 +518,13 @@ export function GameShell({
                 <GameEmblem gameId={game.id} size={40} />
               </div>
               <div className="game-overlay__title">{game.title}</div>
+              {isHockey && hockeySession && (
+                <div className="game-overlay__versus-pill">
+                  {hockeySession.mode === 'solo'
+                    ? 'Solo vs Frosty Elf Bot'
+                    : `Live Room ${hockeySession.roomCode} · vs ${hockeySession.opponentName}`}
+                </div>
+              )}
               <div className="countdown-num" key={countdown}>
                 {countdown > 0 ? countdown : 'GO!'}
               </div>
@@ -452,7 +570,33 @@ export function GameShell({
         </div>
       )}
 
-      {phase === 'results' && roundResult && (
+      {phase === 'results' && roundResult && isJoinerRole && (
+        <ChallengerRoundResults
+          game={game}
+          result={roundResult}
+          tallies={matchTallies}
+          roomCode={hockeySession?.roomCode}
+          headingRef={resultsHeadingRef}
+          onJoinNext={() => openVersusMatchmaker('join')}
+          onPlaySolo={() => {
+            clearTimers();
+            setMatchTallies({
+              myGoals: 0,
+              oppGoals: 0,
+              opponentName: 'Frosty Elf Bot',
+            });
+            setHockeySession({
+              mode: 'solo',
+              myName: guestName || 'Player 1',
+              opponentName: 'Frosty Elf Bot',
+            });
+            setRoundKey((k) => k + 1);
+          }}
+          onExit={onExit}
+        />
+      )}
+
+      {phase === 'results' && roundResult && !isJoinerRole && (
         <RoundResults
           game={game}
           result={roundResult}
@@ -461,15 +605,128 @@ export function GameShell({
           claimToken={claimToken}
           volunteerName={displayChallenger}
           targetScore={targetScore}
+          matchTallies={isHockey ? matchTallies : null}
+          hockeyMode={isHockey ? hockeySession?.mode ?? null : null}
           headingRef={resultsHeadingRef}
           onRetry={retry}
+          onOpenVersusCode={isHockey ? () => openVersusMatchmaker('host') : undefined}
           onSelectGame={onSelectGame}
-          onClaim={(projectedRank) => onClaim(sessionBestRef.current, projectedRank)}
+          onClaim={(projectedRank) =>
+            onClaim(
+              sessionBestRef.current,
+              projectedRank,
+              livePartnerName || undefined
+            )
+          }
           onOpenPass={onOpenPass}
           onExit={onExit}
         />
       )}
     </section>
+  );
+}
+
+interface ChallengerRoundResultsProps {
+  game: ArcadeGameMeta;
+  result: RoundResult;
+  tallies: HockeyMatchTallies | null;
+  roomCode?: string;
+  headingRef: React.RefObject<HTMLHeadingElement | null>;
+  onJoinNext: () => void;
+  onPlaySolo: () => void;
+  onExit: () => void;
+}
+
+function ChallengerRoundResults({
+  game,
+  result,
+  tallies,
+  roomCode,
+  headingRef,
+  onJoinNext,
+  onPlaySolo,
+  onExit,
+}: ChallengerRoundResultsProps) {
+  const displayScore = useCountUp(result.score);
+  const myGoals = tallies?.myGoals ?? 0;
+  const guestGoals = tallies?.oppGoals ?? 0;
+  const guestLabel = tallies?.opponentName || 'Guest';
+
+  let headline = 'Great Live Duel!';
+  if (guestGoals > myGoals) {
+    headline = `${guestLabel} Won ${guestGoals}–${myGoals}!`;
+  } else if (myGoals > guestGoals) {
+    headline = `You Won ${myGoals}–${guestGoals}!`;
+  } else {
+    headline = `Epic ${myGoals}–${guestGoals} Draw!`;
+  }
+
+  return (
+    <div className="victory-card stage-enter">
+      <ConfettiBurst intensity="medium" />
+
+      <div className="victory-hero">
+        <div className="victory-hero__glow" aria-hidden="true" />
+        <ShiningTrophy tier="gold" size={86} rankBadge={null} />
+
+        <h2 ref={headingRef} tabIndex={-1} className="victory-hero__heading">
+          <span className="victory-hero__reason">{END_TITLES[result.reason]}</span>
+          <span className="visually-hidden"> · </span>
+          <span className="victory-hero__headline">{headline}</span>
+        </h2>
+
+        <div className="victory-score" aria-label={`You scored ${result.score} points`}>
+          <span className="victory-score__num">{displayScore}</span>
+          <span className="victory-score__unit">PTS</span>
+        </div>
+
+        <div className="results-chips">
+          <span className="chip chip--gold-glow">
+            <VersusPhonesIcon size={13} />
+            <span>
+              {guestLabel} {guestGoals} – {myGoals} You
+            </span>
+          </span>
+          {roomCode && <span className="chip chip--glass">Room {roomCode}</span>}
+        </div>
+      </div>
+
+      <div className="victory-body">
+        <div className="rank-spotlight rank-spotlight--emerald" role="status" aria-live="polite">
+          <span className="rank-spotlight__badge">
+            <GiftBoxIcon size={18} />
+          </span>
+          <div className="rank-spotlight__copy">
+            <strong>Challenger Mode · Guest Ranked Only</strong>
+            <span>
+              {guestLabel}&apos;s phone has their Champion Rank, Christmas Blessing Gift &amp; VIP
+              Invitation!
+            </span>
+          </div>
+        </div>
+
+        <div className="results-actions">
+          <button
+            type="button"
+            className="btn btn--primary btn--shimmer btn--full"
+            onClick={onJoinNext}
+          >
+            <VersusPhonesIcon size={18} />
+            <span>Join Next 4-Digit Code</span>
+          </button>
+
+          <button type="button" className="btn btn--ghost btn--full" onClick={onPlaySolo}>
+            <ReplayIcon size={17} />
+            <span>Play Solo on {game.title}</span>
+          </button>
+
+          <button type="button" className="btn btn--subtle btn--sm" onClick={onExit}>
+            <GridGamesIcon size={15} />
+            <span>All games</span>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -481,8 +738,11 @@ interface RoundResultsProps {
   claimToken?: string;
   volunteerName: string;
   targetScore: number;
+  matchTallies?: HockeyMatchTallies | null;
+  hockeyMode?: HockeySessionConfig['mode'] | null;
   headingRef: React.RefObject<HTMLHeadingElement | null>;
   onRetry: () => void;
+  onOpenVersusCode?: () => void;
   onSelectGame?: (game: ActiveGameId) => void;
   onClaim: (projectedRank: number | null) => void;
   onOpenPass: () => void;
@@ -497,8 +757,11 @@ function RoundResults({
   claimToken,
   volunteerName,
   targetScore,
+  matchTallies,
+  hockeyMode,
   headingRef,
   onRetry,
+  onOpenVersusCode,
   onSelectGame,
   onClaim,
   onOpenPass,
@@ -523,6 +786,8 @@ function RoundResults({
     headline = hasPass ? '#1 All-Time Leader!' : '#1 Score Unlocked!';
   } else if (effectiveRank !== null && effectiveRank <= 3 && result.score > 0) {
     headline = `Top ${effectiveRank} Podium Run!`;
+  } else if (matchTallies && matchTallies.myGoals > matchTallies.oppGoals) {
+    headline = `Won ${matchTallies.myGoals}–${matchTallies.oppGoals} vs ${matchTallies.opponentName}!`;
   } else if (volunteerName && result.score >= targetScore) {
     headline = `You Beat ${volunteerName}!`;
   } else if (isNewBest) {
@@ -541,8 +806,8 @@ function RoundResults({
       ? remote.result.board.top[0].score
       : null;
 
-  let replayLabel = 'Play again';
-  if (hasPass) {
+  let replayLabel = hockeyMode === 'host' ? 'Play again · New 4-Digit Duel' : 'Play again';
+  if (hasPass && hockeyMode !== 'host') {
     if (effectiveRank === 1 && best > 0) {
       replayLabel = `Play again · Push ${best} pts record`;
     } else if (topLeaderScore !== null && best < topLeaderScore) {
@@ -588,14 +853,24 @@ function RoundResults({
             <span className="chip chip--glass">Best {best}</span>
           )}
 
-          {volunteerName && (
+          {matchTallies ? (
             <span
-              className={`chip ${result.score >= targetScore ? 'chip--emerald-glow' : 'chip--glass'}`}
+              className={`chip ${
+                matchTallies.myGoals > matchTallies.oppGoals ? 'chip--emerald-glow' : 'chip--glass'
+              }`}
             >
-              {result.score >= targetScore
-                ? `Beat ${volunteerName}'s ${targetScore}`
-                : `${targetScore - result.score} pts to beat ${volunteerName}`}
+              Goals: You {matchTallies.myGoals} – {matchTallies.oppGoals} {matchTallies.opponentName}
             </span>
+          ) : (
+            volunteerName && (
+              <span
+                className={`chip ${result.score >= targetScore ? 'chip--emerald-glow' : 'chip--glass'}`}
+              >
+                {result.score >= targetScore
+                  ? `Beat ${volunteerName}'s ${targetScore}`
+                  : `${targetScore - result.score} pts to beat ${volunteerName}`}
+              </span>
+            )
           )}
         </div>
       </div>
@@ -654,6 +929,16 @@ function RoundResults({
                 <ReplayIcon size={18} />
                 <span>{replayLabel}</span>
               </button>
+              {hockeyMode === 'solo' && onOpenVersusCode && (
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--full"
+                  onClick={onOpenVersusCode}
+                >
+                  <VersusPhonesIcon size={17} />
+                  <span>2-Phone 4-Digit Versus</span>
+                </button>
+              )}
               <button type="button" className="btn btn--ghost btn--full" onClick={onOpenPass}>
                 <TicketPassIcon size={18} />
                 <span>VIP Invitation &amp; Ranks</span>
@@ -671,8 +956,18 @@ function RoundResults({
               </button>
               <button type="button" className="btn btn--ghost btn--full" onClick={onRetry}>
                 <ReplayIcon size={17} />
-                <span>Play again</span>
+                <span>{replayLabel}</span>
               </button>
+              {hockeyMode === 'solo' && onOpenVersusCode && (
+                <button
+                  type="button"
+                  className="btn btn--subtle btn--sm"
+                  onClick={onOpenVersusCode}
+                >
+                  <VersusPhonesIcon size={15} />
+                  <span>Challenge a Friend (4-Digit Code)</span>
+                </button>
+              )}
             </>
           )}
 

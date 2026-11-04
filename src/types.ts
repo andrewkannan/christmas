@@ -1,11 +1,11 @@
 export type ActiveGameId =
-  | 'claw-machine'
+  | 'ice-hockey'
   | 'santa-dash'
   | 'gift-tetris'
   | 'gift-slash'
   | 'candy-match';
 
-export type LegacyGameId = 'gift-rush' | 'tap-duel' | 'starlight-drop';
+export type LegacyGameId = 'claw-machine' | 'gift-rush' | 'tap-duel' | 'starlight-drop';
 
 export type GameId = ActiveGameId | LegacyGameId;
 
@@ -22,13 +22,13 @@ export interface ArcadeGameMeta {
 
 export const ACTIVE_ARCADE_GAMES: readonly ArcadeGameMeta[] = [
   {
-    id: 'claw-machine',
-    title: 'Claw Grab',
-    shortTag: 'UFO Crane',
-    durationLabel: '3 lives',
-    controlHint: 'Slide & Drop Claw',
-    emoji: '🧸',
-    accentBg: 'linear-gradient(135deg, #ff3b30, #d70015)',
+    id: 'ice-hockey',
+    title: 'Starlight Hockey',
+    shortTag: '2P Versus · 1P',
+    durationLabel: '4-Digit Duel',
+    controlHint: 'Drag Striker · Smash Puck Across Phones!',
+    emoji: '🏒',
+    accentBg: 'linear-gradient(135deg, #d70015, #99000f)',
     accentFg: '#ffffff',
   },
   {
@@ -74,6 +74,7 @@ export const ACTIVE_ARCADE_GAMES: readonly ArcadeGameMeta[] = [
 ] as const;
 
 export const GAME_LABELS_MAP: Record<string, string> = {
+  'ice-hockey': '🏒 Starlight Hockey',
   'claw-machine': '🧸 Claw Grab',
   'santa-dash': '🛷 Santa Dash',
   'gift-tetris': '🧱 Block Stack',
@@ -301,3 +302,88 @@ export interface RunFinishResult {
   board: GameLeaderboard;
   claim: PublicClaimResult | null;
 }
+
+export type HockeyRole = 'host' | 'joiner';
+export type HockeySessionMode = 'solo' | 'host' | 'joiner';
+export type HockeyRoomStatus = 'waiting' | 'countdown' | 'playing' | 'finished';
+
+export interface HockeySessionConfig {
+  mode: HockeySessionMode;
+  roomCode?: string;
+  playerToken?: string;
+  myName: string;
+  opponentName: string;
+  initialSnapshot?: HockeyRoomSnapshot;
+}
+
+export interface HockeyMatchTallies {
+  myGoals: number;
+  oppGoals: number;
+  opponentName: string;
+}
+
+export interface HockeyPuckSnapshot {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  turbo: boolean;
+}
+
+export interface HockeyStrikerSnapshot {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  connected: boolean;
+  botControlled: boolean;
+  name: string;
+}
+
+export interface HockeyGoalBanner {
+  scorer: 'me' | 'opp';
+  points: number;
+  turbo: boolean;
+  seq: number;
+}
+
+/**
+ * Player-centric room snapshot: coordinates are already oriented so THIS player's half
+ * is always the bottom half (y in [450, 900]) and the opponent's half is above the top portal (y in [0, 450]).
+ */
+export interface HockeyRoomSnapshot {
+  code: string;
+  role: HockeyRole;
+  status: HockeyRoomStatus;
+  countdown: number;
+  elapsedMs: number;
+  timeLeftMs: number;
+  winGoals: number;
+  myGoals: number;
+  oppGoals: number;
+  myArcadeScore: number;
+  oppArcadeScore: number;
+  myStriker: HockeyStrikerSnapshot;
+  oppStriker: HockeyStrikerSnapshot;
+  pucks: HockeyPuckSnapshot[];
+  starGateX: number;
+  starGateActive: boolean;
+  lastGoal: HockeyGoalBanner | null;
+  serverTimeMs: number;
+}
+
+export interface CreateHockeyRoomResponse {
+  code: string;
+  playerToken: string;
+  role: 'host';
+  snapshot: HockeyRoomSnapshot;
+}
+
+export interface JoinHockeyRoomResponse {
+  code: string;
+  playerToken: string;
+  role: 'joiner';
+  snapshot: HockeyRoomSnapshot;
+}
+

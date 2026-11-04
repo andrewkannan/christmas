@@ -1,7 +1,7 @@
 export type MusicScene =
   | 'none'
   | 'christmas-bg'
-  | 'claw-machine'
+  | 'ice-hockey'
   | 'santa-dash'
   | 'gift-tetris'
   | 'gift-slash'
@@ -50,25 +50,25 @@ const TRACKS: Record<Exclude<MusicScene, 'none'>, StepTrack> = {
     bassGain: 0.032,
   },
 
-  // Claw Grab: Playful UFO Crane Toybox Bounce
-  'claw-machine': {
-    bpm: 132,
+  // Starlight Hockey: High-Energy Festive Stadium Organ & Sleigh Duel ("Carol of the Bells" arcade drive)
+  'ice-hockey': {
+    bpm: 152,
     melody: [
-      72, 76, 79, 81, 79, 76, 74, 71,
-      72, 79, 76, 72, 74, 77, 81, 79,
-      84, 79, 76, 72, 77, 81, 79, 76,
-      74, 76, 77, 79, 83, 79, 84, 0,
+      79, 0, 78, 79, 76, 0, 79, 0, 78, 79, 76, 0,
+      79, 0, 78, 79, 76, 0, 79, 0, 78, 79, 76, 0,
+      83, 0, 81, 83, 79, 0, 83, 0, 81, 83, 79, 0,
+      84, 83, 81, 79, 78, 76, 74, 76, 78, 0, 79, 0,
     ],
     bass: [
-      48, 0, 55, 0, 48, 0, 55, 0,
-      48, 0, 55, 0, 50, 0, 55, 0,
-      53, 0, 57, 0, 53, 0, 55, 0,
-      50, 0, 55, 0, 55, 0, 48, 0,
+      52, 64, 52, 64, 52, 64, 50, 62, 50, 62, 50, 62,
+      48, 60, 48, 60, 48, 60, 47, 59, 47, 59, 47, 59,
+      52, 64, 55, 67, 52, 64, 50, 62, 54, 66, 50, 62,
+      48, 60, 50, 62, 52, 64, 54, 66, 47, 59, 52, 0,
     ],
-    sleigh: [1, 0, 1, 0, 1, 0, 1, 0],
+    sleigh: [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
     leadWave: 'triangle',
-    leadGain: 0.045,
-    bassGain: 0.036,
+    leadGain: 0.048,
+    bassGain: 0.038,
   },
 
   // Santa Dash: High-Energy "Jingle Bells" Arcade Sprint
@@ -563,10 +563,10 @@ export function toggleSoundMuted(): boolean {
   return muted;
 }
 
-export function triggerHaptic(ms = 18): void {
+export function triggerHaptic(pattern: number | number[] = 18): void {
   try {
     if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
-      navigator.vibrate(ms);
+      navigator.vibrate(pattern);
     }
   } catch {
     // Ignore unsupported devices

@@ -28,7 +28,7 @@ npm run dev
 
 1. **Print or Display Volunteer QR Boards:** Open `/team` → **QR Board Maker**, enter each volunteer's name (e.g., `Andrew`, target `18`), and click **Poster View → Print A4 Board** (or save the QR PNG).
 2. **Passerby Scans QR (`/?vs=Andrew&target=18`):** Opens the **5-Game Christmas Arcade Stop**. Every game runs in the same frame: 3-2-1 countdown → live HUD (score, lives or moves, timer) → end banner → results screen.
-   - **🧸 Claw Grab (3 lives, 45s cap):** UFO crane; plush 1 · gift 2 · star 3; an empty grab costs a life; Golden Claw in the final 8s.
+   - **🏒 Starlight Hockey (2P Live Versus · First to 7 or 45s):** Guest shows a 4-digit room code on their phone and a team member enters it on theirs to smash a glowing puck live across both screens (plus Solo vs Frosty Elf Bot mode). Only the guest is ranked on the public Champion Board.
    - **🛷 Santa Dash (3 lives, 60s cap):** 3-lane runner; coin 1 · gift 3 · star 5 (magnet); hitting a barrier costs a life.
    - **🧱 Block Stack (3 lives, 90s cap):** 8×14 gift Tetris (7-bag, ghost piece, wall kicks); topping out costs a life and clears the upper rows.
    - **⚔️ Berry Slash (3 lives, 60s cap):** slice ornaments; letting one fall or slicing a frost bomb costs a life; 3+ in one swipe is a combo.

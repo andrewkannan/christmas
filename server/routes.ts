@@ -12,9 +12,11 @@ import {
   verifyTeamPin,
 } from './auth.ts';
 import { buildGoogleCalendarUrl, buildIcsContent } from './calendar.ts';
+import { HockeyRoomManager } from './hockeyRooms.ts';
 import { normalizePhoneForWhatsApp } from './phone.ts';
 
 const GameIdEnum = z.enum([
+  'ice-hockey',
   'claw-machine',
   'santa-dash',
   'gift-tetris',
@@ -87,7 +89,13 @@ const LeadPatchSchema = z.object({
   notes: z.string().max(300).optional(),
 });
 
-const ActiveGameIdEnum = z.enum(['claw-machine', 'santa-dash', 'gift-tetris', 'gift-slash', 'candy-match']);
+const ActiveGameIdEnum = z.enum([
+  'ice-hockey',
+  'santa-dash',
+  'gift-tetris',
+  'gift-slash',
+  'candy-match',
+]);
 
 const RunStartSchema = z.object({
   gameId: ActiveGameIdEnum,
@@ -99,7 +107,29 @@ const RunStartSchema = z.object({
 const RunFinishSchema = z.object({
   visitorId: z.string().trim().min(3).max(80),
   score: z.number().int().min(0).max(100000),
-  endReason: z.enum(['time', 'lives', 'moves']),
+  endReason: z.enum(['time', 'lives', 'moves', 'knockout']),
+});
+
+const CreateVersusRoomSchema = z.object({
+  hostName: z.string().trim().max(32).optional().default('Player 1'),
+});
+
+const JoinVersusRoomSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{4}$/, 'Enter the 4-digit room code (1000–9999).'),
+  joinerName: z.string().trim().max(32).optional().default('Challenger'),
+});
+
+const VersusInputSchema = z.object({
+  token: z.string().trim().min(16).max(80),
+  x: z.number().finite().min(-50).max(410),
+  y: z.number().finite().min(400).max(950),
+});
+
+const VersusLeaveSchema = z.object({
+  token: z.string().trim().min(16).max(80),
 });
 
 const ClaimTokenQuerySchema = z.string().trim().min(10).max(80).optional();
@@ -133,11 +163,14 @@ export function sanitizeCsvCell(raw: string | number | boolean): string {
   return str;
 }
 
-export function createApiRouter(db: ArcadeDatabase) {
+export function createApiRouter(db: ArcadeDatabase, options: { now?: () => number } = {}) {
   const router = express.Router();
+  const hockeyRooms = new HockeyRoomManager(options);
   const pinLimiter = new SlidingWindowRateLimiter(5, 15 * 60 * 1000);
   const leadLimiter = new SlidingWindowRateLimiter(45, 5 * 60 * 1000);
   const telemetryLimiter = new SlidingWindowRateLimiter(240, 5 * 60 * 1000);
+  const roomActionLimiter = new SlidingWindowRateLimiter(80, 5 * 60 * 1000);
+  const versusInputLimiter = new SlidingWindowRateLimiter(5000, 60 * 1000);
 
   router.get('/public/config', (_req, res) => {
     const settings = db.getSettings();
@@ -455,6 +488,107 @@ export function createApiRouter(db: ArcadeDatabase) {
     } catch {
       res.status(500).json({ error: 'Failed to generate QR code.' });
     }
+  });
+
+  // --- 2-Phone Live Versus Rooms (Starlight Air Hockey) ---
+
+  router.post('/versus/rooms', (req, res) => {
+    const ip = getClientIp(req);
+    if (!roomActionLimiter.isAllowed(ip)) {
+      res.status(429).json({ error: 'Too many room requests. Please wait a moment.' });
+      return;
+    }
+    const parsed = CreateVersusRoomSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid room setup.' });
+      return;
+    }
+    const outcome = hockeyRooms.createRoom(parsed.data.hostName);
+    if (!outcome.ok) {
+      res.status(outcome.status).json({ error: outcome.error });
+      return;
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(201).json(outcome.data);
+  });
+
+  router.post('/versus/rooms/join', (req, res) => {
+    const ip = getClientIp(req);
+    if (!roomActionLimiter.isAllowed(ip)) {
+      res.status(429).json({ error: 'Too many join attempts. Please wait a moment.' });
+      return;
+    }
+    const parsed = JoinVersusRoomSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message || 'Enter a valid 4-digit room code.';
+      res.status(400).json({ error: msg });
+      return;
+    }
+    const outcome = hockeyRooms.joinRoom(parsed.data.code, parsed.data.joinerName);
+    if (!outcome.ok) {
+      res.status(outcome.status).json({ error: outcome.error });
+      return;
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).json(outcome.data);
+  });
+
+  router.get('/versus/rooms/:code/stream', (req, res) => {
+    const token = typeof req.query.token === 'string' ? req.query.token.trim() : '';
+    const err = hockeyRooms.attachStream(req.params.code, token, res);
+    if (err) {
+      res.status(err.status).json({ error: err.error });
+    }
+  });
+
+  router.get('/versus/rooms/:code', (req, res) => {
+    const token = typeof req.query.token === 'string' ? req.query.token.trim() : '';
+    const outcome = hockeyRooms.getSnapshot(req.params.code, token);
+    if (!outcome.ok) {
+      res.status(outcome.status).json({ error: outcome.error });
+      return;
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ snapshot: outcome.snapshot });
+  });
+
+  router.post('/versus/rooms/:code/input', (req, res) => {
+    const ip = getClientIp(req);
+    if (!versusInputLimiter.isAllowed(ip)) {
+      res.status(429).json({ error: 'Input rate limit exceeded.' });
+      return;
+    }
+    const parsed = VersusInputSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid striker input.' });
+      return;
+    }
+    const outcome = hockeyRooms.updateInput(
+      req.params.code,
+      parsed.data.token,
+      parsed.data.x,
+      parsed.data.y
+    );
+    if (!outcome.ok) {
+      res.status(outcome.status).json({ error: outcome.error });
+      return;
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ snapshot: outcome.snapshot });
+  });
+
+  router.post('/versus/rooms/:code/leave', (req, res) => {
+    const parsed = VersusLeaveSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid leave payload.' });
+      return;
+    }
+    const outcome = hockeyRooms.leaveRoom(req.params.code, parsed.data.token);
+    if (!outcome.ok) {
+      res.status(outcome.status).json({ error: outcome.error });
+      return;
+    }
+    res.json({ ok: true });
   });
 
   return router;

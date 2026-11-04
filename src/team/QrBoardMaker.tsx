@@ -234,7 +234,7 @@ export function QrBoardMaker({ settings }: QrBoardMakerProps) {
             />
           )}
           <p style={{ margin: '0.75rem 0 0', fontWeight: 800, fontSize: '0.98rem' }}>
-            🧸 Claw Grab · 🛷 Santa Dash · 🧱 Tetris · ⚔️ Berry Slash · 🍬 Candy Match
+            🏒 Starlight Hockey (2P) · 🛷 Santa Dash · 🧱 Block Stack · ⚔️ Berry Slash · 🍬 Candy Match
           </p>
         </div>
         <div

@@ -503,7 +503,7 @@ export function WinnerPass({
               <div className="vip-invitation__crest-row">
                 <span className="vip-invitation__badge">
                   <StarMarkIcon size={12} />
-                  <span>VIP Invitation</span>
+                  <span>VIP Invitation · {settings.churchName}</span>
                 </span>
                 <span className="vip-invitation__free-tag">Free Entry</span>
               </div>
