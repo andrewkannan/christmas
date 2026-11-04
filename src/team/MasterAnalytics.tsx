@@ -1,16 +1,10 @@
 import { useId, type CSSProperties } from 'react';
-import type { MasterAnalyticsResponse } from '../types.ts';
+import { GAME_LABELS_MAP, type MasterAnalyticsResponse } from '../types.ts';
 
 interface MasterAnalyticsProps {
   data: MasterAnalyticsResponse;
   onRefresh: () => void;
 }
-
-const GAME_TITLES: Record<string, string> = {
-  'gift-rush': '⚡ Gift & Star Rush',
-  'tap-duel': '🥊 Sleigh Tap Duel',
-  'starlight-drop': '🎯 Starlight Drop & Spark',
-};
 
 const EVENT_LABELS: Record<string, string> = {
   page_view: '👁 Page / QR View',
@@ -253,7 +247,7 @@ export function MasterAnalytics({ data, onRefresh }: MasterAnalyticsProps) {
             <tbody>
               {byGame.map((g) => (
                 <tr key={g.gameId}>
-                  <th scope="row">{GAME_TITLES[g.gameId] || g.gameId}</th>
+                  <th scope="row">{GAME_LABELS_MAP[g.gameId] || g.gameId}</th>
                   <td>
                     <strong>{g.completions}</strong>{' '}
                     <span className="subtle-text" style={{ fontSize: '0.8rem' }}>
@@ -352,7 +346,7 @@ export function MasterAnalytics({ data, onRefresh }: MasterAnalyticsProps) {
                 <div>
                   <strong>{EVENT_LABELS[ev.eventType] || ev.eventType}</strong>
                   {ev.guestName ? ` · ${ev.guestName}` : ' · Visitor'}
-                  {ev.gameId ? ` (${GAME_TITLES[ev.gameId] || ev.gameId}` : ''}
+                  {ev.gameId ? ` (${GAME_LABELS_MAP[ev.gameId] || ev.gameId}` : ''}
                   {ev.gameId && ev.eventType === 'game_complete' ? ` · ${ev.score} pts)` : ev.gameId ? ')' : ''}
                   {ev.volunteerName ? ` · QR: ${ev.volunteerName}` : ''}
                   {ev.isPostInteraction && (

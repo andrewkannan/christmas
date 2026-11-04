@@ -233,8 +233,8 @@ export function QrBoardMaker({ settings }: QrBoardMakerProps) {
               style={{ inlineSize: '17rem', blockSize: '17rem' }}
             />
           )}
-          <p style={{ margin: '0.75rem 0 0', fontWeight: 800, fontSize: '1.05rem' }}>
-            ⚡ Gift Rush · 🥊 2P Tap Duel · 🎯 Starlight Drop
+          <p style={{ margin: '0.75rem 0 0', fontWeight: 800, fontSize: '0.98rem' }}>
+            🧸 Claw Grab · 🛷 Santa Dash · 🧱 Tetris · ⚔️ Berry Slash · 🍬 Candy Match
           </p>
         </div>
         <div

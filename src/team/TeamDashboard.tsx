@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
-import type {
-  EventSettings,
-  MasterAnalyticsResponse,
-  TeamDashboardStats,
-  TeamLeadRecord,
+import {
+  GAME_LABELS_MAP,
+  type EventSettings,
+  type MasterAnalyticsResponse,
+  type TeamDashboardStats,
+  type TeamLeadRecord,
 } from '../types.ts';
 import {
   fetchMasterAnalytics,
@@ -20,12 +21,6 @@ interface TeamDashboardProps {
   onSettingsUpdated: (next: EventSettings) => void;
   onLoggedOut: () => void;
 }
-
-const GAME_LABELS: Record<string, string> = {
-  'gift-rush': '⚡ Gift Rush',
-  'tap-duel': '🥊 Tap Duel',
-  'starlight-drop': '🎯 Starlight Drop',
-};
 
 export function TeamDashboard({
   settings,
@@ -373,7 +368,7 @@ export function TeamDashboard({
                       <td data-col="volunteer">{lead.volunteerName || 'General'}</td>
                       <td data-col="game">
                         <div>
-                          {GAME_LABELS[lead.gamePlayed] || lead.gamePlayed} ({lead.score} pts)
+                          {GAME_LABELS_MAP[lead.gamePlayed] || lead.gamePlayed} ({lead.score} pts)
                         </div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--accent-gold-bright)' }}>
                           🎮 {lead.totalGamesPlayed} played ({lead.gamesAfterInteraction} after) ·

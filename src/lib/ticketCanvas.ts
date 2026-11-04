@@ -31,7 +31,7 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
 }
 
 /**
- * Generates a crisp personalized Christmas E-Invitation PNG data URL on an HTML5 Canvas.
+ * Generates an Apple Wallet-style Snow & Crimson Christmas E-Pass PNG data URL.
  */
 export function renderPersonalizedETicketPng(params: {
   guestName: string;
@@ -45,118 +45,133 @@ export function renderPersonalizedETicketPng(params: {
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
 
-  // Deep evergreen festive background
+  // Clean Apple Snow backdrop
   const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  bgGrad.addColorStop(0, '#0b1c15');
-  bgGrad.addColorStop(1, '#142f24');
+  bgGrad.addColorStop(0, '#f5f5f7');
+  bgGrad.addColorStop(1, '#ececf1');
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Decorative warm starlight glow
-  const glow = ctx.createRadialGradient(540, 210, 20, 540, 210, 420);
-  glow.addColorStop(0, 'rgba(245, 185, 66, 0.34)');
-  glow.addColorStop(1, 'rgba(245, 185, 66, 0)');
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, canvas.width, 640);
+  // Subtle ambient Christmas glow
+  const redGlow = ctx.createRadialGradient(540, 180, 10, 540, 180, 520);
+  redGlow.addColorStop(0, 'rgba(215, 0, 21, 0.14)');
+  redGlow.addColorStop(1, 'rgba(215, 0, 21, 0)');
+  ctx.fillStyle = redGlow;
+  ctx.fillRect(0, 0, canvas.width, 720);
 
-  // Outer gold frame
-  ctx.strokeStyle = '#f5b942';
-  ctx.lineWidth = 6;
-  ctx.strokeRect(48, 48, canvas.width - 96, canvas.height - 96);
+  // Main Elevated White Wallet Card
+  const cardX = 84;
+  const cardY = 84;
+  const cardW = canvas.width - 168;
+  const cardH = canvas.height - 168;
 
-  // Bethlehem 8-point star emblem at top
   ctx.save();
-  ctx.translate(540, 165);
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.12)';
+  ctx.shadowBlur = 42;
+  ctx.shadowOffsetY = 16;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.roundRect(cardX, cardY, cardW, cardH, 48);
+  ctx.fill();
+  ctx.restore();
+
+  // Crimson Top Header Band inside Wallet Card
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(cardX, cardY, cardW, 340, [48, 48, 0, 0]);
+  const topGrad = ctx.createLinearGradient(cardX, cardY, cardX + cardW, cardY + 340);
+  topGrad.addColorStop(0, '#e11d2e');
+  topGrad.addColorStop(1, '#b80012');
+  ctx.fillStyle = topGrad;
+  ctx.fill();
+  ctx.restore();
+
+  // Gold Star Emblem
+  ctx.save();
+  ctx.translate(540, 185);
   ctx.fillStyle = '#ffd369';
   ctx.beginPath();
   for (let i = 0; i < 8; i++) {
     const angle = (i * Math.PI) / 4;
-    const outerR = i % 2 === 0 ? 58 : 34;
+    const outerR = i % 2 === 0 ? 44 : 26;
     ctx.lineTo(Math.cos(angle) * outerR, Math.sin(angle) * outerR);
     const midAngle = angle + Math.PI / 8;
-    ctx.lineTo(Math.cos(midAngle) * 14, Math.sin(midAngle) * 14);
+    ctx.lineTo(Math.cos(midAngle) * 11, Math.sin(midAngle) * 11);
   }
   ctx.closePath();
   ctx.fill();
   ctx.restore();
 
-  // Church / Host header
+  // Church Name in Header
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#f5b942';
-  ctx.font = '700 28px system-ui, -apple-system, sans-serif';
-  ctx.fillText(settings.churchName.toUpperCase(), 540, 275);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.font = '700 26px -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+  ctx.fillText(`${settings.churchName.toUpperCase()}  ·  CHRISTMAS PASS`, 540, 272);
 
-  // Main Event Title
-  ctx.fillStyle = '#fbf6ec';
-  ctx.font = '800 62px system-ui, -apple-system, sans-serif';
-  const titleLines = wrapLines(ctx, settings.eventTitle, 860);
-  let y = 355;
-  for (const line of titleLines.slice(0, 2)) {
-    ctx.fillText(line, 540, y);
-    y += 72;
-  }
+  // Event Title in Header
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '800 54px -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+  const titleLines = wrapLines(ctx, settings.eventTitle, 780);
+  ctx.fillText(titleLines[0] || settings.eventTitle, 540, 352);
+
+  // Guest Name Block
+  let y = 505;
+  ctx.fillStyle = '#6e6e73';
+  ctx.font = '700 24px -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+  ctx.fillText('GUEST', 540, y);
+
+  ctx.fillStyle = '#1d1d1f';
+  ctx.font = '800 56px -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+  ctx.fillText(guestName, 540, y + 66);
 
   // Event Subtitle
-  ctx.fillStyle = '#bed0c5';
-  ctx.font = '500 30px system-ui, -apple-system, sans-serif';
-  const subLines = wrapLines(ctx, settings.eventSubtitle, 820);
-  for (const line of subLines.slice(0, 2)) {
-    ctx.fillText(line, 540, y + 10);
-    y += 42;
+  if (settings.eventSubtitle) {
+    ctx.fillStyle = '#515158';
+    ctx.font = '500 28px -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+    const subLines = wrapLines(ctx, settings.eventSubtitle, 760);
+    let sy = y + 124;
+    for (const line of subLines.slice(0, 2)) {
+      ctx.fillText(line, 540, sy);
+      sy += 38;
+    }
   }
 
-  // Cream Ticket Stub Card inside
-  const cardTop = 560;
-  const cardHeight = 640;
-  ctx.fillStyle = '#fbf6ec';
-  ctx.beginPath();
-  ctx.roundRect(96, cardTop, canvas.width - 192, cardHeight, 28);
-  ctx.fill();
-
-  // Guest VIP header
-  ctx.fillStyle = '#d93829';
-  ctx.font = '800 26px system-ui, -apple-system, sans-serif';
-  ctx.fillText('PERSONAL CHRISTMAS E-INVITATION', 540, cardTop + 72);
-
-  ctx.fillStyle = '#13251d';
-  ctx.font = '800 50px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`For ${guestName}`, 540, cardTop + 142);
-
-  // Divider line
-  ctx.strokeStyle = '#d4c5ab';
+  // Perforated Divider
+  const divY = 740;
+  ctx.strokeStyle = '#d2d2d7';
   ctx.setLineDash([12, 10]);
   ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(150, cardTop + 190);
-  ctx.lineTo(canvas.width - 150, cardTop + 190);
+  ctx.moveTo(cardX + 44, divY);
+  ctx.lineTo(cardX + cardW - 44, divY);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Date & Venue details
-  ctx.fillStyle = '#455a50';
-  ctx.font = '700 25px system-ui, -apple-system, sans-serif';
-  ctx.fillText('DATE & TIME', 540, cardTop + 252);
+  // Date & Location
+  ctx.fillStyle = '#6e6e73';
+  ctx.font = '700 23px -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+  ctx.fillText('WHEN', 540, divY + 68);
 
-  ctx.fillStyle = '#13251d';
-  ctx.font = '800 36px system-ui, -apple-system, sans-serif';
-  ctx.fillText(formatReadableDateClient(settings.eventDateIso), 540, cardTop + 300);
+  ctx.fillStyle = '#1d1d1f';
+  ctx.font = '800 38px -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+  ctx.fillText(formatReadableDateClient(settings.eventDateIso), 540, divY + 118);
 
-  ctx.fillStyle = '#455a50';
-  ctx.font = '700 25px system-ui, -apple-system, sans-serif';
-  ctx.fillText('LOCATION', 540, cardTop + 378);
+  ctx.fillStyle = '#6e6e73';
+  ctx.font = '700 23px -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+  ctx.fillText('WHERE', 540, divY + 195);
 
-  ctx.fillStyle = '#13251d';
-  ctx.font = '800 34px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = '#1d1d1f';
+  ctx.font = '800 36px -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
   const venueLines = wrapLines(ctx, settings.venueName, 760);
-  let vy = cardTop + 424;
+  let vy = divY + 244;
   for (const vLine of venueLines.slice(0, 2)) {
     ctx.fillText(vLine, 540, vy);
     vy += 42;
   }
 
   if (settings.venueAddress) {
-    ctx.fillStyle = '#455a50';
-    ctx.font = '500 26px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#515158';
+    ctx.font = '500 26px -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
     const addrLines = wrapLines(ctx, settings.venueAddress, 760);
     for (const aLine of addrLines.slice(0, 2)) {
       ctx.fillText(aLine, 540, vy + 4);
@@ -164,15 +179,15 @@ export function renderPersonalizedETicketPng(params: {
     }
   }
 
-  // Pass code badge at bottom of card
-  ctx.fillStyle = '#13251d';
-  ctx.font = '700 26px ui-monospace, monospace';
-  ctx.fillText(`PASS CODE: ${redemptionCode}  ·  FREE ADMISSION`, 540, cardTop + cardHeight - 44);
+  // Redemption Pill Box at Bottom
+  ctx.fillStyle = '#f5f5f7';
+  ctx.beginPath();
+  ctx.roundRect(190, 1110, 700, 96, 24);
+  ctx.fill();
 
-  // Footer note
-  ctx.fillStyle = '#f5b942';
-  ctx.font = '600 26px system-ui, -apple-system, sans-serif';
-  ctx.fillText('Bring a friend — everyone is welcome this Christmas!', 540, 1265);
+  ctx.fillStyle = '#d70015';
+  ctx.font = '800 32px ui-monospace, SFMono-Regular, monospace';
+  ctx.fillText(`PASS ${redemptionCode}  ·  FREE ENTRY`, 540, 1168);
 
   return canvas.toDataURL('image/png');
 }

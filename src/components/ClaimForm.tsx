@@ -51,8 +51,6 @@ export function ClaimForm({
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const beatTarget = score >= targetScore;
-
   const syncAriaInvalid = (el: HTMLInputElement) => {
     const invalid = !el.checkValidity();
     el.classList.toggle('user-invalid-fallback', invalid);
@@ -100,36 +98,25 @@ export function ClaimForm({
   };
 
   return (
-    <section aria-labelledby={`${uid}-win-heading`}>
-      <div
-        className="challenger-banner"
-        style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.35rem' }}
-      >
-        <span className="challenger-tag">
-          {beatTarget ? 'Challenge Crushed!' : 'Bonus Christmas Chest!'}
-        </span>
-        <h1 id={`${uid}-win-heading`} className="hero-title">
-          {beatTarget
-            ? volunteerName
-              ? `🎉 You Beat ${volunteerName}! (${score} pts)`
-              : `🎉 Winner! You Scored ${score} pts!`
-            : `🎁 Great Run! Bonus Gift Unlocked (${score} pts)`}
+    <section
+      aria-labelledby={`${uid}-win-heading`}
+      style={{ maxInlineSize: '26rem', inlineSize: '100%', marginInline: 'auto' }}
+    >
+      <div style={{ textAlign: 'center', marginBlockEnd: '1rem' }}>
+        <span className="challenger-tag">★ {score} pts · Winner</span>
+        <h1 id={`${uid}-win-heading`} className="hero-title" style={{ marginBlockStart: '0.45rem' }}>
+          Claim Your Gift
         </h1>
-        <p className="subtle-text">
-          You caught the Christmas spark! Enter your name and mobile number below to unlock your{' '}
-          <strong style={{ color: 'var(--accent-gold-bright)' }}>{settings.giftDescription}</strong>{' '}
-          &amp; personal e-invitation.
+        <p className="subtle-text" style={{ marginBlockStart: '0.25rem' }}>
+          🎁 {settings.giftDescription} + {settings.eventTitle} Pass
         </p>
       </div>
 
       <form method="post" action="/api/leads" noValidate onSubmit={handleSubmit} className="card-panel">
         <div className="form-group">
           <label htmlFor={`${uid}-name`} className="form-label">
-            Your Name (Required)
+            Name
           </label>
-          <span id={`${uid}-name-hint`} className="field-hint">
-            Printed on your personalized Christmas E-Ticket.
-          </span>
           <input
             id={`${uid}-name`}
             name="name"
@@ -140,9 +127,8 @@ export function ClaimForm({
             required
             minLength={1}
             maxLength={80}
-            placeholder="e.g. Sarah Lim"
+            placeholder="Your name"
             value={name}
-            aria-describedby={`${uid}-name-hint`}
             onChange={(e) => {
               setName(e.target.value);
               if (e.currentTarget.hasAttribute('aria-invalid')) {
@@ -152,21 +138,18 @@ export function ClaimForm({
             onBlur={(e) => syncAriaInvalid(e.currentTarget)}
           />
           <div className="field-error" role="alert">
-            <span aria-hidden="true">⚠ </span>Please enter your name so we can personalize your pass.
+            <span aria-hidden="true">⚠ </span>Please enter your name.
           </div>
         </div>
 
         <div className="form-group">
           <label htmlFor={`${uid}-phone`} className="form-label">
-            WhatsApp / Mobile Number (Required)
+            WhatsApp Number
           </label>
-          <span id={`${uid}-phone-hint`} className="field-hint">
-            Example: 012-345 6789 (so our team can send your Christmas e-invite).
-          </span>
           <div className="phone-row">
             <div>
               <label htmlFor={`${uid}-cc`} className="visually-hidden">
-                Country calling code
+                Country code
               </label>
               <select
                 id={`${uid}-cc`}
@@ -194,7 +177,6 @@ export function ClaimForm({
               pattern="[+0-9 ()\-]{7,20}"
               placeholder="012 345 6789"
               value={phone}
-              aria-describedby={`${uid}-phone-hint`}
               onChange={(e) => {
                 setPhone(e.target.value);
                 if (e.currentTarget.hasAttribute('aria-invalid')) {
@@ -205,40 +187,35 @@ export function ClaimForm({
             />
           </div>
           <div className="field-error" role="alert">
-            <span aria-hidden="true">⚠ </span>Please enter a valid 7–15 digit mobile number.
+            <span aria-hidden="true">⚠ </span>Enter a valid 7–15 digit mobile number.
           </div>
         </div>
-
-        <p className="subtle-text" style={{ fontSize: '0.82rem', marginBlockEnd: '1rem' }}>
-          🔒 Only used by <strong>{settings.churchName}</strong> to share your Christmas event
-          invitation—never sold or spammed.
-        </p>
 
         {serverError && (
           <div
             role="alert"
             style={{
-              marginBlockEnd: '1rem',
-              padding: '0.75rem',
+              marginBlockEnd: '0.9rem',
+              padding: '0.65rem 0.8rem',
               borderRadius: 'var(--radius-sm)',
               background: 'var(--danger-bg)',
               border: '1px solid var(--danger-border)',
               color: 'var(--danger-ink)',
               fontWeight: 600,
-              fontSize: '0.9rem',
+              fontSize: '0.88rem',
             }}
           >
             ⚠ {serverError}
           </div>
         )}
 
-        <button type="submit" className="btn btn--gold btn--full" disabled={submitting}>
-          {submitting ? 'Unlocking Gift Pass…' : '🎁 Unlock My Gift & E-Invitation'}
+        <button type="submit" className="btn btn--primary btn--full" disabled={submitting}>
+          {submitting ? 'Opening Pass…' : 'Get Gift & E-Pass'}
         </button>
 
-        <div style={{ marginBlockStart: '0.75rem', textAlign: 'center' }}>
+        <div style={{ marginBlockStart: '0.65rem', textAlign: 'center' }}>
           <button type="button" className="btn btn--ghost btn--sm" onClick={onReplay}>
-            Play Another Game First
+            ← Back to Arcade
           </button>
         </div>
       </form>

@@ -1,32 +1,47 @@
 :root {
-  --bg-base: #0a1813;
-  --bg-surface: #11271f;
-  --bg-elevated: #18362b;
-  --bg-cream: #fbf6ec;
-  --bg-cream-muted: #f2ead9;
+  color-scheme: light;
 
-  --ink-primary: #f8f4ec;
-  --ink-secondary: #bed0c5;
-  --ink-on-cream: #13251d;
-  --ink-on-cream-muted: #455a50;
+  /* Apple Snow Glass Christmas Palette */
+  --bg-base: #f5f5f7;
+  --bg-surface: #ffffff;
+  --bg-elevated: #fafafc;
+  --bg-tinted: #f0f0f5;
+  --bg-frosted: rgba(255, 255, 255, 0.82);
+  --bg-cream: #fffdf9;
+  --bg-cream-muted: #f7f1e6;
 
-  --accent-gold: #f5b942;
-  --accent-gold-bright: #ffd369;
-  --accent-crimson: #d93829;
-  --accent-crimson-hover: #ee4636;
-  --accent-emerald: #1fa368;
-  --accent-emerald-bright: #34c783;
+  --ink-primary: #1d1d1f;
+  --ink-secondary: #515158;
+  --ink-on-cream: #1d1d1f;
+  --ink-on-cream-muted: #515158;
 
-  --danger-bg: #3b1414;
-  --danger-border: #ff7b72;
-  --danger-ink: #ffdcd9;
+  /* Accessible >=4.5:1 text & >=3:1 UI accents on white/snow */
+  --accent-crimson: #d70015;
+  --accent-crimson-hover: #b80012;
+  --accent-crimson-soft: #fff1f2;
+  --accent-emerald: #0f6840;
+  --accent-emerald-bright: #12804f;
+  --accent-emerald-soft: #ecfdf5;
+  --accent-gold: #b45309;
+  --accent-gold-bright: #9a4406;
+  --accent-gold-fill: #f5b942;
+  --accent-gold-soft: #fef9ec;
 
-  --border-subtle: rgba(245, 185, 66, 0.22);
-  --border-strong: rgba(245, 185, 66, 0.58);
+  --danger-bg: #fff1f2;
+  --danger-border: #d70015;
+  --danger-ink: #9f0010;
 
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
+  --border-subtle: rgba(29, 29, 31, 0.1);
+  --border-strong: #86868b; /* >=3.1:1 non-text contrast on #ffffff */
+  --border-control: #86868b; /* >=3.1:1 non-text contrast on #ffffff */
+
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.045), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-hover: 0 10px 28px rgba(215, 0, 21, 0.09), 0 2px 6px rgba(0, 0, 0, 0.05);
+
+  --radius-sm: 0.625rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.5rem;
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -36,8 +51,9 @@
   --space-6: 1.5rem;
   --space-8: 2rem;
 
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, 'Cascadia Code', 'SFMono-Regular', Menlo, Consolas, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui,
+    'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'SFMono-Regular', ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
 }
 
 *,
@@ -50,17 +66,20 @@ html {
   background-color: var(--bg-base);
   color: var(--ink-primary);
   font-family: var(--font-sans);
-  line-height: 1.5;
+  line-height: 1.45;
   -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
   margin: 0;
   min-block-size: 100vh;
   min-block-size: 100dvh;
+  accent-color: var(--accent-crimson);
   background:
-    radial-gradient(circle at 50% 0%, rgba(245, 185, 66, 0.14), transparent 52%),
-    radial-gradient(circle at 85% 90%, rgba(217, 56, 41, 0.12), transparent 45%),
+    radial-gradient(circle at 18% 0%, rgba(215, 0, 21, 0.06), transparent 44%),
+    radial-gradient(circle at 85% 6%, rgba(245, 185, 66, 0.1), transparent 42%),
+    radial-gradient(circle at 50% 100%, rgba(15, 104, 64, 0.05), transparent 48%),
     var(--bg-base);
 }
 
@@ -83,8 +102,8 @@ body {
   inset-inline-start: var(--space-3);
   z-index: 999;
   padding: var(--space-3) var(--space-4);
-  background: var(--accent-gold);
-  color: var(--ink-on-cream);
+  background: var(--accent-crimson);
+  color: #ffffff;
   font-weight: 700;
   border-radius: var(--radius-sm);
   text-decoration: none;
@@ -92,8 +111,8 @@ body {
 
 /* High-contrast keyboard focus ring */
 :where(a:any-link, button, input, select, textarea, summary, [tabindex='0']):focus-visible {
-  outline: 3px solid var(--accent-gold-bright);
-  outline-offset: 3px;
+  outline: 3px solid var(--accent-crimson);
+  outline-offset: 2px;
 }
 
 /* App Shell */
@@ -102,174 +121,243 @@ body {
   min-block-size: 100dvh;
   display: flex;
   flex-direction: column;
-  max-inline-size: 42rem;
+  max-inline-size: 46rem;
   margin-inline: auto;
   padding-inline: var(--space-4);
-  padding-block: var(--space-3) var(--space-6);
+  padding-block: var(--space-2) var(--space-6);
 }
 
 .app-shell--wide {
-  max-inline-size: 72rem;
+  max-inline-size: 74rem;
 }
 
+/* Sticky Apple Frosted Glass Navigation Bar */
 .top-bar {
+  position: sticky;
+  inset-block-start: 0.4rem;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-  padding-block: var(--space-2);
-  border-block-end: 1px solid var(--border-subtle);
+  gap: var(--space-2);
+  padding: 0.5rem 0.75rem;
   margin-block-end: var(--space-4);
+  border-radius: 999px;
+  background: var(--bg-frosted);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
 }
 
 .brand-mark {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 0.5rem;
   color: var(--ink-primary);
   text-decoration: none;
   font-weight: 800;
-  letter-spacing: -0.01em;
-  font-size: 1rem;
+  letter-spacing: -0.02em;
+  font-size: 0.96rem;
 }
 
 .brand-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  inline-size: 2rem;
-  block-size: 2rem;
-  border-radius: var(--radius-sm);
-  background: var(--accent-crimson);
-  color: #fff;
-  font-size: 1.1rem;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  inline-size: 1.9rem;
+  block-size: 1.9rem;
+  border-radius: 0.55rem;
+  background: linear-gradient(145deg, #ff3b30, #d70015);
+  color: #ffffff;
+  font-size: 1rem;
+  box-shadow: 0 2px 6px rgba(215, 0, 21, 0.25);
 }
 
-/* Typography with clamp() */
+/* Clean Apple Typography */
 .hero-title {
   margin: 0;
-  font-size: clamp(1.55rem, 1.2rem + 2vw, 2.3rem);
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.65rem, 1.35rem + 1.8vw, 2.35rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
   font-weight: 800;
+  color: var(--ink-primary);
 }
 
 .section-title {
   margin: 0;
-  font-size: clamp(1.2rem, 1.05rem + 0.8vw, 1.5rem);
-  line-height: 1.25;
+  font-size: clamp(1.15rem, 1.02rem + 0.6vw, 1.4rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
   font-weight: 700;
 }
 
 .subtle-text {
   color: var(--ink-secondary);
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
 }
 
-/* Challenger Ribbon */
+/* Compact Status Pills & Mini Saved Pass Strip */
+.status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0.65rem 0.95rem;
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
+  margin-block-end: var(--space-4);
+}
+
 .challenger-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, rgba(245, 185, 66, 0.18), rgba(217, 56, 41, 0.16));
-  border: 1px solid var(--border-strong);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
   margin-block-end: var(--space-4);
 }
 
 .challenger-tag {
-  display: inline-block;
-  padding: 0.15rem 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.18rem 0.6rem;
   border-radius: 999px;
-  background: var(--accent-gold);
-  color: var(--ink-on-cream);
-  font-size: 0.75rem;
+  background: var(--accent-crimson-soft);
+  color: var(--accent-crimson);
+  font-size: 0.74rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
-/* Arcade Game Cards */
-.arcade-list {
+.saved-pass-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, #ffffff, var(--accent-emerald-soft));
+  border: 1px solid rgba(15, 104, 64, 0.25);
+  box-shadow: var(--shadow-card);
+  margin-block-end: var(--space-4);
+}
+
+/* Apple App-Store / Arcade Stop 5-Game Shelf */
+.arcade-shelf {
   list-style: none;
   padding: 0;
   margin: var(--space-4) 0 0;
   display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(18.5rem, 1fr));
+  gap: 0.8rem;
 }
 
-.arcade-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+.arcade-tile {
+  display: grid;
+  grid-template-columns: 3.75rem 1fr auto;
+  align-items: center;
+  gap: 0.9rem;
   inline-size: 100%;
   text-align: start;
-  padding: var(--space-4);
+  padding: 0.9rem 1rem;
   border-radius: var(--radius-lg);
   background: var(--bg-surface);
-  border: 1.5px solid var(--border-subtle);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
   color: var(--ink-primary);
+  font-family: inherit;
   cursor: pointer;
-  transition: transform 140ms ease, border-color 140ms ease, background-color 140ms ease;
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
 }
 
-.arcade-card:hover {
-  border-color: var(--accent-gold);
-  background: var(--bg-elevated);
+.arcade-tile:hover {
   transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+  border-color: rgba(215, 0, 21, 0.28);
 }
 
-.arcade-card:active {
-  transform: scale(0.99);
+.arcade-tile:active {
+  transform: scale(0.985);
 }
 
-.arcade-card__top {
+.arcade-tile__icon {
+  inline-size: 3.75rem;
+  block-size: 3.75rem;
+  border-radius: 0.95rem;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+  justify-content: center;
+  font-size: 1.85rem;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.45), 0 4px 10px rgba(0, 0, 0, 0.12);
 }
 
-.arcade-card__pill {
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  background: rgba(245, 185, 66, 0.16);
-  color: var(--accent-gold-bright);
-  border: 1px solid rgba(245, 185, 66, 0.35);
+.arcade-tile__meta {
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
-.arcade-card__title {
+.arcade-tile__title {
   margin: 0;
-  font-size: 1.18rem;
+  font-size: 1.08rem;
   font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--ink-primary);
+}
+
+.arcade-tile__sub {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink-secondary);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: 0.35rem;
 }
 
-.arcade-card__rule {
+.arcade-tile__best {
   display: inline-block;
-  font-weight: 700;
-  color: var(--accent-gold-bright);
-  font-size: 0.9rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  background: var(--accent-gold-soft);
+  color: var(--accent-gold);
+  border: 1px solid rgba(180, 83, 9, 0.22);
+  font-size: 0.74rem;
+  font-weight: 800;
 }
 
-.arcade-card__cta {
-  margin-block-start: var(--space-1);
+.arcade-tile__play {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  justify-content: center;
+  min-inline-size: 4.4rem;
+  min-block-size: 2.2rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  background: var(--accent-crimson-soft);
+  color: var(--accent-crimson);
   font-weight: 800;
-  font-size: 0.92rem;
-  color: var(--accent-emerald-bright);
+  font-size: 0.84rem;
+  letter-spacing: 0.02em;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.arcade-tile:hover .arcade-tile__play {
+  background: var(--accent-crimson);
+  color: #ffffff;
 }
 
 /* Buttons (Minimum 48px touch target, 52px on coarse pointers) */
@@ -279,30 +367,31 @@ body {
   justify-content: center;
   gap: var(--space-2);
   min-block-size: 48px;
-  padding: 0.7rem 1.15rem;
-  border-radius: var(--radius-md);
+  padding: 0.65rem 1.15rem;
+  border-radius: 999px;
   font-family: inherit;
-  font-size: 1rem;
+  font-size: 0.96rem;
   font-weight: 700;
   text-decoration: none;
   border: 1.5px solid transparent;
   cursor: pointer;
-  transition: background-color 140ms ease, border-color 140ms ease, transform 100ms ease;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 100ms ease,
+    box-shadow 140ms ease;
 }
 
 .btn:active {
-  transform: scale(0.985);
+  transform: scale(0.98);
 }
 
 .btn[disabled] {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
 .btn--primary {
   background: var(--accent-crimson);
   color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(215, 0, 21, 0.22);
 }
 
 .btn--primary:hover:not([disabled]) {
@@ -310,12 +399,13 @@ body {
 }
 
 .btn--gold {
-  background: var(--accent-gold);
-  color: var(--ink-on-cream);
+  background: var(--accent-crimson);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(215, 0, 21, 0.2);
 }
 
 .btn--gold:hover:not([disabled]) {
-  background: var(--accent-gold-bright);
+  background: var(--accent-crimson-hover);
 }
 
 .btn--whatsapp {
@@ -324,46 +414,46 @@ body {
 }
 
 .btn--whatsapp:hover:not([disabled]) {
-  background: #24b876;
+  background: var(--accent-emerald-bright);
 }
 
 .btn--ghost {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-surface);
   color: var(--ink-primary);
-  border-color: var(--border-subtle);
+  border-color: var(--border-strong);
 }
 
 .btn--ghost:hover:not([disabled]) {
-  border-color: var(--accent-gold);
-  background: rgba(255, 255, 255, 0.11);
+  border-color: var(--ink-primary);
+  background: var(--bg-tinted);
 }
 
 .btn--cream-outline {
-  background: #ffffff;
-  color: var(--ink-on-cream);
-  border-color: #cbbba0;
+  background: var(--bg-surface);
+  color: var(--ink-primary);
+  border-color: var(--border-strong);
 }
 
 .btn--cream-outline:hover:not([disabled]) {
-  border-color: var(--ink-on-cream);
-  background: var(--bg-cream-muted);
+  border-color: var(--ink-primary);
+  background: var(--bg-tinted);
 }
 
 .btn--sm {
-  min-block-size: 40px;
-  padding: 0.45rem 0.85rem;
-  font-size: 0.88rem;
+  min-block-size: 38px;
+  padding: 0.38rem 0.85rem;
+  font-size: 0.85rem;
 }
 
 .btn--full {
   inline-size: 100%;
 }
 
-/* Game Stage & Canvas */
+/* Game Stage, HUD & Tactile Pad */
 .game-stage {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 0.65rem;
   flex: 1;
 }
 
@@ -372,23 +462,46 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
+  padding: 0.5rem 0.85rem;
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  border-radius: 999px;
   font-variant-numeric: tabular-nums;
+}
+
+.hud-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.65rem;
+  border-radius: 999px;
+  background: var(--bg-tinted);
+  font-weight: 800;
+  font-size: 0.86rem;
+}
+
+.hud-pill--score {
+  background: var(--accent-crimson-soft);
+  color: var(--accent-crimson);
+}
+
+.hud-pill--timer {
+  background: var(--ink-primary);
+  color: #ffffff;
 }
 
 .game-canvas-wrap {
   position: relative;
   inline-size: 100%;
-  max-inline-size: 26rem;
+  max-inline-size: 25.5rem;
   margin-inline: auto;
   aspect-ratio: 3 / 4;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   overflow: hidden;
-  border: 2px solid var(--border-strong);
-  background: #081410;
+  border: 1.5px solid var(--border-subtle);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+  background: #ffffff;
 }
 
 .game-canvas {
@@ -400,31 +513,83 @@ body {
   -webkit-user-select: none;
 }
 
-/* Forms (Gestalt proximity + :user-invalid deferred validation) */
+.game-hint-pill {
+  margin-inline: auto;
+  padding: 0.25rem 0.8rem;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--ink-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.arcade-pad {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  max-inline-size: 25.5rem;
+  inline-size: 100%;
+  margin-inline: auto;
+}
+
+.arcade-pad__btn {
+  min-block-size: 52px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--ink-primary);
+  font-family: inherit;
+  font-size: 1.05rem;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.arcade-pad__btn:active {
+  transform: scale(0.96);
+  background: var(--bg-tinted);
+}
+
+.arcade-pad__btn--action {
+  background: var(--accent-crimson);
+  border-color: var(--accent-crimson);
+  color: #ffffff;
+}
+
+.arcade-pad__btn--action:active {
+  background: var(--accent-crimson-hover);
+}
+
+/* Cards & Forms */
 .card-panel {
   background: var(--bg-surface);
-  border: 1.5px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
   padding: var(--space-5);
+  box-shadow: var(--shadow-card);
 }
 
 .form-group {
-  margin-block-end: var(--space-5);
+  margin-block-end: var(--space-4);
 }
 
 .form-label {
   display: block;
   font-weight: 700;
-  font-size: 0.96rem;
-  margin-block-end: var(--space-1);
+  font-size: 0.92rem;
+  margin-block-end: 0.3rem;
   color: var(--ink-primary);
 }
 
 .field-hint {
   display: block;
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   color: var(--ink-secondary);
-  margin-block-end: var(--space-2);
+  margin-block-end: 0.35rem;
 }
 
 .form-input,
@@ -432,17 +597,17 @@ body {
 .form-textarea {
   inline-size: 100%;
   min-block-size: 48px;
-  padding: 0.7rem 0.85rem;
-  border-radius: var(--radius-sm);
-  border: 1.5px solid rgba(255, 255, 255, 0.26);
-  background: #0b1a14;
+  padding: 0.68rem 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border-control);
+  background: #ffffff;
   color: var(--ink-primary);
   font-family: inherit;
   font-size: 1rem; /* >=16px prevents iOS zoom on focus */
 }
 
 .form-textarea {
-  min-block-size: 6.5rem;
+  min-block-size: 6rem;
   resize: vertical;
 }
 
@@ -460,18 +625,18 @@ body {
   background: var(--danger-bg);
   border: 1px solid var(--danger-border);
   color: var(--danger-ink);
-  font-size: 0.86rem;
+  font-size: 0.84rem;
   font-weight: 600;
 }
 
 .form-input:user-invalid,
 .form-input.user-invalid-fallback {
   border-color: var(--danger-border);
-  background-color: #291111;
+  background-color: #fff8f8;
 }
 
 .form-input:user-valid {
-  border-color: var(--accent-emerald-bright);
+  border-color: var(--accent-emerald);
 }
 
 .form-group:has(.form-input:user-invalid) .field-error,
@@ -483,41 +648,41 @@ body {
   .btn,
   .form-input,
   .form-select {
-    min-block-size: 52px;
+    min-block-size: 50px;
   }
 }
 
-/* Tactile Cream Winner Ticket */
-.winner-ticket {
-  background: var(--bg-cream);
-  color: var(--ink-on-cream);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
-  border: 2px solid var(--accent-gold);
-  position: relative;
+/* Apple Wallet-Style Christmas Pass */
+.wallet-pass {
+  background: var(--bg-surface);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.07);
   overflow: hidden;
 }
 
-.winner-ticket__live-bar {
+.wallet-pass__header {
+  background: linear-gradient(135deg, #d70015, #9f0010);
+  color: #ffffff;
+  padding: 1rem 1.25rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  background: #13251d;
-  color: var(--accent-gold-bright);
-  font-family: var(--font-mono);
-  font-size: 0.84rem;
-  font-weight: 700;
+}
+
+.wallet-pass__body {
+  padding: 1.25rem;
+  display: grid;
+  gap: 1rem;
 }
 
 .live-dot {
   display: inline-block;
-  inline-size: 0.6rem;
-  block-size: 0.6rem;
+  inline-size: 0.55rem;
+  block-size: 0.55rem;
   border-radius: 50%;
-  background: var(--accent-emerald-bright);
+  background: #4ade80;
   margin-inline-end: 0.4rem;
   animation: pulseDot 1.1s ease-in-out infinite;
 }
@@ -535,44 +700,22 @@ body {
 }
 
 .redemption-code-box {
-  margin-block: var(--space-3);
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  border: 2px dashed #13251d;
-  background: var(--bg-cream-muted);
+  padding: 0.9rem;
+  border-radius: var(--radius-lg);
+  border: 1.5px dashed rgba(29, 29, 31, 0.25);
+  background: var(--bg-elevated);
   text-align: center;
 }
 
 .redemption-code {
   font-family: var(--font-mono);
-  font-size: 1.65rem;
+  font-size: 1.75rem;
   font-weight: 900;
   letter-spacing: 0.08em;
-  color: var(--ink-on-cream);
+  color: var(--ink-primary);
 }
 
 /* Team Dashboard Tabs & Stats */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
-  gap: var(--space-3);
-  margin-block-end: var(--space-4);
-}
-
-.stat-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
-}
-
-.stat-card__value {
-  font-size: 1.6rem;
-  font-weight: 800;
-  color: var(--accent-gold-bright);
-  font-variant-numeric: tabular-nums;
-}
-
 .tab-bar {
   display: flex;
   flex-wrap: wrap;
@@ -580,22 +723,23 @@ body {
   margin-block-end: var(--space-4);
 }
 
-/* Responsive Data Table with @container query (Desktop sticky table -> Mobile stacked cards) */
+/* Responsive Data Table with @container query */
 .table-wrapper {
   overflow: auto;
   max-inline-size: 100%;
   max-block-size: min(680px, 78dvh);
   container-type: inline-size;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle);
   background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
 }
 
 .leads-table {
   inline-size: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
 }
 
 .leads-table caption {
@@ -610,14 +754,14 @@ body {
   position: sticky;
   inset-block-start: 0;
   z-index: 2;
-  background: var(--bg-elevated);
+  background: var(--bg-tinted);
 }
 
 .leads-table th,
 .leads-table td {
   padding: var(--space-3) var(--space-4);
   text-align: start;
-  border-block-end: 1px solid rgba(255, 255, 255, 0.08);
+  border-block-end: 1px solid var(--border-subtle);
   vertical-align: middle;
 }
 
@@ -654,7 +798,7 @@ body {
   .leads-table:not(.analytics-table) tbody th {
     position: sticky;
     inset-block-start: 0;
-    background: rgba(245, 185, 66, 0.14);
+    background: var(--accent-crimson-soft);
     border-block-end: 1px solid var(--border-subtle);
   }
 
@@ -714,7 +858,7 @@ body {
     position: sticky;
     inset-block-start: 0;
     z-index: 2;
-    background: rgba(245, 185, 66, 0.14);
+    background: var(--accent-crimson-soft);
     border-block-end: 1px solid var(--border-subtle);
   }
 
@@ -740,20 +884,6 @@ body {
   }
 }
 
-/* Saved Player Session Banner */
-.saved-pass-banner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, rgba(31, 163, 104, 0.22), rgba(245, 185, 66, 0.16));
-  border: 1.5px solid var(--accent-emerald-bright);
-  margin-block-end: var(--space-4);
-}
-
 /* Master Analytics KPI Grid & Native <progress> Funnel Bars */
 .master-kpi-grid {
   display: grid;
@@ -765,20 +895,21 @@ body {
 .kpi-card {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--space-3) var(--space-4);
+  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
 }
 
 .kpi-card--highlight {
-  border-color: var(--accent-gold);
-  background: linear-gradient(160deg, rgba(245, 185, 66, 0.13), var(--bg-surface));
+  border-color: rgba(215, 0, 21, 0.28);
+  background: linear-gradient(160deg, var(--accent-crimson-soft), #ffffff 65%);
 }
 
 .kpi-card__label {
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--ink-secondary);
 }
@@ -793,7 +924,7 @@ body {
 
 .kpi-card__sub {
   font-size: 0.78rem;
-  color: var(--accent-gold-bright);
+  color: var(--accent-crimson);
   font-weight: 600;
 }
 
@@ -802,10 +933,10 @@ progress.funnel-progress {
   border: 0 solid;
   overflow: clip;
   inline-size: 100%;
-  block-size: 0.75rem;
+  block-size: 0.65rem;
   --progress-bar-radius: 999px;
   border-radius: var(--progress-bar-radius);
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-tinted);
 }
 
 progress.funnel-progress::-webkit-progress-bar {
@@ -813,15 +944,42 @@ progress.funnel-progress::-webkit-progress-bar {
 }
 
 progress.funnel-progress::-webkit-progress-value {
-  background: var(--progress-bar-fill, var(--accent-gold));
+  background: var(--progress-bar-fill, var(--accent-crimson));
   border-radius: var(--progress-bar-radius);
   transition: inline-size 0.3s;
 }
 
 progress.funnel-progress::-moz-progress-bar {
-  background: var(--progress-bar-fill, var(--accent-gold));
+  background: var(--progress-bar-fill, var(--accent-crimson));
   border-radius: var(--progress-bar-radius);
   transition: inline-size 0.3s;
+}
+
+@supports not (accent-color: var(--accent-crimson)) {
+  progress {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    border: none;
+    background: var(--bg-tinted);
+    height: 8px;
+    border-radius: 999px;
+  }
+
+  progress::-webkit-progress-bar {
+    background-color: var(--bg-tinted);
+    border-radius: 999px;
+  }
+
+  progress::-webkit-progress-value {
+    background-color: var(--accent-crimson);
+    border-radius: 999px;
+  }
+
+  progress::-moz-progress-bar {
+    background-color: var(--accent-crimson);
+    border-radius: 999px;
+  }
 }
 
 .activity-list {
@@ -838,10 +996,10 @@ progress.funnel-progress::-moz-progress-bar {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius-md);
   background: var(--bg-elevated);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-subtle);
   font-size: 0.88rem;
 }
 
@@ -849,15 +1007,35 @@ progress.funnel-progress::-moz-progress-bar {
 .poster-dialog {
   max-inline-size: 32rem;
   inline-size: calc(100% - 2rem);
-  border-radius: var(--radius-lg);
-  border: 2px solid var(--accent-gold);
-  background: var(--bg-cream);
-  color: var(--ink-on-cream);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--ink-primary);
   padding: var(--space-5);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2);
 }
 
 .poster-dialog::backdrop {
-  background: rgba(5, 12, 9, 0.82);
+  background: rgba(29, 29, 31, 0.48);
+  backdrop-filter: blur(8px);
+}
+
+/* Forced Colors Mode (Windows High Contrast) Fallbacks */
+@media (forced-colors: active) {
+  .arcade-tile,
+  .card-panel,
+  .wallet-pass,
+  .kpi-card,
+  .top-bar,
+  .game-hud {
+    border: 1.5px solid CanvasText;
+  }
+
+  .btn,
+  .arcade-tile__play,
+  .arcade-pad__btn {
+    border: 1.5px solid ButtonText;
+  }
 }
 
 /* Print stylesheet so Volunteer QR Boards print cleanly on A4 */
@@ -870,7 +1048,7 @@ progress.funnel-progress::-moz-progress-bar {
     display: none !important;
   }
   .printable-board {
-    border: 4px solid #13251d !important;
+    border: 4px solid #1d1d1f !important;
     padding: 2rem !important;
     max-inline-size: 100% !important;
   }

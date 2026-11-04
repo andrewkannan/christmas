@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { EventSettings, GameId, PublicClaimResult } from './types.ts';
+import type { ActiveGameId, EventSettings, GameId, PublicClaimResult } from './types.ts';
 import { checkTeamSession, fetchPublicConfig, fetchSavedPass } from './lib/api.ts';
 import {
   clearSavedPassLocally,
@@ -10,9 +10,11 @@ import {
 } from './lib/playerSession.ts';
 import { isSoundMuted, toggleSoundMuted } from './lib/sound.ts';
 import { ArcadeLobby } from './components/ArcadeLobby.tsx';
-import { GiftStarRush } from './components/games/GiftStarRush.tsx';
-import { SleighTapDuel } from './components/games/SleighTapDuel.tsx';
-import { StarlightDrop } from './components/games/StarlightDrop.tsx';
+import { ClawMachineGame } from './components/games/ClawMachineGame.tsx';
+import { SantaStreetDash } from './components/games/SantaStreetDash.tsx';
+import { ChristmasTetris } from './components/games/ChristmasTetris.tsx';
+import { FruitSlashGame } from './components/games/FruitSlashGame.tsx';
+import { CandyMatchGame } from './components/games/CandyMatchGame.tsx';
 import { ClaimForm } from './components/ClaimForm.tsx';
 import { WinnerPass } from './components/WinnerPass.tsx';
 import { TeamLogin } from './team/TeamLogin.tsx';
@@ -36,8 +38,8 @@ const FALLBACK_SETTINGS: EventSettings = {
 
 type PlayerStep =
   | { kind: 'lobby' }
-  | { kind: 'playing'; game: GameId }
-  | { kind: 'claim'; game: GameId; score: number }
+  | { kind: 'playing'; game: ActiveGameId }
+  | { kind: 'claim'; game: ActiveGameId; score: number }
   | {
       kind: 'winner';
       claim: PublicClaimResult;
@@ -77,7 +79,6 @@ export function App() {
       .catch(() => {});
   }, []);
 
-  // Restore saved player session from URL (?pass=token) or refresh localStorage savedPass, and record page_view once
   useEffect(() => {
     if (window.location.pathname.startsWith('/team')) return;
 
@@ -137,21 +138,21 @@ export function App() {
 
   useEffect(() => {
     if (routeMode === 'team') {
-      document.title = `Master Outreach Console | ${settings.churchName}`;
+      document.title = `Master Console | ${settings.churchName}`;
       return;
     }
     switch (step.kind) {
       case 'lobby':
-        document.title = `Christmas Pocket Arcade | ${settings.churchName}`;
+        document.title = `Christmas Arcade | ${settings.churchName}`;
         break;
       case 'playing':
-        document.title = `Playing Challenge | Christmas Pocket Arcade`;
+        document.title = `Playing | Christmas Arcade`;
         break;
       case 'claim':
-        document.title = `Unlock Your Gift & E-Invite | ${settings.churchName}`;
+        document.title = `Claim Gift | ${settings.churchName}`;
         break;
       case 'winner':
-        document.title = `Saved Pass ${step.claim.redemptionCode} | ${settings.eventTitle}`;
+        document.title = `Pass ${step.claim.redemptionCode} | ${settings.eventTitle}`;
         break;
     }
   }, [routeMode, step, settings.churchName, settings.eventTitle]);
@@ -162,7 +163,7 @@ export function App() {
     setRouteMode(nextMode);
   };
 
-  const handleSelectGame = (game: GameId) => {
+  const handleSelectGame = (game: ActiveGameId) => {
     void trackArcadeEvent(
       {
         eventType: 'game_start',
@@ -176,9 +177,8 @@ export function App() {
     setStep({ kind: 'playing', game });
   };
 
-  const handleGameFinished = (game: GameId, score: number) => {
+  const handleGameFinished = (game: ActiveGameId, score: number) => {
     if (savedPass) {
-      // Returning / post-interaction player: record game_complete directly to their saved profile & show E-Invite!
       const optimisticClaim: PublicClaimResult = {
         ...savedPass,
         totalGamesPlayed: (savedPass.totalGamesPlayed || 1) + 1,
@@ -215,7 +215,6 @@ export function App() {
       return;
     }
 
-    // First-time street player: record street game_complete and proceed to Name + Phone unlock
     void trackArcadeEvent({
       eventType: 'game_complete',
       gameId: game,
@@ -275,17 +274,17 @@ export function App() {
           <span className="brand-badge" aria-hidden="true">
             🎄
           </span>
-          <span>{settings.churchName} Arcade</span>
+          <span>{settings.churchName}</span>
         </a>
 
-        <nav aria-label="Utility controls" style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+        <nav aria-label="Controls" style={{ display: 'flex', gap: '0.38rem', alignItems: 'center' }}>
           {routeMode === 'player' && savedPass && step.kind !== 'winner' && (
             <button
               type="button"
-              className="btn btn--gold btn--sm"
+              className="btn btn--primary btn--sm"
               onClick={handleOpenSavedInvite}
             >
-              🎟 E-Invite
+              🎟 Pass
             </button>
           )}
           {routeMode === 'player' && (
@@ -293,10 +292,10 @@ export function App() {
               type="button"
               className="btn btn--ghost btn--sm"
               aria-pressed={soundMuted}
-              aria-label={soundMuted ? 'Sound muted' : 'Sound on'}
+              aria-label={soundMuted ? 'Unmute sound' : 'Mute sound'}
               onClick={() => setSoundMuted(toggleSoundMuted())}
             >
-              {soundMuted ? '🔇 Muted' : '🔊 SFX'}
+              {soundMuted ? '🔇' : '🔊'}
             </button>
           )}
           <button
@@ -304,7 +303,7 @@ export function App() {
             className="btn btn--ghost btn--sm"
             onClick={() => navigateMode(routeMode === 'team' ? 'player' : 'team')}
           >
-            {routeMode === 'team' ? '🎮 Player View' : '🔐 Team'}
+            {routeMode === 'team' ? 'Arcade' : 'Team'}
           </button>
         </nav>
       </header>
@@ -316,7 +315,7 @@ export function App() {
       >
         {routeMode === 'team' ? (
           teamAuthed === null ? (
-            <div className="card-panel">Checking Team Console session…</div>
+            <div className="card-panel">Checking session…</div>
           ) : teamAuthed ? (
             <TeamDashboard
               settings={settings}
@@ -344,27 +343,43 @@ export function App() {
               />
             )}
 
-            {step.kind === 'playing' && step.game === 'gift-rush' && (
-              <GiftStarRush
-                volunteerName={volunteerName}
+            {step.kind === 'playing' && step.game === 'claw-machine' && (
+              <ClawMachineGame
                 targetScore={targetScore}
                 onBack={() => setStep({ kind: 'lobby' })}
-                onFinish={(score) => handleGameFinished('gift-rush', score)}
+                onFinish={(score) => handleGameFinished('claw-machine', score)}
               />
             )}
 
-            {step.kind === 'playing' && step.game === 'tap-duel' && (
-              <SleighTapDuel
-                volunteerName={volunteerName}
+            {step.kind === 'playing' && step.game === 'santa-dash' && (
+              <SantaStreetDash
+                targetScore={targetScore}
                 onBack={() => setStep({ kind: 'lobby' })}
-                onFinish={(score) => handleGameFinished('tap-duel', score)}
+                onFinish={(score) => handleGameFinished('santa-dash', score)}
               />
             )}
 
-            {step.kind === 'playing' && step.game === 'starlight-drop' && (
-              <StarlightDrop
+            {step.kind === 'playing' && step.game === 'gift-tetris' && (
+              <ChristmasTetris
+                targetScore={targetScore}
                 onBack={() => setStep({ kind: 'lobby' })}
-                onFinish={(score) => handleGameFinished('starlight-drop', score)}
+                onFinish={(score) => handleGameFinished('gift-tetris', score)}
+              />
+            )}
+
+            {step.kind === 'playing' && step.game === 'gift-slash' && (
+              <FruitSlashGame
+                targetScore={targetScore}
+                onBack={() => setStep({ kind: 'lobby' })}
+                onFinish={(score) => handleGameFinished('gift-slash', score)}
+              />
+            )}
+
+            {step.kind === 'playing' && step.game === 'candy-match' && (
+              <CandyMatchGame
+                targetScore={targetScore}
+                onBack={() => setStep({ kind: 'lobby' })}
+                onFinish={(score) => handleGameFinished('candy-match', score)}
               />
             )}
 
@@ -407,20 +422,6 @@ export function App() {
           </>
         )}
       </main>
-
-      <footer
-        className="no-print"
-        style={{
-          marginBlockStart: '2rem',
-          paddingBlockStart: '0.85rem',
-          borderBlockStart: '1px solid var(--border-subtle)',
-          textAlign: 'center',
-        }}
-      >
-        <p className="subtle-text" style={{ fontSize: '0.8rem' }}>
-          ✨ Wishing you joy, peace &amp; hope this Christmas · {settings.churchName}
-        </p>
-      </footer>
     </div>
   );
 }
