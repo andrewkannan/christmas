@@ -2,6 +2,18 @@
 
 All notable changes to **Christmas Pocket Arcade** are documented in this file.
 
+## [1.3.0] - 2026-11-04
+
+### Added
+- **Shining 3D Trophy & Custom Vector Emblem Suite (`Icons.tsx`):** Animated gold, silver, and bronze 3D trophies with metallic specular sheen sweeps and twinkling starlight sparkles, custom sculpted SVG cabinet emblems for all 5 games, and 20+ accessible vector UI icons replacing OS emojis across player screens.
+- **Victory Celebrations (`ConfettiBurst.tsx`, `sound.ts`, `GameShell.tsx`):** GPU-composited confetti and golden starlight burst, multi-oscillator celebratory fanfare, smooth score roll-up animation, and a Velvet-Crimson & 24k Gold **Victory Stage** spotlighting projected/locked ranks.
+- **3-Slot Championship Podium (`TopThree.tsx`):** Always-visible Gold `#1`, Silver `#2`, and Bronze `#3` medal podium slots showing live leaders, unregistered player rank previews (`Ready to lock`), and open podium invitations (`Open`).
+- **Interactive 5-Game Trophy Board (`WinnerPass.tsx`):** Returning VIPs can launch, defend `#1`, or chase higher ranks on any of the 5 cabinets with one tap straight from their Winner Pass.
+
+### Fixed
+- **iOS Safari "Save Pass" (`WinnerPass.tsx`, `ticketCanvas.ts`):** Replaced `<a href="data:image/png;base64,...">` (which hijacked Safari's address bar with `data:`) with `canvas.toBlob` + Web Share API (`navigator.share({ files })` on touch devices) and `URL.createObjectURL(blob)` fallback.
+- **Mobile Viewport & Gift Entitlement Layout:** Added semicircular perforated ticket notches, single-line non-wrapping gift entitlement pill, HTML `v`-mode regex escaping on phone inputs, and iOS bottom safe-area clearance (`calc(5.5rem + env(safe-area-inset-bottom, 0px))`).
+
 ## [1.2.0] - 2026-11-04
 
 ### Added
