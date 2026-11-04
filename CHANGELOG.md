@@ -2,6 +2,20 @@
 
 All notable changes to **Christmas Pocket Arcade** are documented in this file.
 
+## [1.2.0] - 2026-11-04
+
+### Added
+- **Complete game rounds:** every game now runs in one shared frame — 3-2-1 countdown, live HUD (score, lives or moves, timer), a pause after each lost life, auto-pause when the phone locks, an end banner, and a **results screen** with final score, personal best, the volunteer's challenge, rank, and **Play again**.
+- **Lives and fail states:** 3 lives in Claw Grab (empty grab), Santa Dash (barrier), Block Stack (top-out) and Berry Slash (dropped treat or frost bomb); **20-move limit** in Candy Match. Every round also has a time cap so it always ends on the street.
+- **All-time leaderboards:** Top 3 per game on the results screen, the #1 score on each lobby tile, and **My ranks** across all 5 games on the pass. Names are shown as "Mei L."; phone numbers are never exposed.
+- **Server-verified scores:** rounds are timed by the server and checked against per-game caps; implausible scores are kept for audit but never ranked.
+- **Tests:** leaderboard/API tests, property-based tests (fast-check) for Tetris and Candy Match rules, name privacy and score plausibility, plus Playwright end-to-end tests on emulated Android phones (`npm run test:e2e`).
+
+### Changed
+- Removed the hidden "mercy bonus" that silently inflated final scores — scores are now exactly what the player earned. Everyone still gets the gift: lives affect rank, never the gift.
+- Removed the **Team** button from player pages; the console is reached only via the `/team` link + PIN.
+- Block Stack board is now 8×14 with a 7-bag randomizer, wall kicks and lock delay.
+
 ## [1.1.0] - 2026-11-04
 
 ### Added

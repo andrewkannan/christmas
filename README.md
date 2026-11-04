@@ -1,6 +1,6 @@
 # 🎄 Christmas Pocket Arcade — Street Evangelism Web App
 
-A fast, mobile-first Christmas outreach web app designed for malls, campuses, and busy walkways. Passersby scan a volunteer's physical QR board, play a 15–20s arcade mini-game (with a 100% win / *Bonus Christmas Chest* mercy guarantee), unlock a screenshot-proof **Winner Gift Pass** + **personalized downloadable Christmas E-Ticket**, save the event to Google/Phone Calendar, and appear instantly in your **PIN-protected Team Outreach Console** for a 1-tap personal WhatsApp follow-up (`$0` SMS/API cost).
+A fast, mobile-first Christmas outreach web app designed for malls, campuses, and busy walkways. Passersby scan a volunteer's physical QR board, play one of 5 Christmas arcade games (3 lives or a move limit, honest scoring, retry anytime), see their **score, rank and the game's all-time Top 3**, unlock a screenshot-proof **Winner Gift Pass** + **personalized downloadable Christmas E-Ticket** (every player gets the gift — lives affect rank, never the gift), save the event to Google/Phone Calendar, and appear instantly in your **PIN-protected Team Outreach Console** for a 1-tap personal WhatsApp follow-up (`$0` SMS/API cost).
 
 ---
 
@@ -20,25 +20,26 @@ npm run dev
 ```
 
 - **Player Arcade Hub:** `http://localhost:5173/?vs=Andrew&target=18`
-- **Team Outreach Console:** `http://localhost:5173/team` (default dev PIN: `1225`)
+- **Team Outreach Console:** `http://localhost:5173/team` (default dev PIN: `1225`). There is deliberately no link to it from the player pages — share the URL with your team only.
 
 ---
 
 ## Street Outreach Flow (35–45 Seconds)
 
 1. **Print or Display Volunteer QR Boards:** Open `/team` → **QR Board Maker**, enter each volunteer's name (e.g., `Andrew`, target `18`), and click **Poster View → Print A4 Board** (or save the QR PNG).
-2. **Passerby Scans QR (`/?vs=Andrew&target=18`):** Opens an Apple Snow Glass **5-Game Christmas Arcade Stop** and taps any familiar hit game (20–25s):
-   - **🧸 Claw Grab (22s):** Cow Play Cow Moo / UFO Catcher crane grab with Final 5s Golden Magnet Claw.
-   - **🛷 Santa Dash (20s):** Subway Surfers-style 3-lane snowy sprint with Star Magnet Rush.
-   - **🧱 Block Stack (25s):** Fast 8×12 Christmas Gift Tetris with ghost landing preview and pre-gapped starter rows for instant line clears.
-   - **⚔️ Berry Slash (20s):** Fruit Ninja-style ornament & candy slicer with glowing blade ribbon and multi-slice combos.
-   - **🍬 Candy Match (25s):** Candy Crush-style 6×6 Christmas swap-3 with cascading combos and Row Sparklers.
-3. **Name + Phone Unlock:** Guest enters their name and mobile number (automatically normalized with your default country code, e.g. `+60` or `+65`).
-4. **Gift & Sticky E-Invitation (Saved on Their Phone):**
+2. **Passerby Scans QR (`/?vs=Andrew&target=18`):** Opens the **5-Game Christmas Arcade Stop**. Every game runs in the same frame: 3-2-1 countdown → live HUD (score, lives or moves, timer) → end banner → results screen.
+   - **🧸 Claw Grab (3 lives, 45s cap):** UFO crane; plush 1 · gift 2 · star 3; an empty grab costs a life; Golden Claw in the final 8s.
+   - **🛷 Santa Dash (3 lives, 60s cap):** 3-lane runner; coin 1 · gift 3 · star 5 (magnet); hitting a barrier costs a life.
+   - **🧱 Block Stack (3 lives, 90s cap):** 8×14 gift Tetris (7-bag, ghost piece, wall kicks); topping out costs a life and clears the upper rows.
+   - **⚔️ Berry Slash (3 lives, 60s cap):** slice ornaments; letting one fall or slicing a frost bomb costs a life; 3+ in one swipe is a combo.
+   - **🍬 Candy Match (20 moves, 90s cap):** 6×6 swap-3 with cascades and Row Sparklers; invalid swaps are free.
+3. **Results Screen:** final score, "New best!", the volunteer's challenge ("Beat Andrew's 18"), the player's all-time rank (or "You'd be #2 — claim your gift to join the board"), and the game's **all-time Top 3** (names shown as "Mei L."). Buttons: **Claim my gift**, **Play again**, **All games**.
+4. **Name + Phone Unlock:** Guest enters their name and mobile number (automatically normalized with your default country code, e.g. `+60` or `+65`). Rounds they already played on this phone are attached to their name on the leaderboard.
+5. **Gift & Sticky E-Invitation (Saved on Their Phone):**
    - Volunteer verifies the **LIVE PASS** pulsing clock & unique `XMAS-XXXX` code, hands over the physical gift, and taps **Mark Gift Given ✓**.
-   - Guest taps **Save My E-Invitation Image**, **Share Invite on WhatsApp**, **Open Venue Directions in Maps**, or **Google / Phone Calendar (`.ics`)**.
-   - Their Winner Pass & E-Invitation stay saved automatically on their phone (`localStorage` + `?pass=` link) so they can tap **🎮 Play More Arcade Games** anytime after leaving—chasing high scores across all 3 games without ever re-entering their Name or Phone!
-5. **1-Tap Volunteer WhatsApp Handshake & Master Analytics Dashboard (`/team`):**
+   - Guest taps **Save Pass**, **Share Invite**, **Open in Maps**, or **Google / Apple Calendar (`.ics`)**, and sees **My ranks** across all 5 games.
+   - The pass stays saved on their phone (`localStorage` + `?pass=` link) so they can keep chasing high scores after leaving, without re-entering their details.
+6. **1-Tap Volunteer WhatsApp Handshake & Master Analytics Dashboard (`/team`):**
    - On `/team` → **Live Contacts**, the volunteer taps **💬 Send WhatsApp Invite**—opening WhatsApp (`wa.me`) pre-filled with a personal note and a direct `?pass=` link back to the guest's saved E-Ticket & arcade profile.
    - On `/team` → **📊 Master Dashboard**, track every metric live (auto-synced every 5s): Total Page Views, Unique Phones, QR Scans, Return Session Views, Total Games Played, **Games Played During vs. AFTER Outreach**, Contacts & Visitor Conversion %, Gifts Claimed, **Shared Invitations**, E-Ticket Saves, Calendar Adds, Map Clicks, Team WhatsApps Sent, Outreach Funnel, Mini-Game Breakdown, Volunteer QR Leaderboard, and Live Activity Stream.
 
@@ -64,6 +65,16 @@ Because passersby scan on their own mobile data, deploy this single self-contain
 
 ```powershell
 npm run typecheck   # Strict TypeScript check
-npm test            # Automated API, phone normalization, CSV & PIN security tests
+npm test            # API, security, leaderboard + property-based game-rule tests (Vitest + fast-check)
 npm run build       # Production TypeScript + Vite bundle
+npm run test:e2e    # Builds, then plays every game to its results screen on emulated Android phones (Playwright)
 ```
+
+First-time Playwright setup: `npx playwright install chromium`.
+
+### How scores stay honest
+
+- Each round is started and finished on the server (`POST /api/runs`, `POST /api/runs/:id/finish`); the **server's clock** measures how long it lasted.
+- A score is ranked only if it is within the game's cap and its points-per-second limit (`src/games/rules.ts`). Anything else is stored as *rejected* and never reaches the board.
+- The leaderboard shows each registered player's best per game, earliest achiever wins ties, names formatted as "Mei L." (digits stripped, Chinese names masked as "李**"). Phone numbers are never exposed.
+- Limitation: this raises the bar for cheating but cannot stop a determined person from posting a *plausible* fake score. If the board is abused, the team can see `game_runs` rows in the database.
