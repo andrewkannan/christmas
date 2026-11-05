@@ -305,6 +305,7 @@ test('/team Command Center displays 6 official campaign targets (1500/500/500/50
   await expect(
     page.getByRole('heading', { name: /CCC JB Bilingual Command Center/ })
   ).toBeVisible();
+  await expect(page.locator('.storage-status-pill')).toBeVisible();
 
   // Verify all 6 official campaign targets render with their exact benchmarks
   await expect(

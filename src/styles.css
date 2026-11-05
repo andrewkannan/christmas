@@ -3048,6 +3048,62 @@ body {
   animation: none;
 }
 
+.storage-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0.16rem 0.58rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  border: 1.5px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--ink-primary);
+}
+
+.storage-status-pill--postgres {
+  background: #ecfdf5;
+  border-color: #059669;
+  color: #065f46;
+}
+
+.storage-status-pill--local {
+  background: var(--bg-surface);
+  border-color: var(--border-strong);
+  color: var(--ink-secondary);
+}
+
+.storage-status-pill--ephemeral {
+  background: #fffbeb;
+  border-color: #d97706;
+  color: #78350f;
+}
+
+.storage-warning-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.8rem 0.95rem;
+  border-radius: var(--radius-lg);
+  background: #fffbeb;
+  border: 1.5px solid #d97706;
+  color: #78350f;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.42;
+}
+
+.storage-warning-banner__icon {
+  flex-shrink: 0;
+  margin-block-start: 0.1rem;
+  color: #b45309;
+}
+
+.storage-warning-banner__body strong {
+  font-weight: 900;
+  color: #451a03;
+}
+
 .tab-bar {
   display: flex;
   flex-wrap: wrap;
@@ -5268,7 +5324,9 @@ dialog::backdrop {
   .top-bar,
   .game-hud,
   .hockey-matchmaker,
-  .hockey-code-tile {
+  .hockey-code-tile,
+  .storage-status-pill,
+  .storage-warning-banner {
     border: 1.5px solid CanvasText;
   }
 

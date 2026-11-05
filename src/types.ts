@@ -288,9 +288,16 @@ export interface RecentActivityItem {
   createdAt: string;
 }
 
+export interface StorageStatusInfo {
+  engine: 'postgres' | 'sqlite';
+  persistent: boolean;
+  warning: string | null;
+}
+
 export interface MasterAnalyticsResponse {
   overview: MasterOverviewTotals;
   targets: CampaignTargets;
+  storage?: StorageStatusInfo;
   byGame: GameAnalyticsRow[];
   byVolunteer: VolunteerAnalyticsRow[];
   recentActivity: RecentActivityItem[];

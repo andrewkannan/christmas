@@ -176,6 +176,14 @@ export function sanitizeCsvCell(raw: string | number | boolean): string {
   return str;
 }
 
+function asyncHandler(
+  fn: (req: Request, res: express.Response, next: express.NextFunction) => Promise<void>
+): express.RequestHandler {
+  return (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
+
 export function createApiRouter(db: ArcadeDatabase, options: { now?: () => number } = {}) {
   const router = express.Router();
   const hockeyRooms = new HockeyRoomManager(options);
@@ -184,6 +192,15 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
   const telemetryLimiter = new SlidingWindowRateLimiter(240, 5 * 60 * 1000);
   const roomActionLimiter = new SlidingWindowRateLimiter(80, 5 * 60 * 1000);
   const versusInputLimiter = new SlidingWindowRateLimiter(5000, 60 * 1000);
+
+  router.get('/health', (_req, res) => {
+    const status = db.getStorageStatus();
+    res.json({
+      ok: true,
+      storageEngine: status.engine,
+      persistent: status.persistent,
+    });
+  });
 
   router.get('/public/config', (_req, res) => {
     const settings = db.getSettings();
@@ -201,63 +218,75 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
     res.send(ics);
   });
 
-  router.post('/events', (req, res) => {
-    const ip = getClientIp(req);
-    if (!telemetryLimiter.isAllowed(ip)) {
-      res.status(429).json({ error: 'Rate limit exceeded.' });
-      return;
-    }
+  router.post(
+    '/events',
+    asyncHandler(async (req, res) => {
+      const ip = getClientIp(req);
+      if (!telemetryLimiter.isAllowed(ip)) {
+        res.status(429).json({ error: 'Rate limit exceeded.' });
+        return;
+      }
 
-    const parsed = TrackEventSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid telemetry payload.' });
-      return;
-    }
+      const parsed = TrackEventSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Invalid telemetry payload.' });
+        return;
+      }
 
-    db.recordAnalyticsEvent(parsed.data);
+      db.recordAnalyticsEvent(parsed.data);
+      await db.flushPersistence();
 
-    // If linked to a saved pass, return refreshed pass stats so client high scores stay in sync
-    const refreshedPass = parsed.data.claimToken
-      ? db.getPassByClaimToken(parsed.data.claimToken)
-      : null;
+      // If linked to a saved pass, return refreshed pass stats so client high scores stay in sync
+      const refreshedPass = parsed.data.claimToken
+        ? db.getPassByClaimToken(parsed.data.claimToken)
+        : null;
 
-    res.status(201).json({ ok: true, claim: refreshedPass });
-  });
+      res.status(201).json({ ok: true, claim: refreshedPass });
+    })
+  );
 
-  router.post('/runs', (req, res) => {
-    const ip = getClientIp(req);
-    if (!telemetryLimiter.isAllowed(ip)) {
-      res.status(429).json({ error: 'Rate limit exceeded.' });
-      return;
-    }
-    const parsed = RunStartSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid round payload.' });
-      return;
-    }
-    const runId = db.startRun(parsed.data);
-    res.status(201).json({ runId });
-  });
+  router.post(
+    '/runs',
+    asyncHandler(async (req, res) => {
+      const ip = getClientIp(req);
+      if (!telemetryLimiter.isAllowed(ip)) {
+        res.status(429).json({ error: 'Rate limit exceeded.' });
+        return;
+      }
+      const parsed = RunStartSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Invalid round payload.' });
+        return;
+      }
+      const runId = db.startRun(parsed.data);
+      await db.flushPersistence();
+      res.status(201).json({ runId });
+    })
+  );
 
-  router.post('/runs/:runId/finish', (req, res) => {
-    const ip = getClientIp(req);
-    if (!telemetryLimiter.isAllowed(ip)) {
-      res.status(429).json({ error: 'Rate limit exceeded.' });
-      return;
-    }
-    const runId = String(req.params.runId || '').trim();
-    const parsed = RunFinishSchema.safeParse(req.body);
-    if (runId.length < 10 || runId.length > 80 || !parsed.success) {
-      res.status(400).json({ error: 'Invalid round result.' });
-      return;
-    }
-    const outcome = db.finishRun({ runId, ...parsed.data });
-    if (!outcome.ok) {
-      res.status(outcome.status).json({ error: outcome.error });
-      return;
-    }
-    res.json(outcome.result);
-  });
+  router.post(
+    '/runs/:runId/finish',
+    asyncHandler(async (req, res) => {
+      const ip = getClientIp(req);
+      if (!telemetryLimiter.isAllowed(ip)) {
+        res.status(429).json({ error: 'Rate limit exceeded.' });
+        return;
+      }
+      const runId = String(req.params.runId || '').trim();
+      const parsed = RunFinishSchema.safeParse(req.body);
+      if (runId.length < 10 || runId.length > 80 || !parsed.success) {
+        res.status(400).json({ error: 'Invalid round result.' });
+        return;
+      }
+      const outcome = db.finishRun({ runId, ...parsed.data });
+      if (!outcome.ok) {
+        res.status(outcome.status).json({ error: outcome.error });
+        return;
+      }
+      await db.flushPersistence();
+      res.json(outcome.result);
+    })
+  );
 
   router.get('/leaderboard', (req, res) => {
     const token = ClaimTokenQuerySchema.safeParse(
@@ -302,57 +331,65 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
     res.json({ claim: pass });
   });
 
-  router.post('/leads', (req, res) => {
-    const ip = getClientIp(req);
-    if (!leadLimiter.isAllowed(ip)) {
-      res.status(429).json({
-        error: 'Too many submissions right now. Please wait a moment and try again.',
+  router.post(
+    '/leads',
+    asyncHandler(async (req, res) => {
+      const ip = getClientIp(req);
+      if (!leadLimiter.isAllowed(ip)) {
+        res.status(429).json({
+          error: 'Too many submissions right now. Please wait a moment and try again.',
+        });
+        return;
+      }
+
+      const parsed = LeadSubmissionSchema.safeParse(req.body);
+      if (!parsed.success) {
+        const firstIssue = parsed.error.issues[0]?.message || 'Please check your details.';
+        res.status(400).json({ error: firstIssue });
+        return;
+      }
+
+      const data = parsed.data;
+      const phoneCheck = normalizePhoneForWhatsApp(data.phone, data.countryCode);
+      if (!phoneCheck.valid) {
+        res.status(400).json({ error: phoneCheck.error || 'Invalid mobile number.' });
+        return;
+      }
+
+      const result = db.createOrGetLead({
+        clientRequestId: data.clientRequestId,
+        visitorId: data.visitorId,
+        name: data.name,
+        rawPhone: data.phone,
+        normalizedPhone: phoneCheck.normalizedPhone,
+        gamePlayed: data.gamePlayed,
+        score: data.score,
+        targetScore: data.targetScore,
+        volunteerName: data.volunteerName,
       });
-      return;
-    }
+      await db.flushPersistence();
 
-    const parsed = LeadSubmissionSchema.safeParse(req.body);
-    if (!parsed.success) {
-      const firstIssue = parsed.error.issues[0]?.message || 'Please check your details.';
-      res.status(400).json({ error: firstIssue });
-      return;
-    }
+      res.status(201).json({ claim: result });
+    })
+  );
 
-    const data = parsed.data;
-    const phoneCheck = normalizePhoneForWhatsApp(data.phone, data.countryCode);
-    if (!phoneCheck.valid) {
-      res.status(400).json({ error: phoneCheck.error || 'Invalid mobile number.' });
-      return;
-    }
-
-    const result = db.createOrGetLead({
-      clientRequestId: data.clientRequestId,
-      visitorId: data.visitorId,
-      name: data.name,
-      rawPhone: data.phone,
-      normalizedPhone: phoneCheck.normalizedPhone,
-      gamePlayed: data.gamePlayed,
-      score: data.score,
-      targetScore: data.targetScore,
-      volunteerName: data.volunteerName,
-    });
-
-    res.status(201).json({ claim: result });
-  });
-
-  router.post('/public/claim/:claimToken', (req, res) => {
-    const token = String(req.params.claimToken || '').trim();
-    if (token.length < 10 || token.length > 80) {
-      res.status(400).json({ error: 'Invalid claim token.' });
-      return;
-    }
-    const updated = db.markGiftClaimedByToken(token);
-    if (!updated) {
-      res.status(404).json({ error: 'Winner pass not found.' });
-      return;
-    }
-    res.json({ claim: updated });
-  });
+  router.post(
+    '/public/claim/:claimToken',
+    asyncHandler(async (req, res) => {
+      const token = String(req.params.claimToken || '').trim();
+      if (token.length < 10 || token.length > 80) {
+        res.status(400).json({ error: 'Invalid claim token.' });
+        return;
+      }
+      const updated = db.markGiftClaimedByToken(token);
+      if (!updated) {
+        res.status(404).json({ error: 'Winner pass not found.' });
+        return;
+      }
+      await db.flushPersistence();
+      res.json({ claim: updated });
+    })
+  );
 
   // --- Team PIN Auth & Protected Organizer Endpoints ---
 
@@ -394,24 +431,29 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
     res.json(payload);
   });
 
-  router.patch('/team/leads/:id', requireTeamAuth, (req, res) => {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
-      res.status(400).json({ error: 'Invalid lead ID.' });
-      return;
-    }
-    const parsed = LeadPatchSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid update payload.' });
-      return;
-    }
-    const updated = db.updateLeadStatus(id, parsed.data, getPublicBaseUrl(req));
-    if (!updated) {
-      res.status(404).json({ error: 'Contact not found.' });
-      return;
-    }
-    res.json({ lead: updated });
-  });
+  router.patch(
+    '/team/leads/:id',
+    requireTeamAuth,
+    asyncHandler(async (req, res) => {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid lead ID.' });
+        return;
+      }
+      const parsed = LeadPatchSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Invalid update payload.' });
+        return;
+      }
+      const updated = db.updateLeadStatus(id, parsed.data, getPublicBaseUrl(req));
+      if (!updated) {
+        res.status(404).json({ error: 'Contact not found.' });
+        return;
+      }
+      await db.flushPersistence();
+      res.json({ lead: updated });
+    })
+  );
 
   router.get('/team/leads/export.csv', requireTeamAuth, (req, res) => {
     const { leads } = db.listTeamLeads(getPublicBaseUrl(req));
@@ -478,19 +520,24 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
     res.send(csv);
   });
 
-  router.put('/team/settings', requireTeamAuth, (req, res) => {
-    const parsed = SettingsSchema.safeParse(req.body);
-    if (!parsed.success) {
-      const msg = parsed.error.issues[0]?.message || 'Invalid event settings.';
-      res.status(400).json({ error: msg });
-      return;
-    }
-    const updated = db.updateSettings(parsed.data);
-    res.json({
-      settings: updated,
-      googleCalendarUrl: buildGoogleCalendarUrl(updated),
-    });
-  });
+  router.put(
+    '/team/settings',
+    requireTeamAuth,
+    asyncHandler(async (req, res) => {
+      const parsed = SettingsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        const msg = parsed.error.issues[0]?.message || 'Invalid event settings.';
+        res.status(400).json({ error: msg });
+        return;
+      }
+      const updated = db.updateSettings(parsed.data);
+      await db.flushPersistence();
+      res.json({
+        settings: updated,
+        googleCalendarUrl: buildGoogleCalendarUrl(updated),
+      });
+    })
+  );
 
   router.get('/team/qr.svg', requireTeamAuth, async (req, res) => {
     const targetUrl = String(req.query.url || '').trim();

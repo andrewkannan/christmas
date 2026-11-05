@@ -45,16 +45,17 @@ npm run dev
 
 ---
 
-## Deploying Live for Street 4G (Render / Railway / Fly.io)
+## Deploying Live for Street 4G (Railway / Render / Fly.io)
 
 Because passersby scan on their own mobile data, deploy this single self-contained app (includes `Dockerfile`):
 
-1. Push this folder to a private GitHub repository.
-2. Create a Web Service on **Railway** or **Render** (Docker or Node 24 runtime):
-   - **Build Command:** `npm ci && npm run build`
-   - **Start Command:** `npm start`
-   - **Persistent Volume (recommended):** Mount a volume at `/data` and set `DB_PATH=/data/christmas.db` so contacts persist across restarts.
-3. Set Environment Variables:
+1. Push this folder to your GitHub repository.
+2. Create a Web Service + **PostgreSQL** database on **Railway** (or **Render**):
+   - **Important on Railway (Link Postgres to Web Service):** Adding a Postgres database to the Railway canvas does **not** automatically inject `DATABASE_URL` into your Web App container. Open your **Web App service → Variables → `+ New Variable` → `Add Reference`** and select **`DATABASE_URL`** from your **Postgres** service (`DATABASE_URL=${{Postgres.DATABASE_URL}}`).
+   - Once linked, `/team` displays a green **`PostgreSQL Persistent`** badge in the header, and every contact, pastoral remark, RSVP stage, game leaderboard score, and setting survives every `git push` redeploy automatically.
+   - *(Alternative single-node fallback without Postgres)*: Mount a persistent volume at `/data` (`DB_PATH=/data/christmas.db`).
+3. Set Environment Variables on the Web Service:
+   - `DATABASE_URL` — `${{Postgres.DATABASE_URL}}` (Railway Variable Reference to your Postgres service)
    - `TEAM_PIN` — Your private 4–8 digit team PIN
    - `SESSION_SECRET` — A random 32+ character secret string
    - `NODE_ENV=production`

@@ -18,6 +18,7 @@ import {
   type PublicClaimResult,
   type RecentActivityItem,
   type RunFinishResult,
+  type StorageStatusInfo,
   type TeamDashboardStats,
   type TeamLeadRecord,
   type TrackEventInput,
@@ -31,6 +32,12 @@ import {
   buildPersonalWhatsAppUrl,
   buildReminderWhatsAppUrl,
 } from './phone.ts';
+import type {
+  PersistedAnalyticsEventRow,
+  PersistedGameRunRow,
+  PersistedLeadRow,
+  RemotePersistenceAdapter,
+} from './postgres.ts';
 
 const ACTIVE_GAMES: ActiveGameId[] = [
   'ice-hockey',
@@ -95,6 +102,10 @@ interface LeadEventAggRow {
 export class ArcadeDatabase {
   private readonly db: DatabaseSync;
   private readonly now: () => number;
+  private remote: RemotePersistenceAdapter | null = null;
+  private syncChain: Promise<void> = Promise.resolve();
+  private lastSyncError: string | null = null;
+  private startupWarning: string | null = null;
 
   constructor(dbPath: string, options: { now?: () => number } = {}) {
     if (dbPath !== ':memory:') {
@@ -103,6 +114,260 @@ export class ArcadeDatabase {
     this.db = new DatabaseSync(dbPath);
     this.now = options.now ?? Date.now;
     this.init();
+  }
+
+  setStartupWarning(warning: string | null): void {
+    this.startupWarning = warning;
+  }
+
+  getStorageStatus(): StorageStatusInfo {
+    if (this.remote) {
+      return {
+        engine: 'postgres',
+        persistent: this.lastSyncError === null,
+        warning: this.lastSyncError
+          ? 'PostgreSQL write warning — check your Railway Postgres service health.'
+          : null,
+      };
+    }
+
+    if (this.startupWarning) {
+      return {
+        engine: 'sqlite',
+        persistent: false,
+        warning: this.startupWarning,
+      };
+    }
+
+    const isCloudContainer = Boolean(
+      process.env.RAILWAY_ENVIRONMENT ||
+        process.env.RAILWAY_PROJECT_ID ||
+        process.env.RAILWAY_SERVICE_ID ||
+        process.env.NODE_ENV === 'production'
+    );
+    const hasMountedVolume = Boolean(process.env.RAILWAY_VOLUME_MOUNT_PATH);
+
+    if (isCloudContainer && !hasMountedVolume) {
+      return {
+        engine: 'sqlite',
+        persistent: false,
+        warning:
+          'DATABASE_URL is not linked to this web service yet — contacts are stored in temporary container SQLite and will reset on git push. In Railway, open your Web App service → Variables → + New Variable → Add Reference → select DATABASE_URL from Postgres.',
+      };
+    }
+
+    return {
+      engine: 'sqlite',
+      persistent: true,
+      warning: null,
+    };
+  }
+
+  /**
+   * Attaches a remote PostgreSQL adapter:
+   * - If PostgreSQL already holds campaign data, hydrates local SQLite from PostgreSQL so every
+   *   contact, remark, RSVP stage, game score, and setting survives container redeploys.
+   * - If PostgreSQL is brand-new/empty, seeds it from the current SQLite state.
+   */
+  async attachRemoteAdapter(adapter: RemotePersistenceAdapter): Promise<{
+    hydratedLeads: number;
+    hydratedEvents: number;
+    hydratedRuns: number;
+  }> {
+    const snap = await adapter.loadSnapshot();
+    const remoteHasData = Boolean(
+      snap.settings || snap.leads.length > 0 || snap.events.length > 0 || snap.runs.length > 0
+    );
+
+    if (remoteHasData) {
+      this.db.exec('BEGIN IMMEDIATE');
+      try {
+        this.db.exec(`
+          DELETE FROM game_runs;
+          DELETE FROM analytics_events;
+          DELETE FROM leads;
+          DELETE FROM settings;
+          DELETE FROM sqlite_sequence WHERE name IN ('leads', 'analytics_events');
+        `);
+
+        if (snap.settings) {
+          this.db
+            .prepare('INSERT INTO settings (id, json, updated_at) VALUES (1, ?, ?)')
+            .run(snap.settings.json, snap.settings.updated_at);
+        } else {
+          this.db
+            .prepare('INSERT INTO settings (id, json, updated_at) VALUES (1, ?, ?)')
+            .run(JSON.stringify(DEFAULT_EVENT_SETTINGS), new Date(this.now()).toISOString());
+        }
+
+        const insertLead = this.db.prepare(`
+          INSERT INTO leads (
+            id, client_request_id, visitor_id, redemption_code, claim_token,
+            name, raw_phone, normalized_phone, game_played, score, target_score,
+            volunteer_name, gift_claimed, whatsapp_sent, followup_status,
+            notes, notes_updated_at, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        for (const l of snap.leads) {
+          insertLead.run(
+            l.id,
+            l.client_request_id,
+            l.visitor_id,
+            l.redemption_code,
+            l.claim_token,
+            l.name,
+            l.raw_phone,
+            l.normalized_phone,
+            l.game_played,
+            l.score,
+            l.target_score,
+            l.volunteer_name,
+            l.gift_claimed ? 1 : 0,
+            l.whatsapp_sent ? 1 : 0,
+            l.followup_status || 'new',
+            l.notes,
+            l.notes_updated_at,
+            l.created_at
+          );
+        }
+
+        const insertEvent = this.db.prepare(`
+          INSERT INTO analytics_events (
+            id, visitor_id, lead_id, event_type, game_id,
+            score, is_post_interaction, volunteer_name, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        for (const ev of snap.events) {
+          insertEvent.run(
+            ev.id,
+            ev.visitor_id,
+            ev.lead_id,
+            ev.event_type,
+            ev.game_id,
+            ev.score,
+            ev.is_post_interaction ? 1 : 0,
+            ev.volunteer_name,
+            ev.created_at
+          );
+        }
+
+        const insertRun = this.db.prepare(`
+          INSERT INTO game_runs (
+            id, visitor_id, lead_id, game_id, is_post_interaction,
+            volunteer_name, status, score, end_reason, started_ms, finished_ms
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        for (const r of snap.runs) {
+          insertRun.run(
+            r.id,
+            r.visitor_id,
+            r.lead_id,
+            r.game_id,
+            r.is_post_interaction ? 1 : 0,
+            r.volunteer_name,
+            r.status,
+            r.score,
+            r.end_reason,
+            r.started_ms,
+            r.finished_ms
+          );
+        }
+
+        this.db.exec('COMMIT');
+      } catch (err) {
+        this.db.exec('ROLLBACK');
+        throw err;
+      }
+    } else {
+      // Brand-new empty PostgreSQL database: push existing initial settings & any local rows
+      const settingsRow = this.db
+        .prepare('SELECT id, json, updated_at FROM settings WHERE id = 1')
+        .get() as { id: number; json: string; updated_at: string } | undefined;
+      if (settingsRow) {
+        await adapter.upsertSettings(settingsRow);
+      }
+      const localLeads = this.db
+        .prepare('SELECT * FROM leads ORDER BY id ASC')
+        .all() as unknown as PersistedLeadRow[];
+      for (const l of localLeads) {
+        await adapter.upsertLead(l);
+      }
+      const localEvents = this.db
+        .prepare('SELECT * FROM analytics_events ORDER BY id ASC')
+        .all() as unknown as PersistedAnalyticsEventRow[];
+      for (const ev of localEvents) {
+        await adapter.upsertAnalyticsEvent(ev);
+      }
+      const localRuns = this.db
+        .prepare('SELECT * FROM game_runs ORDER BY started_ms ASC')
+        .all() as unknown as PersistedGameRunRow[];
+      for (const r of localRuns) {
+        await adapter.upsertGameRun(r);
+      }
+    }
+
+    this.remote = adapter;
+    this.lastSyncError = null;
+    this.startupWarning = null;
+    return {
+      hydratedLeads: snap.leads.length,
+      hydratedEvents: snap.events.length,
+      hydratedRuns: snap.runs.length,
+    };
+  }
+
+  private enqueueRemote(task: (remote: RemotePersistenceAdapter) => Promise<void>): void {
+    if (!this.remote) return;
+    const remote = this.remote;
+    this.syncChain = this.syncChain.then(async () => {
+      try {
+        await task(remote);
+        this.lastSyncError = null;
+      } catch {
+        try {
+          await task(remote);
+          this.lastSyncError = null;
+        } catch (retryErr) {
+          const msg = retryErr instanceof Error ? retryErr.message : 'PostgreSQL sync error';
+          this.lastSyncError = msg;
+          console.error('[postgres-sync] Write-through failed:', msg);
+        }
+      }
+    });
+  }
+
+  private syncEventById(eventId: number): void {
+    if (!this.remote) return;
+    const row = this.db
+      .prepare('SELECT * FROM analytics_events WHERE id = ?')
+      .get(eventId) as unknown as PersistedAnalyticsEventRow | undefined;
+    if (row) {
+      this.enqueueRemote((remote) => remote.upsertAnalyticsEvent(row));
+    }
+  }
+
+  private syncLeadById(leadId: number): void {
+    if (!this.remote) return;
+    const row = this.db
+      .prepare('SELECT * FROM leads WHERE id = ?')
+      .get(leadId) as unknown as PersistedLeadRow | undefined;
+    if (row) {
+      this.enqueueRemote((remote) => remote.upsertLead(row));
+    }
+  }
+
+  private syncRunById(runId: string): void {
+    if (!this.remote) return;
+    const row = this.db
+      .prepare('SELECT * FROM game_runs WHERE id = ?')
+      .get(runId) as unknown as PersistedGameRunRow | undefined;
+    if (row) {
+      this.enqueueRemote((remote) => remote.upsertGameRun(row));
+    }
+  }
+
+  async flushPersistence(): Promise<void> {
+    await this.syncChain;
   }
 
   private init(): void {
@@ -267,9 +532,14 @@ export class ArcadeDatabase {
         ...(nextSettings.campaignTargets ?? {}),
       },
     };
+    const updatedAt = new Date().toISOString();
+    const json = JSON.stringify(merged);
     this.db
       .prepare('UPDATE settings SET json = ?, updated_at = ? WHERE id = 1')
-      .run(JSON.stringify(merged), new Date().toISOString());
+      .run(json, updatedAt);
+    this.enqueueRemote((remote) =>
+      remote.upsertSettings({ id: 1, json, updated_at: updatedAt })
+    );
     return this.getSettings();
   }
 
@@ -323,7 +593,7 @@ export class ArcadeDatabase {
       ? Math.max(0, Math.min(9999, Math.round(input.score)))
       : 0;
 
-    this.db
+    const info = this.db
       .prepare(
         `INSERT INTO analytics_events (
           visitor_id, lead_id, event_type, game_id, score, is_post_interaction, volunteer_name, created_at
@@ -339,6 +609,7 @@ export class ArcadeDatabase {
         resolvedVolunteer,
         new Date().toISOString()
       );
+    this.syncEventById(Number(info.lastInsertRowid));
   }
 
   createOrGetLead(params: {
@@ -390,6 +661,7 @@ export class ArcadeDatabase {
     const inserted = this.db
       .prepare('SELECT * FROM leads WHERE client_request_id = ?')
       .get(params.clientRequestId) as unknown as RawLeadRow;
+    this.syncLeadById(inserted.id);
 
     // Retroactively link pre-registration street events and rounds from this phone's visitorId to this lead
     if (cleanVisitorId) {
@@ -399,6 +671,7 @@ export class ArcadeDatabase {
       this.db
         .prepare('UPDATE game_runs SET lead_id = ? WHERE visitor_id = ? AND lead_id IS NULL')
         .run(inserted.id, cleanVisitorId);
+      this.enqueueRemote((remote) => remote.linkVisitorToLead(inserted.id, cleanVisitorId));
     }
 
     // Ensure at least one initial game_complete is recorded for this lead if client didn't emit one prior
@@ -407,7 +680,7 @@ export class ArcadeDatabase {
       .get(inserted.id);
 
     if (!priorGame) {
-      this.db
+      const evInfo = this.db
         .prepare(
           `INSERT INTO analytics_events (
             visitor_id, lead_id, event_type, game_id, score, is_post_interaction, volunteer_name, created_at
@@ -421,6 +694,7 @@ export class ArcadeDatabase {
           inserted.volunteer_name,
           createdAt
         );
+      this.syncEventById(Number(evInfo.lastInsertRowid));
     }
 
     return this.toEnrichedPublicClaimResult(inserted);
@@ -442,6 +716,7 @@ export class ArcadeDatabase {
     if (!existing) return null;
 
     this.db.prepare('UPDATE leads SET gift_claimed = 1 WHERE id = ?').run(existing.id);
+    this.syncLeadById(existing.id);
 
     const updated = this.db
       .prepare('SELECT * FROM leads WHERE id = ?')
@@ -634,10 +909,11 @@ export class ArcadeDatabase {
         nextVolunteer,
         id
       );
+    this.syncLeadById(id);
 
     // Log team WhatsApp follow-up action when newly marked sent
     if (nextWa === 1 && !existing.whatsapp_sent) {
-      this.db
+      const waInfo = this.db
         .prepare(
           `INSERT INTO analytics_events (
             visitor_id, lead_id, event_type, game_id, score, is_post_interaction, volunteer_name, created_at
@@ -649,6 +925,7 @@ export class ArcadeDatabase {
           nextVolunteer,
           new Date(this.now()).toISOString()
         );
+      this.syncEventById(Number(waInfo.lastInsertRowid));
     }
 
     const { leads } = this.listTeamLeads(publicBaseUrl);
@@ -920,6 +1197,7 @@ export class ArcadeDatabase {
         contactsWithRemarks: leadCounts.with_remarks || 0,
       },
       targets,
+      storage: this.getStorageStatus(),
       byGame,
       byVolunteer,
       recentActivity,
@@ -971,6 +1249,7 @@ export class ArcadeDatabase {
         (params.volunteerName || '').trim().slice(0, 40),
         this.now()
       );
+    this.syncRunById(runId);
 
     this.recordAnalyticsEvent({
       eventType: 'game_start',
@@ -1038,8 +1317,9 @@ export class ArcadeDatabase {
          WHERE id = ?`
       )
       .run(verified ? 'verified' : 'rejected', score, params.endReason, nowMs, leadId, run.id);
+    this.syncRunById(run.id);
 
-    this.db
+    const completeInfo = this.db
       .prepare(
         `INSERT INTO analytics_events (
           visitor_id, lead_id, event_type, game_id, score, is_post_interaction, volunteer_name, created_at
@@ -1054,6 +1334,7 @@ export class ArcadeDatabase {
         run.volunteer_name,
         new Date(nowMs).toISOString()
       );
+    this.syncEventById(Number(completeInfo.lastInsertRowid));
 
     const board = this.getGameBoard(run.game_id, leadId);
     const isPersonalBest = verified && score > 0 && score > (previousBest.best ?? 0);
@@ -1204,6 +1485,16 @@ export class ArcadeDatabase {
   }
 
   close(): void {
+    this.db.close();
+  }
+
+  async closeAsync(): Promise<void> {
+    await this.flushPersistence();
+    if (this.remote) {
+      const remote = this.remote;
+      this.remote = null;
+      await remote.close();
+    }
     this.db.close();
   }
 

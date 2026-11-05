@@ -2,6 +2,17 @@
 
 All notable changes to **Christmas Pocket Arcade** are documented in this file.
 
+## [1.6.1] - 2026-11-05
+
+### Fixed
+- **Railway PostgreSQL Persistence Across `git push` Redeploys (`server/postgres.ts`, `server/db.ts`, `server/routes.ts`, `server/index.ts`):**
+  - Added `pg`-backed relational PostgreSQL persistence (`settings`, `leads`, `analytics_events`, `game_runs`) automatically activated whenever `DATABASE_URL` (or `DATABASE_PRIVATE_URL`, `POSTGRES_URL`, `DATABASE_PUBLIC_URL`, or `PGHOST`/`PGUSER`/`PGPASSWORD`/`PGDATABASE`) is configured on the web service.
+  - Hydrates local SQLite inside an atomic startup transaction before `app.listen(...)` opens HTTP traffic, resets `sqlite_sequence` auto-increment counters cleanly, and awaits PostgreSQL write-through on every mutating endpoint (`POST /api/leads`, `PATCH /api/team/leads/:id`, `PUT /api/team/settings`, `POST /api/public/claim/:token`, `POST /api/events`, `POST /api/runs`, `POST /api/runs/:id/finish`) plus `SIGTERM`/`SIGINT` shutdown flush.
+  - Automatically negotiates plain TCP for Railway internal private networking (`*.railway.internal`) and TLS for Railway public proxy / cloud PostgreSQL URLs, with startup warm-up retries and credential-redacted logging.
+- **Live `/team` Storage Persistence Indicator & Unlinked `DATABASE_URL` Alert (`TeamDashboard.tsx`, `styles.css`):**
+  - Added a live header badge (`PostgreSQL Persistent` vs `Local SQLite` vs `Ephemeral SQLite (Unlinked)`) and an accessible `role="alert"` warning banner when running in Railway/production without a linked `DATABASE_URL` variable reference (`${{Postgres.DATABASE_URL}}`), plus `GET /api/health` storage diagnostics.
+- **Tests (`tests/postgresPersistence.test.ts`):** Added unit and simulated container-wipe integration tests proving contacts, pastoral remarks, Confirmed RSVPs, leaderboards, custom campaign targets, and auto-increment ID sequences survive full container replacement.
+
 ## [1.6.0] - 2026-11-05
 
 ### Added
