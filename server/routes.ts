@@ -67,6 +67,15 @@ const TrackEventSchema = z.object({
   volunteerName: z.string().trim().max(40).optional(),
 });
 
+const CampaignTargetsSchema = z.object({
+  pageViews: z.number().int().min(1).max(1_000_000).default(1500),
+  gamesStarted: z.number().int().min(1).max(1_000_000).default(500),
+  leads: z.number().int().min(1).max(1_000_000).default(500),
+  giftsHandedOut: z.number().int().min(1).max(1_000_000).default(500),
+  gamesAfter: z.number().int().min(1).max(1_000_000).default(100),
+  viralActions: z.number().int().min(1).max(1_000_000).default(100),
+});
+
 const SettingsSchema = z.object({
   churchName: z.string().trim().min(1).max(80),
   eventTitle: z.string().trim().min(1).max(100),
@@ -81,12 +90,16 @@ const SettingsSchema = z.object({
   defaultCountryCode: z.string().regex(/^\d{1,4}$/),
   giftDescription: z.string().trim().min(1).max(100),
   whatsappTemplate: z.string().trim().min(10).max(1000),
+  reminderTemplate: z.string().trim().max(1000).optional(),
+  campaignTargets: CampaignTargetsSchema.optional(),
 });
 
 const LeadPatchSchema = z.object({
   giftClaimed: z.boolean().optional(),
   whatsappSent: z.boolean().optional(),
-  notes: z.string().max(300).optional(),
+  notes: z.string().max(1000).optional(),
+  followUpStatus: z.enum(['new', 'contacted', 'replied', 'confirmed', 'not_free']).optional(),
+  volunteerName: z.string().trim().max(40).optional(),
 });
 
 const ActiveGameIdEnum = z.enum([
@@ -408,6 +421,12 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
       'Name',
       'WhatsApp Number',
       'Volunteer',
+      'Follow-Up Status',
+      'Engagement Tier',
+      'Gift Claimed',
+      'WhatsApp Sent',
+      'Remarks',
+      'Remarks Updated At',
       'First Game',
       'First Score',
       'Total Games Played',
@@ -416,19 +435,28 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
       'E-Tickets Downloaded',
       'Calendar Adds',
       'E-Invite Views',
-      'Gift Claimed',
-      'WhatsApp Sent',
-      'Notes',
       'Created At',
       'Last Active At',
     ];
-    const rows = leads.map((l) =>
-      [
+    const rows = leads.map((l) => {
+      const engagementTier =
+        l.calendarAdds > 0 || l.inviteShares > 0 || l.gamesAfterInteraction >= 2
+          ? 'Hot'
+          : l.gamesAfterInteraction === 1 || l.ticketDownloads > 0 || l.eInviteViews > 1
+            ? 'Warm'
+            : 'Street';
+      return [
         l.id,
         l.redemptionCode,
         l.name,
         l.normalizedPhone,
         l.volunteerName || 'General',
+        l.followUpStatus,
+        engagementTier,
+        l.giftClaimed ? 'Yes' : 'No',
+        l.whatsappSent ? 'Yes' : 'No',
+        l.notes,
+        l.notesUpdatedAt,
         l.gamePlayed,
         l.score,
         l.totalGamesPlayed,
@@ -437,15 +465,12 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
         l.ticketDownloads,
         l.calendarAdds,
         l.eInviteViews,
-        l.giftClaimed ? 'Yes' : 'No',
-        l.whatsappSent ? 'Yes' : 'No',
-        l.notes,
         l.createdAt,
         l.lastActiveAt,
       ]
         .map(sanitizeCsvCell)
-        .join(',')
-    );
+        .join(',');
+    });
 
     const csv = `\uFEFF${headers.join(',')}\r\n${rows.join('\r\n')}\r\n`;
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');

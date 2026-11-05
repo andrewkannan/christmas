@@ -39,9 +39,9 @@ npm run dev
    - Volunteer verifies the **LIVE PASS** pulsing clock & unique `XMAS-XXXX` code, hands over the physical gift, and taps **Mark Gift Given ✓**.
    - Guest taps **Save Pass**, **Share Invite**, **Open in Maps**, or **Google / Apple Calendar (`.ics`)**, and sees **My ranks** across all 5 games.
    - The pass stays saved on their phone (`localStorage` + `?pass=` link) so they can keep chasing high scores after leaving, without re-entering their details.
-6. **1-Tap Volunteer WhatsApp Handshake & Master Analytics Dashboard (`/team`):**
-   - On `/team` → **Live Contacts**, the volunteer taps **💬 Send WhatsApp Invite**—opening WhatsApp (`wa.me`) pre-filled with a personal note and a direct `?pass=` link back to the guest's saved E-Ticket & arcade profile.
-   - On `/team` → **📊 Master Dashboard**, track every metric live (auto-synced every 5s): Total Page Views, Unique Phones, QR Scans, Return Session Views, Total Games Played, **Games Played During vs. AFTER Outreach**, Contacts & Visitor Conversion %, Gifts Claimed, **Shared Invitations**, E-Ticket Saves, Calendar Adds, Map Clicks, Team WhatsApps Sent, Outreach Funnel, Mini-Game Breakdown, Volunteer QR Leaderboard, and Live Activity Stream.
+6. **Evangelism Command Center, 6 Campaign Targets & Pastoral CRM (`/team`):**
+   - **Mission Control (`MasterAnalytics.tsx`):** Auto-syncs every 5s (with `Pause Sync` toggle) to track all **6 Official Campaign Targets** (`1,500` QR Scans & Page Views · `500` Games Started · `500` Registered Contacts · `500` Physical Gifts Handed Out · `100` Games Played AFTER Street Interaction · `100` Shared Invites + Saved Tickets + Calendar Adds), plus 4 clickable Action Queues, 6-stage Conversion Funnel, Evangelist Shepherd Leaderboard, and Live Activity Stream.
+   - **Live Contacts Pastoral CRM (`TeamDashboard.tsx`, `ContactCrmDialog.tsx`):** Tap `+ Add Remark / Prayer Note` on any guest to record pastoral remarks & 1-tap quick tags, track the **5-stage Celebration RSVP pipeline** (`New` → `WhatsApp Sent` → `Replied` → `Confirmed Coming` / `Can't Make It`), filter by `Hot Intent` or `Has Remarks`, search across names/phones/evangelists/remarks, send **Stage 1 Invite** or **Stage 2 Service Reminder** WhatsApps, and export a formula-safe CSV.
 
 ---
 

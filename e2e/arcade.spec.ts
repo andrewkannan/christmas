@@ -264,3 +264,99 @@ test('a registered player keeps playing from the pass without re-entering detail
   await expect(page.getByRole('button', { name: /Claim my gift/ })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /VIP Invitation & Ranks/ })).toBeVisible();
 });
+
+test('/team Command Center displays 6 official campaign targets (1500/500/500/500/100/100) and saves live contact remarks + RSVP pipeline', async (
+  { page },
+  testInfo
+) => {
+  const consoleErrors: string[] = [];
+  page.on('pageerror', (err) => consoleErrors.push(err.message));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
+
+  const isPixel = testInfo.project.name === 'pixel-7';
+  const guestName = isPixel ? 'Hannah Pixel' : 'Hannah Galaxy';
+  const guestPhone = isPixel ? '012-998 7766' : '012-998 7767';
+  const uniqueNoteKeyword = isPixel ? 'City Square' : 'Mount Austin';
+
+  // Ensure a distinct contact exists for each browser profile in the shared server DB
+  await page.request.post('/api/leads', {
+    data: {
+      name: guestName,
+      phone: guestPhone,
+      countryCode: '60',
+      gamePlayed: 'santa-dash',
+      score: 44,
+      targetScore: 18,
+      volunteerName: 'Andrew',
+      clientRequestId: `e2e-hannah-${testInfo.project.name}-${Date.now()}`,
+    },
+  });
+
+  await page.goto('/team');
+  await expect(
+    page.getByRole('heading', { name: 'Team Command Center Sign-In' })
+  ).toBeVisible();
+
+  await page.getByLabel('Team Access PIN').fill('2468');
+  await page.getByRole('button', { name: 'Unlock Command Center' }).click();
+
+  await expect(
+    page.getByRole('heading', { name: /CCC JB Bilingual Command Center/ })
+  ).toBeVisible();
+
+  // Verify all 6 official campaign targets render with their exact benchmarks
+  await expect(
+    page.getByRole('heading', { name: 'Official Evangelism Campaign Targets (6 Goals)' })
+  ).toBeVisible();
+  for (const [goalTitle, targetLabel] of [
+    ['Total QR Scans & Page Views', '/ 1,500 target'],
+    ['Games Started', '/ 500 target'],
+    ['Registered Contacts (Name + Phone)', '/ 500 target'],
+    ['Physical Gifts Handed Out', '/ 500 target'],
+    ['Games Played AFTER Street Interaction', '/ 100 target'],
+    ['Shared Invites + Saved Tickets + Calendar Adds', '/ 100 target'],
+  ] as const) {
+    const card = page.locator('article.target-card', { hasText: goalTitle });
+    await expect(card).toBeVisible();
+    await expect(card.getByText(targetLabel)).toBeVisible();
+  }
+
+  // Switch to Live Contacts CRM and open guest's Remarks & Follow-Up modal
+  await page.locator('.tab-bar').getByRole('button', { name: /Live Contacts/ }).click();
+  await page.getByRole('button', { name: `Add remark for ${guestName}` }).click();
+
+  const crmDialog = page.locator('dialog.crm-dialog[open]');
+  await expect(crmDialog).toBeVisible();
+  await expect(crmDialog.getByRole('heading', { name: guestName })).toBeVisible();
+
+  // Apply a 1-tap quick tag + custom remark + Confirmed Coming RSVP stage
+  await crmDialog.getByRole('button', { name: /\+ Coming with family/ }).click();
+  const notesField = crmDialog.getByLabel(/Evangelism & Pastoral Remarks/);
+  await expect(notesField).toHaveValue('Coming with family');
+  await notesField.fill(
+    `Coming with family · Met near ${uniqueNoteKeyword}, speaks Mandarin & English`
+  );
+
+  await crmDialog.getByRole('radio', { name: /Confirmed Coming/ }).check();
+  await crmDialog.getByRole('button', { name: 'Save Remarks & Status' }).click();
+  await expect(crmDialog).toHaveCount(0);
+
+  // Verify inline remark cell, Confirmed RSVP badge, and pipeline filter + remarks search
+  await expect(
+    page.getByRole('button', { name: `Edit remarks for ${guestName}` })
+  ).toContainText(`Met near ${uniqueNoteKeyword}`);
+  await expect(
+    page.getByRole('button', { name: new RegExp(`Follow-up stage for ${guestName}: Confirmed Coming`) })
+  ).toBeVisible();
+
+  await page.getByRole('button', { name: /Confirmed RSVP/ }).click();
+  await expect(page.getByText(guestName)).toBeVisible();
+
+  await page.getByLabel('Search Guest, Phone, Code, or Remarks').fill(uniqueNoteKeyword);
+  await expect(page.getByText(guestName)).toBeVisible();
+
+  expect(consoleErrors).toEqual([]);
+});
+

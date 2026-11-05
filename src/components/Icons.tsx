@@ -661,4 +661,126 @@ export function VersusPhonesIcon({ size = 18, className }: IconProps) {
   );
 }
 
+export function TargetGoalIcon({ size = 17, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+      <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2" />
+      <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function UsersCrmIcon({ size = 17, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <circle cx="9" cy="8.5" r="3.2" stroke="currentColor" strokeWidth="2" />
+      <path d="M3.2 19.2C3.8 15.9 6.1 14.2 9 14.2C11.9 14.2 14.2 15.9 14.8 19.2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="16.8" cy="9.5" r="2.4" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M16.2 14.5C18.4 14.7 20.1 16.1 20.6 18.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function NoteEditIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <path
+        d="M12 20H20.5M16.2 4.3C17 3.5 18.3 3.5 19.1 4.3L19.7 4.9C20.5 5.7 20.5 7 19.7 7.8L8.6 18.9L4 20L5.1 15.4L16.2 4.3Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function QrBoardIcon({ size = 17, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.4" stroke="currentColor" strokeWidth="2" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.4" stroke="currentColor" strokeWidth="2" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.4" stroke="currentColor" strokeWidth="2" />
+      <rect x="6" y="6" width="2" height="2" fill="currentColor" />
+      <rect x="16" y="6" width="2" height="2" fill="currentColor" />
+      <rect x="6" y="16" width="2" height="2" fill="currentColor" />
+      <path d="M14 14H17V17H14V14ZM17 17H20.5V20.5H17V17ZM14 19.5H15.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function SlidersIcon({ size = 17, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <line x1="4" y1="6.5" x2="20" y2="6.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="4" y1="17.5" x2="20" y2="17.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="9" cy="6.5" r="2.3" fill="var(--bg-surface, #ffffff)" stroke="currentColor" strokeWidth="2" />
+      <circle cx="15.5" cy="12" r="2.3" fill="var(--bg-surface, #ffffff)" stroke="currentColor" strokeWidth="2" />
+      <circle cx="10.5" cy="17.5" r="2.3" fill="var(--bg-surface, #ffffff)" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
+export function LockIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <rect x="4.5" y="10.5" width="15" height="10" rx="2.4" stroke="currentColor" strokeWidth="2" />
+      <path d="M8 10.5V7.5C8 5.3 9.8 3.5 12 3.5C14.2 3.5 16 5.3 16 7.5V10.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="12" cy="15.5" r="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function CopyIcon({ size = 15, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <rect x="8.5" y="8.5" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="2" />
+      <path d="M15.5 8.5V6.5C15.5 5.4 14.6 4.5 13.5 4.5H6.5C5.4 4.5 4.5 5.4 4.5 6.5V13.5C4.5 14.6 5.4 15.5 6.5 15.5H8.5" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
+export function BellReminderIcon({ size = 15, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <path
+        d="M6.5 10C6.5 6.9 9 4.4 12 4.4C15 4.4 17.5 6.9 17.5 10V14.2L19.3 16.4H4.7L6.5 14.2V10Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path d="M10 19C10.5 20 11.2 20.5 12 20.5C12.8 20.5 13.5 20 14 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function EyeScanIcon({ size = 17, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <path
+        d="M2.5 12C4.4 7.8 7.9 5.5 12 5.5C16.1 5.5 19.6 7.8 21.5 12C19.6 16.2 16.1 18.5 12 18.5C7.9 18.5 4.4 16.2 2.5 12Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
+export function ShareViralIcon({ size = 17, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <circle cx="18" cy="5.5" r="2.8" stroke="currentColor" strokeWidth="2" />
+      <circle cx="6" cy="12" r="2.8" stroke="currentColor" strokeWidth="2" />
+      <circle cx="18" cy="18.5" r="2.8" stroke="currentColor" strokeWidth="2" />
+      <line x1="8.6" y1="10.7" x2="15.4" y2="6.8" stroke="currentColor" strokeWidth="2" />
+      <line x1="8.6" y1="13.3" x2="15.4" y2="17.2" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
+
 

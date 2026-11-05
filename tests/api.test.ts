@@ -484,4 +484,114 @@ describe('Christmas Pocket Arcade API & Security', () => {
       .send({ token: joinerToken })
       .expect(200);
   });
+
+  it('persists official 1500/500/500/500/100/100 campaign targets, rich contact remarks, 5-stage RSVP pipeline, and CSV formula sanitization on remarks', async () => {
+    // 1. Default targets match the 6 official campaign benchmarks
+    const pubCfg = await request(app).get('/api/public/config').expect(200);
+    expect(pubCfg.body.settings.campaignTargets).toEqual({
+      pageViews: 1500,
+      gamesStarted: 500,
+      leads: 500,
+      giftsHandedOut: 500,
+      gamesAfter: 100,
+      viralActions: 100,
+    });
+
+    // 2. Register a guest and record post-interaction activity so they become a Hot lead
+    const visitorId = 'vis-chloe-crm-01';
+    const leadRes = await request(app)
+      .post('/api/leads')
+      .send({
+        name: 'Chloe Wong',
+        phone: '018-223 4455',
+        countryCode: '60',
+        gamePlayed: 'ice-hockey',
+        score: 52,
+        targetScore: 18,
+        volunteerName: 'Andrew',
+        clientRequestId: 'req-chloe-crm-01',
+        visitorId,
+      })
+      .expect(201);
+    const claimToken = leadRes.body.claim.claimToken as string;
+
+    await request(app)
+      .post('/api/events')
+      .send({ visitorId, claimToken, eventType: 'calendar_ics', isPostInteraction: true })
+      .expect(201);
+
+    const agent = request.agent(app);
+    await agent
+      .post('/api/team/login')
+      .set('X-Forwarded-For', '198.51.100.88')
+      .send({ pin: '7788' })
+      .expect(200);
+
+    // 3. Verify initial CRM state, reminder WhatsApp URL, and hot lead detection
+    const initialLeads = await agent.get('/api/team/leads').expect(200);
+    expect(initialLeads.body.stats.hotLeadsCount).toBe(1);
+    expect(initialLeads.body.stats.withRemarksCount).toBe(0);
+    expect(initialLeads.body.stats.confirmedRsvpCount).toBe(0);
+    const chloe = initialLeads.body.leads[0];
+    expect(chloe.followUpStatus).toBe('new');
+    expect(chloe.personalInviteUrl).toContain(`/?pass=${claimToken}`);
+    expect(decodeURIComponent(chloe.reminderWhatsappUrl)).toContain('Celebration Service');
+
+    // 4. Save rich pastoral remarks + Confirmed RSVP + reassign evangelist
+    const patched = await agent
+      .patch(`/api/team/leads/${chloe.id}`)
+      .send({
+        notes: '=CMD() · Coming with family · Speaks Mandarin & English, needs parking map',
+        followUpStatus: 'confirmed',
+        volunteerName: 'Grace',
+        giftClaimed: true,
+      })
+      .expect(200);
+
+    expect(patched.body.lead.followUpStatus).toBe('confirmed');
+    expect(patched.body.lead.whatsappSent).toBe(true);
+    expect(patched.body.lead.volunteerName).toBe('Grace');
+    expect(patched.body.lead.notes).toContain('Coming with family');
+    expect(patched.body.lead.notesUpdatedAt).toBeTruthy();
+
+    // 5. Verify CRM stats, Master Analytics RSVP/remarks totals, and CSV formula sanitization on remarks
+    const updatedLeads = await agent.get('/api/team/leads').expect(200);
+    expect(updatedLeads.body.stats.withRemarksCount).toBe(1);
+    expect(updatedLeads.body.stats.confirmedRsvpCount).toBe(1);
+
+    const master = await agent.get('/api/team/master-stats').expect(200);
+    expect(master.body.targets.pageViews).toBe(1500);
+    expect(master.body.overview.confirmedRsvps).toBe(1);
+    expect(master.body.overview.contactsWithRemarks).toBe(1);
+    const graceRow = master.body.byVolunteer.find(
+      (v: { volunteerName: string }) => v.volunteerName === 'Grace'
+    );
+    expect(graceRow.confirmedRsvps).toBe(1);
+    expect(graceRow.withRemarks).toBe(1);
+
+    const csv = await agent.get('/api/team/leads/export.csv').expect(200);
+    expect(csv.text).toContain('Follow-Up Status,Engagement Tier');
+    expect(csv.text).toContain('confirmed,Hot');
+    expect(csv.text).toContain("'=CMD() · Coming with family");
+
+    // 6. Customizing campaignTargets & reminderTemplate persists cleanly
+    const nextSettings = await agent
+      .put('/api/team/settings')
+      .send({
+        ...pubCfg.body.settings,
+        reminderTemplate: 'Hi {name}, see you tonight at {venueName}! {inviteUrl}',
+        campaignTargets: {
+          pageViews: 2000,
+          gamesStarted: 650,
+          leads: 550,
+          giftsHandedOut: 550,
+          gamesAfter: 150,
+          viralActions: 150,
+        },
+      })
+      .expect(200);
+    expect(nextSettings.body.settings.campaignTargets.pageViews).toBe(2000);
+    expect(nextSettings.body.settings.campaignTargets.gamesStarted).toBe(650);
+  });
 });
+

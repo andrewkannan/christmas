@@ -2,6 +2,26 @@
 
 All notable changes to **Christmas Pocket Arcade** are documented in this file.
 
+## [1.6.0] - 2026-11-05
+
+### Added
+- **Evangelism Command Center & 6 Official Campaign Target Scorecards (`MasterAnalytics.tsx`, `EventSettingsForm.tsx`, `server/db.ts`):**
+  - Added live progress scorecards with semantic `<progress>` bars, completion `%`, and exact remaining counts for all **6 official evangelism targets** (configurable in `/team` with 1-click reset to defaults):
+    1. **Total QR Scans & Page Views:** `1,500`
+    2. **Games Started:** `500`
+    3. **Registered Contacts (Name + Phone):** `500`
+    4. **Physical Gifts Handed Out:** `500`
+    5. **Games Played AFTER Street Interaction:** `100`
+    6. **Shared Invites + Saved Tickets + Calendar Adds:** `100`
+  - Added an **Executive Campaign Scoreboard** showing overall pace `%` and **4 clickable Action Queue cards** (`Needs 1st WhatsApp`, `Unclaimed Street Gift`, `Hot Intent Guests`, `Confirmed Coming`) that jump straight into filtered `Live Contacts`.
+  - Upgraded the **Evangelist Shepherd Leaderboard** with per-volunteer RSVP counts, remarks counts, and 1-tap filtering into each evangelist's guest list.
+- **Live Contacts Pastoral CRM & Remarks Modal (`ContactCrmDialog.tsx`, `TeamDashboard.tsx`, `teamHelpers.ts`, `server/routes.ts`):**
+  - Added inline `+ Add Remark / Prayer Note` and editable remark cards on every live contact, opening a native `<dialog>` modal (`showModal()`, `closedby="any"` + backdrop-click fallback, isolated draft state immune to 5s live auto-sync).
+  - Added **7 1-tap Quick-Tag chips** (`Interested in service`, `Coming with family`, `Needs transport / ride`, `Mandarin / Bilingual`, `Youth / Student`, `Prayer request`, `Follow up Dec 23`) plus a 1,000-char pastoral remarks field with `notes_updated_at` timestamping.
+  - Added a **5-stage Celebration RSVP Pipeline** (`New`, `WhatsApp Sent`, `Replied`, `Confirmed Coming`, `Can't Make It`), **Engagement Heat Scoring** (`Hot Intent`, `Warm Guest`, `Street Contact`), evangelist reassignment `<datalist>`, `Copy Phone` / `Copy VIP Link`, **Pause/Resume Auto-Sync**, full-text search across **Remarks**, and `@container (width < 760px)` stacked mobile contact cards.
+  - Added **2-Stage WhatsApp Outreach** (`1st WhatsApp Invite` + `Service Reminder WhatsApp` template) and enriched CSV export (`Follow-Up Status`, `Engagement Tier`, `Remarks`, `Remarks Updated At`) protected by `sanitizeCsvCell`.
+- **Tests (`tests/teamHelpers.test.ts`, `tests/api.test.ts`, `e2e/arcade.spec.ts`):** Added unit, integration, CSV formula-injection security, and Playwright `/team` E2E tests covering all 6 campaign targets, remarks persistence, RSVP pipeline transitions, and remarks search.
+
 ## [1.5.0] - 2026-11-05
 
 ### Added

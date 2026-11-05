@@ -97,6 +97,26 @@ export type AnalyticsEventType =
   | 'maps_click'
   | 'team_whatsapp_followup';
 
+export type FollowUpStatus = 'new' | 'contacted' | 'replied' | 'confirmed' | 'not_free';
+
+export interface CampaignTargets {
+  pageViews: number;
+  gamesStarted: number;
+  leads: number;
+  giftsHandedOut: number;
+  gamesAfter: number;
+  viralActions: number;
+}
+
+export const DEFAULT_CAMPAIGN_TARGETS: CampaignTargets = {
+  pageViews: 1500,
+  gamesStarted: 500,
+  leads: 500,
+  giftsHandedOut: 500,
+  gamesAfter: 100,
+  viralActions: 100,
+};
+
 export interface EventSettings {
   churchName: string;
   eventTitle: string;
@@ -111,6 +131,8 @@ export interface EventSettings {
   defaultCountryCode: string; // digits only, e.g. "60" or "65"
   giftDescription: string;
   whatsappTemplate: string;
+  reminderTemplate?: string;
+  campaignTargets?: CampaignTargets;
 }
 
 export interface LeadSubmissionInput {
@@ -150,6 +172,14 @@ export interface TrackEventInput {
   volunteerName?: string;
 }
 
+export interface LeadPatchInput {
+  giftClaimed?: boolean;
+  whatsappSent?: boolean;
+  notes?: string;
+  followUpStatus?: FollowUpStatus;
+  volunteerName?: string;
+}
+
 export interface TeamLeadRecord {
   id: number;
   redemptionCode: string;
@@ -157,13 +187,17 @@ export interface TeamLeadRecord {
   rawPhone: string;
   normalizedPhone: string;
   whatsappUrl: string;
+  reminderWhatsappUrl: string;
+  personalInviteUrl: string;
   gamePlayed: GameId;
   score: number;
   targetScore: number;
   volunteerName: string;
   giftClaimed: boolean;
   whatsappSent: boolean;
+  followUpStatus: FollowUpStatus;
   notes: string;
+  notesUpdatedAt: string;
   createdAt: string;
   totalGamesPlayed: number;
   gamesAfterInteraction: number;
@@ -178,6 +212,10 @@ export interface TeamDashboardStats {
   totalLeads: number;
   giftsClaimed: number;
   whatsappSentCount: number;
+  withRemarksCount: number;
+  confirmedRsvpCount: number;
+  repliedCount: number;
+  hotLeadsCount: number;
   byVolunteer: Record<string, number>;
 }
 
@@ -209,6 +247,9 @@ export interface MasterOverviewTotals {
   mapsDirectionsClicks: number;
   teamWhatsappFollowupsSent: number;
   teamWhatsappClicksTotal: number;
+  confirmedRsvps: number;
+  repliedContacts: number;
+  contactsWithRemarks: number;
 }
 
 export interface GameAnalyticsRow {
@@ -231,6 +272,8 @@ export interface VolunteerAnalyticsRow {
   giftsClaimed: number;
   sharedInvites: number;
   whatsappFollowedUp: number;
+  confirmedRsvps: number;
+  withRemarks: number;
 }
 
 export interface RecentActivityItem {
@@ -247,6 +290,7 @@ export interface RecentActivityItem {
 
 export interface MasterAnalyticsResponse {
   overview: MasterOverviewTotals;
+  targets: CampaignTargets;
   byGame: GameAnalyticsRow[];
   byVolunteer: VolunteerAnalyticsRow[];
   recentActivity: RecentActivityItem[];

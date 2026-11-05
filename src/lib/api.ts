@@ -197,7 +197,7 @@ export async function fetchTeamLeads(): Promise<TeamLeadsResponse> {
 
 export async function patchTeamLead(
   id: number,
-  patch: { giftClaimed?: boolean; whatsappSent?: boolean; notes?: string }
+  patch: import('../types.ts').LeadPatchInput
 ): Promise<{ lead: TeamLeadRecord }> {
   const res = await fetch(`/api/team/leads/${id}`, {
     method: 'PATCH',

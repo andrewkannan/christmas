@@ -2,26 +2,35 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import type {
-  ActiveGameId,
-  AnalyticsEventType,
-  EventSettings,
-  FullGameLeaderboard,
-  GameAnalyticsRow,
-  GameId,
-  GameLeaderboard,
-  MasterAnalyticsResponse,
-  PublicClaimResult,
-  RecentActivityItem,
-  RunFinishResult,
-  TeamDashboardStats,
-  TeamLeadRecord,
-  TrackEventInput,
-  VolunteerAnalyticsRow,
+import {
+  DEFAULT_CAMPAIGN_TARGETS,
+  type ActiveGameId,
+  type AnalyticsEventType,
+  type CampaignTargets,
+  type EventSettings,
+  type FollowUpStatus,
+  type FullGameLeaderboard,
+  type GameAnalyticsRow,
+  type GameId,
+  type GameLeaderboard,
+  type LeadPatchInput,
+  type MasterAnalyticsResponse,
+  type PublicClaimResult,
+  type RecentActivityItem,
+  type RunFinishResult,
+  type TeamDashboardStats,
+  type TeamLeadRecord,
+  type TrackEventInput,
+  type VolunteerAnalyticsRow,
 } from '../src/types.ts';
 import { RUN_EXPIRY_MS, isPlausibleScore, type RoundEndReason } from '../src/games/rules.ts';
 import { formatBoardName } from '../src/games/boardName.ts';
-import { buildPersonalWhatsAppUrl } from './phone.ts';
+import {
+  DEFAULT_REMINDER_TEMPLATE,
+  buildPersonalPassUrl,
+  buildPersonalWhatsAppUrl,
+  buildReminderWhatsAppUrl,
+} from './phone.ts';
 
 const ACTIVE_GAMES: ActiveGameId[] = [
   'ice-hockey',
@@ -47,6 +56,8 @@ export const DEFAULT_EVENT_SETTINGS: EventSettings = {
   giftDescription: 'Christmas Blessing Gift',
   whatsappTemplate:
     'Hey {name}! 🎄 So fun playing the Christmas Arcade with you earlier ({volunteer} here!).\n\nHere is your personal invite to *{eventTitle}*:\n📅 {eventDate}\n📍 {venueName} ({venueAddress})\n\n🎟 Open your E-Ticket & play more games anytime: {inviteUrl}\n\nBring a friend along—we would love to host you! ✨',
+  reminderTemplate: DEFAULT_REMINDER_TEMPLATE,
+  campaignTargets: { ...DEFAULT_CAMPAIGN_TARGETS },
 };
 
 interface RawLeadRow {
@@ -64,7 +75,9 @@ interface RawLeadRow {
   volunteer_name: string;
   gift_claimed: number;
   whatsapp_sent: number;
+  followup_status: FollowUpStatus;
   notes: string;
+  notes_updated_at: string;
   created_at: string;
 }
 
@@ -118,7 +131,9 @@ export class ArcadeDatabase {
         volunteer_name TEXT NOT NULL DEFAULT '',
         gift_claimed INTEGER NOT NULL DEFAULT 0,
         whatsapp_sent INTEGER NOT NULL DEFAULT 0,
+        followup_status TEXT NOT NULL DEFAULT 'new',
         notes TEXT NOT NULL DEFAULT '',
+        notes_updated_at TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL
       );
 
@@ -162,10 +177,19 @@ export class ArcadeDatabase {
       CREATE INDEX IF NOT EXISTS idx_runs_lead ON game_runs(lead_id);
     `);
 
-    // Safe backwards-compatible migration for pre-existing leads tables without visitor_id
+    // Safe backwards-compatible migrations for pre-existing leads tables
     const cols = this.db.prepare('PRAGMA table_info(leads)').all() as Array<{ name: string }>;
     if (!cols.some((c) => c.name === 'visitor_id')) {
       this.db.exec("ALTER TABLE leads ADD COLUMN visitor_id TEXT NOT NULL DEFAULT ''");
+    }
+    if (!cols.some((c) => c.name === 'followup_status')) {
+      this.db.exec("ALTER TABLE leads ADD COLUMN followup_status TEXT NOT NULL DEFAULT 'new'");
+      this.db.exec(
+        "UPDATE leads SET followup_status = 'contacted' WHERE whatsapp_sent = 1 AND followup_status = 'new'"
+      );
+    }
+    if (!cols.some((c) => c.name === 'notes_updated_at')) {
+      this.db.exec("ALTER TABLE leads ADD COLUMN notes_updated_at TEXT NOT NULL DEFAULT ''");
     }
 
     const existing = this.db.prepare('SELECT json FROM settings WHERE id = 1').get() as
@@ -187,6 +211,10 @@ export class ArcadeDatabase {
           parsed.churchName = 'CCC JB Bilingual';
           changed = true;
         }
+        if (!parsed.campaignTargets) {
+          parsed.campaignTargets = { ...DEFAULT_CAMPAIGN_TARGETS };
+          changed = true;
+        }
         if (changed) {
           this.db
             .prepare('UPDATE settings SET json = ?, updated_at = ? WHERE id = 1')
@@ -202,18 +230,46 @@ export class ArcadeDatabase {
     const row = this.db.prepare('SELECT json FROM settings WHERE id = 1').get() as
       | { json: string }
       | undefined;
-    if (!row) return { ...DEFAULT_EVENT_SETTINGS };
+    if (!row) {
+      return {
+        ...DEFAULT_EVENT_SETTINGS,
+        campaignTargets: { ...DEFAULT_CAMPAIGN_TARGETS },
+      };
+    }
     try {
-      return { ...DEFAULT_EVENT_SETTINGS, ...(JSON.parse(row.json) as Partial<EventSettings>) };
+      const parsed = JSON.parse(row.json) as Partial<EventSettings>;
+      const mergedTargets: CampaignTargets = {
+        ...DEFAULT_CAMPAIGN_TARGETS,
+        ...(parsed.campaignTargets ?? {}),
+      };
+      return {
+        ...DEFAULT_EVENT_SETTINGS,
+        ...parsed,
+        campaignTargets: mergedTargets,
+      };
     } catch {
-      return { ...DEFAULT_EVENT_SETTINGS };
+      return {
+        ...DEFAULT_EVENT_SETTINGS,
+        campaignTargets: { ...DEFAULT_CAMPAIGN_TARGETS },
+      };
     }
   }
 
   updateSettings(nextSettings: EventSettings): EventSettings {
+    const current = this.getSettings();
+    const merged: EventSettings = {
+      ...current,
+      ...nextSettings,
+      reminderTemplate: nextSettings.reminderTemplate ?? current.reminderTemplate ?? DEFAULT_REMINDER_TEMPLATE,
+      campaignTargets: {
+        ...DEFAULT_CAMPAIGN_TARGETS,
+        ...(current.campaignTargets ?? {}),
+        ...(nextSettings.campaignTargets ?? {}),
+      },
+    };
     this.db
       .prepare('UPDATE settings SET json = ?, updated_at = ? WHERE id = 1')
-      .run(JSON.stringify(nextSettings), new Date().toISOString());
+      .run(JSON.stringify(merged), new Date().toISOString());
     return this.getSettings();
   }
 
@@ -431,14 +487,37 @@ export class ArcadeDatabase {
     const byVolunteer: Record<string, number> = {};
     let giftsClaimed = 0;
     let whatsappSentCount = 0;
+    let withRemarksCount = 0;
+    let confirmedRsvpCount = 0;
+    let repliedCount = 0;
+    let hotLeadsCount = 0;
 
     const leads: TeamLeadRecord[] = rows.map((row) => {
       const volKey = row.volunteer_name || 'Unassigned';
       byVolunteer[volKey] = (byVolunteer[volKey] || 0) + 1;
       if (row.gift_claimed) giftsClaimed += 1;
       if (row.whatsapp_sent) whatsappSentCount += 1;
+      if (row.notes && row.notes.trim().length > 0) withRemarksCount += 1;
+      const status: FollowUpStatus = row.followup_status || (row.whatsapp_sent ? 'contacted' : 'new');
+      if (status === 'confirmed') confirmedRsvpCount += 1;
+      if (status === 'replied' || status === 'confirmed') repliedCount += 1;
 
       const agg = aggMap.get(row.id);
+      const afterGames = agg?.after_games ?? 0;
+      const shares = agg?.shares ?? 0;
+      const calendarAdds = agg?.calendar_adds ?? 0;
+      if (calendarAdds > 0 || shares > 0 || afterGames >= 2) {
+        hotLeadsCount += 1;
+      }
+
+      const waParams = {
+        normalizedPhone: row.normalized_phone,
+        guestName: row.name,
+        volunteerName: row.volunteer_name,
+        claimToken: row.claim_token,
+        settings,
+        publicBaseUrl,
+      };
 
       return {
         id: row.id,
@@ -446,27 +525,24 @@ export class ArcadeDatabase {
         name: row.name,
         rawPhone: row.raw_phone,
         normalizedPhone: row.normalized_phone,
-        whatsappUrl: buildPersonalWhatsAppUrl({
-          normalizedPhone: row.normalized_phone,
-          guestName: row.name,
-          volunteerName: row.volunteer_name,
-          claimToken: row.claim_token,
-          settings,
-          publicBaseUrl,
-        }),
+        whatsappUrl: buildPersonalWhatsAppUrl(waParams),
+        reminderWhatsappUrl: buildReminderWhatsAppUrl(waParams),
+        personalInviteUrl: buildPersonalPassUrl(publicBaseUrl, row.claim_token),
         gamePlayed: row.game_played,
         score: row.score,
         targetScore: row.target_score,
         volunteerName: row.volunteer_name,
         giftClaimed: Boolean(row.gift_claimed),
         whatsappSent: Boolean(row.whatsapp_sent),
+        followUpStatus: status,
         notes: row.notes,
+        notesUpdatedAt: row.notes_updated_at || '',
         createdAt: row.created_at,
         totalGamesPlayed: Math.max(1, agg?.total_games ?? 1),
-        gamesAfterInteraction: agg?.after_games ?? 0,
-        inviteShares: agg?.shares ?? 0,
+        gamesAfterInteraction: afterGames,
+        inviteShares: shares,
         ticketDownloads: agg?.downloads ?? 0,
-        calendarAdds: agg?.calendar_adds ?? 0,
+        calendarAdds,
         eInviteViews: agg?.invite_views ?? 0,
         lastActiveAt: agg?.last_active_at || row.created_at,
       };
@@ -478,6 +554,10 @@ export class ArcadeDatabase {
         totalLeads: rows.length,
         giftsClaimed,
         whatsappSentCount,
+        withRemarksCount,
+        confirmedRsvpCount,
+        repliedCount,
+        hotLeadsCount,
         byVolunteer,
       },
     };
@@ -485,7 +565,7 @@ export class ArcadeDatabase {
 
   updateLeadStatus(
     id: number,
-    patch: { giftClaimed?: boolean; whatsappSent?: boolean; notes?: string },
+    patch: LeadPatchInput,
     publicBaseUrl: string
   ): TeamLeadRecord | null {
     const existing = this.db
@@ -493,18 +573,70 @@ export class ArcadeDatabase {
       .get(id) as unknown as RawLeadRow | undefined;
     if (!existing) return null;
 
+    const currentStatus: FollowUpStatus =
+      existing.followup_status || (existing.whatsapp_sent ? 'contacted' : 'new');
+
     const nextGift =
       patch.giftClaimed !== undefined ? (patch.giftClaimed ? 1 : 0) : existing.gift_claimed;
-    const nextWa =
+
+    let nextWa =
       patch.whatsappSent !== undefined ? (patch.whatsappSent ? 1 : 0) : existing.whatsapp_sent;
-    const nextNotes = patch.notes !== undefined ? patch.notes.slice(0, 300) : existing.notes;
+    let nextStatus: FollowUpStatus = currentStatus;
+
+    if (patch.followUpStatus !== undefined) {
+      nextStatus = patch.followUpStatus;
+      if (
+        patch.whatsappSent === undefined &&
+        (nextStatus === 'contacted' || nextStatus === 'replied' || nextStatus === 'confirmed') &&
+        !existing.whatsapp_sent
+      ) {
+        nextWa = 1;
+      }
+      if (patch.whatsappSent === undefined && nextStatus === 'new') {
+        nextWa = 0;
+      }
+    } else if (patch.whatsappSent === true && currentStatus === 'new') {
+      nextStatus = 'contacted';
+    } else if (patch.whatsappSent === false && currentStatus === 'contacted') {
+      nextStatus = 'new';
+    }
+
+    const nextNotes =
+      patch.notes !== undefined ? patch.notes.trim().slice(0, 1000) : existing.notes;
+    const nextNotesUpdatedAt =
+      patch.notes !== undefined && nextNotes !== existing.notes
+        ? nextNotes
+          ? new Date(this.now()).toISOString()
+          : ''
+        : existing.notes_updated_at || '';
+    const nextVolunteer =
+      patch.volunteerName !== undefined
+        ? patch.volunteerName.trim().slice(0, 40)
+        : existing.volunteer_name;
 
     this.db
-      .prepare('UPDATE leads SET gift_claimed = ?, whatsapp_sent = ?, notes = ? WHERE id = ?')
-      .run(nextGift, nextWa, nextNotes, id);
+      .prepare(
+        `UPDATE leads
+         SET gift_claimed = ?,
+             whatsapp_sent = ?,
+             followup_status = ?,
+             notes = ?,
+             notes_updated_at = ?,
+             volunteer_name = ?
+         WHERE id = ?`
+      )
+      .run(
+        nextGift,
+        nextWa,
+        nextStatus,
+        nextNotes,
+        nextNotesUpdatedAt,
+        nextVolunteer,
+        id
+      );
 
-    // Log team WhatsApp follow-up action when newly toggled on
-    if (patch.whatsappSent === true && !existing.whatsapp_sent) {
+    // Log team WhatsApp follow-up action when newly marked sent
+    if (nextWa === 1 && !existing.whatsapp_sent) {
       this.db
         .prepare(
           `INSERT INTO analytics_events (
@@ -514,8 +646,8 @@ export class ArcadeDatabase {
         .run(
           existing.visitor_id || `lead-${existing.id}`,
           existing.id,
-          existing.volunteer_name,
-          new Date().toISOString()
+          nextVolunteer,
+          new Date(this.now()).toISOString()
         );
     }
 
@@ -524,6 +656,9 @@ export class ArcadeDatabase {
   }
 
   getMasterAnalytics(): MasterAnalyticsResponse {
+    const settings = this.getSettings();
+    const targets: CampaignTargets = settings.campaignTargets ?? { ...DEFAULT_CAMPAIGN_TARGETS };
+
     const eventSums = this.db
       .prepare(
         `SELECT
@@ -569,10 +704,20 @@ export class ArcadeDatabase {
         `SELECT
           COUNT(*) AS total_leads,
           SUM(CASE WHEN gift_claimed = 1 THEN 1 ELSE 0 END) AS gifts_claimed,
-          SUM(CASE WHEN whatsapp_sent = 1 THEN 1 ELSE 0 END) AS wa_sent
+          SUM(CASE WHEN whatsapp_sent = 1 THEN 1 ELSE 0 END) AS wa_sent,
+          SUM(CASE WHEN followup_status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed_rsvps,
+          SUM(CASE WHEN followup_status IN ('replied', 'confirmed') THEN 1 ELSE 0 END) AS replied_contacts,
+          SUM(CASE WHEN TRIM(notes) != '' THEN 1 ELSE 0 END) AS with_remarks
         FROM leads`
       )
-      .get() as { total_leads: number; gifts_claimed: number | null; wa_sent: number | null };
+      .get() as {
+      total_leads: number;
+      gifts_claimed: number | null;
+      wa_sent: number | null;
+      confirmed_rsvps: number | null;
+      replied_contacts: number | null;
+      with_remarks: number | null;
+    };
 
     const totalLeads = leadCounts.total_leads || 0;
     const uniqueVisitors = Math.max(uniqueVisitorsRow.cnt || 0, totalLeads);
@@ -661,7 +806,9 @@ export class ArcadeDatabase {
           CASE WHEN volunteer_name = '' THEN 'General / Direct' ELSE volunteer_name END AS vol,
           COUNT(*) AS leads_cnt,
           SUM(CASE WHEN gift_claimed = 1 THEN 1 ELSE 0 END) AS gifts_cnt,
-          SUM(CASE WHEN whatsapp_sent = 1 THEN 1 ELSE 0 END) AS wa_cnt
+          SUM(CASE WHEN whatsapp_sent = 1 THEN 1 ELSE 0 END) AS wa_cnt,
+          SUM(CASE WHEN followup_status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed_cnt,
+          SUM(CASE WHEN TRIM(notes) != '' THEN 1 ELSE 0 END) AS remarks_cnt
         FROM leads
         GROUP BY vol`
       )
@@ -670,6 +817,8 @@ export class ArcadeDatabase {
       leads_cnt: number;
       gifts_cnt: number | null;
       wa_cnt: number | null;
+      confirmed_cnt: number | null;
+      remarks_cnt: number | null;
     }>;
 
     const allVolNames = new Set<string>([
@@ -694,6 +843,8 @@ export class ArcadeDatabase {
           giftsClaimed: ld?.gifts_cnt ?? 0,
           sharedInvites: ev?.shares ?? 0,
           whatsappFollowedUp: ld?.wa_cnt ?? 0,
+          confirmedRsvps: ld?.confirmed_cnt ?? 0,
+          withRemarks: ld?.remarks_cnt ?? 0,
         };
       })
       .sort((a, b) => b.leadsCount - a.leadsCount || b.views - a.views);
@@ -764,7 +915,11 @@ export class ArcadeDatabase {
         mapsDirectionsClicks: eventSums.maps_clicks || 0,
         teamWhatsappFollowupsSent: leadCounts.wa_sent || 0,
         teamWhatsappClicksTotal: eventSums.team_wa_clicks || 0,
+        confirmedRsvps: leadCounts.confirmed_rsvps || 0,
+        repliedContacts: leadCounts.replied_contacts || 0,
+        contactsWithRemarks: leadCounts.with_remarks || 0,
       },
+      targets,
       byGame,
       byVolunteer,
       recentActivity,

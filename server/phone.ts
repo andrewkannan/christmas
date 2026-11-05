@@ -82,23 +82,32 @@ export function formatReadableEventDate(eventDateIso: string): string {
   return `${weekday}, ${Number(day)} ${monthName} ${year} · ${hour12}:${minStr} ${period}`;
 }
 
-export function buildPersonalWhatsAppUrl(params: {
-  normalizedPhone: string;
-  guestName: string;
-  volunteerName: string;
-  claimToken?: string;
-  settings: EventSettings;
-  publicBaseUrl: string;
-}): string {
-  const { normalizedPhone, guestName, volunteerName, claimToken, settings, publicBaseUrl } = params;
+export const DEFAULT_REMINDER_TEMPLATE =
+  'Hi {name}! 🎄 Friendly reminder from {volunteer} ({churchName}) — our *{eventTitle}* Celebration Service is coming up!\n\n📅 {eventDate}\n📍 {venueName} ({venueAddress})\n\n🎟 Your VIP Invitation & directions: {inviteUrl}\n\nLet me know if you are coming with friends or need directions—see you there! ✨';
+
+export function buildPersonalPassUrl(publicBaseUrl: string, claimToken?: string): string {
+  return claimToken
+    ? `${publicBaseUrl.replace(/\/+$/, '')}/?pass=${encodeURIComponent(claimToken)}`
+    : publicBaseUrl;
+}
+
+function renderWhatsAppTemplate(
+  template: string,
+  params: {
+    guestName: string;
+    volunteerName: string;
+    claimToken?: string;
+    settings: EventSettings;
+    publicBaseUrl: string;
+  }
+): string {
+  const { guestName, volunteerName, claimToken, settings, publicBaseUrl } = params;
   const firstName = guestName.trim().split(/\s+/)[0] || guestName.trim();
   const volunteerText = volunteerName.trim() || settings.churchName;
   const formattedDate = formatReadableEventDate(settings.eventDateIso);
-  const personalUrl = claimToken
-    ? `${publicBaseUrl.replace(/\/+$/, '')}/?pass=${encodeURIComponent(claimToken)}`
-    : publicBaseUrl;
+  const personalUrl = buildPersonalPassUrl(publicBaseUrl, claimToken);
 
-  const message = settings.whatsappTemplate
+  return template
     .replaceAll('{name}', firstName)
     .replaceAll('{volunteer}', volunteerText)
     .replaceAll('{churchName}', settings.churchName)
@@ -110,6 +119,29 @@ export function buildPersonalWhatsAppUrl(params: {
     .replaceAll('{inviteUrl}', personalUrl)
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
 
-  return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
+export function buildPersonalWhatsAppUrl(params: {
+  normalizedPhone: string;
+  guestName: string;
+  volunteerName: string;
+  claimToken?: string;
+  settings: EventSettings;
+  publicBaseUrl: string;
+}): string {
+  const message = renderWhatsAppTemplate(params.settings.whatsappTemplate, params);
+  return `https://wa.me/${params.normalizedPhone}?text=${encodeURIComponent(message)}`;
+}
+
+export function buildReminderWhatsAppUrl(params: {
+  normalizedPhone: string;
+  guestName: string;
+  volunteerName: string;
+  claimToken?: string;
+  settings: EventSettings;
+  publicBaseUrl: string;
+}): string {
+  const tpl = params.settings.reminderTemplate?.trim() || DEFAULT_REMINDER_TEMPLATE;
+  const message = renderWhatsAppTemplate(tpl, params);
+  return `https://wa.me/${params.normalizedPhone}?text=${encodeURIComponent(message)}`;
 }

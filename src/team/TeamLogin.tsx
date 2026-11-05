@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import { loginTeamPin } from '../lib/api.ts';
+import { LockIcon, ShieldCheckIcon } from '../components/Icons.tsx';
 
 interface TeamLoginProps {
   onAuthenticated: () => void;
@@ -31,23 +32,33 @@ export function TeamLogin({ onAuthenticated }: TeamLoginProps) {
   };
 
   return (
-    <section aria-labelledby={`${uid}-login-title`} style={{ maxInlineSize: '26rem', marginInline: 'auto', inlineSize: '100%' }}>
-      <form method="post" action="/api/team/login" onSubmit={handleSubmit} className="card-panel">
-        <span className="challenger-tag">Outreach Console</span>
-        <h1 id={`${uid}-login-title`} className="section-title" style={{ marginBlock: '0.5rem 0.35rem' }}>
-          🔐 Team Dashboard Sign-In
+    <section
+      aria-labelledby={`${uid}-login-title`}
+      style={{ maxInlineSize: '27rem', marginInline: 'auto', inlineSize: '100%' }}
+    >
+      <form method="post" action="/api/team/login" onSubmit={handleSubmit} className="card-panel team-login-card">
+        <div className="team-login-card__badge">
+          <LockIcon size={20} />
+        </div>
+        <span className="challenger-tag">Evangelism &amp; Pastoral Console</span>
+        <h1
+          id={`${uid}-login-title`}
+          className="section-title"
+          style={{ marginBlock: '0.45rem 0.35rem', fontSize: '1.35rem' }}
+        >
+          Team Command Center Sign-In
         </h1>
         <p className="subtle-text" style={{ marginBlockEnd: '1.2rem' }}>
-          Enter your outreach team PIN to view live contacts, send 1-tap WhatsApp invites, and
-          generate volunteer QR boards.
+          Enter your outreach team PIN to monitor campaign targets, log pastoral remarks on live
+          contacts, and send 1-tap WhatsApp invitations.
         </p>
 
         <div className="form-group">
           <label htmlFor={`${uid}-pin`} className="form-label">
-            Team PIN
+            Team Access PIN
           </label>
           <span id={`${uid}-pin-hint`} className="field-hint">
-            Ask your outreach leader for today&apos;s PIN (dev default: 1225).
+            Ask your outreach team leader for today&apos;s PIN.
           </span>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem' }}>
             <input
@@ -78,26 +89,19 @@ export function TeamLogin({ onAuthenticated }: TeamLoginProps) {
         </div>
 
         {error && (
-          <div
-            role="alert"
-            style={{
-              marginBlockEnd: '1rem',
-              padding: '0.75rem',
-              borderRadius: 'var(--radius-sm)',
-              background: 'var(--danger-bg)',
-              border: '1px solid var(--danger-border)',
-              color: 'var(--danger-ink)',
-              fontWeight: 600,
-              fontSize: '0.9rem',
-            }}
-          >
-            ⚠ {error}
+          <div role="alert" className="form-alert">
+            {error}
           </div>
         )}
 
-        <button type="submit" className="btn btn--gold btn--full" disabled={loading}>
-          {loading ? 'Verifying PIN…' : 'Unlock Team Dashboard'}
+        <button type="submit" className="btn btn--primary btn--full" disabled={loading}>
+          {loading ? 'Verifying PIN…' : 'Unlock Command Center'}
         </button>
+
+        <p className="privacy-reassurance">
+          <ShieldCheckIcon size={14} />
+          <span>Protected session · Guest phone numbers stay strictly confidential</span>
+        </p>
       </form>
     </section>
   );

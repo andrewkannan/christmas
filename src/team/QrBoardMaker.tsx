@@ -1,6 +1,12 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import type { EventSettings } from '../types.ts';
+import {
+  CheckCircleIcon,
+  CopyIcon,
+  DownloadPassIcon,
+  QrBoardIcon,
+} from '../components/Icons.tsx';
 
 interface QrBoardMakerProps {
   settings: EventSettings;
@@ -42,7 +48,7 @@ export function QrBoardMaker({ settings }: QrBoardMakerProps) {
     QRCode.toDataURL(shareUrl, {
       width: 560,
       margin: 2,
-      color: { dark: '#0b1914', light: '#ffffff' },
+      color: { dark: '#18181b', light: '#ffffff' },
     })
       .then((dataUrl) => {
         if (active) setQrDataUrl(dataUrl);
@@ -52,6 +58,27 @@ export function QrBoardMaker({ settings }: QrBoardMakerProps) {
       active = false;
     };
   }, [shareUrl]);
+
+  // Fallback light-dismiss for browsers without native closedby="any"
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const supportsClosedBy = 'closedBy' in HTMLDialogElement.prototype;
+    const handleBackdropClick = (e: MouseEvent) => {
+      if (supportsClosedBy) return;
+      if (e.target !== dialog) return;
+      if (e.clientX === 0 && e.clientY === 0) return;
+      const rect = dialog.getBoundingClientRect();
+      const inside =
+        rect.top <= e.clientY &&
+        e.clientY <= rect.top + rect.height &&
+        rect.left <= e.clientX &&
+        e.clientX <= rect.left + rect.width;
+      if (!inside) dialog.close();
+    };
+    dialog.addEventListener('click', handleBackdropClick);
+    return () => dialog.removeEventListener('click', handleBackdropClick);
+  }, []);
 
   const handleCopy = async () => {
     try {
@@ -65,36 +92,33 @@ export function QrBoardMaker({ settings }: QrBoardMakerProps) {
 
   return (
     <section className="card-panel" aria-labelledby={`${uid}-qr-heading`}>
-      <h2 id={`${uid}-qr-heading`} className="section-title">
-        🪧 Volunteer QR Board Generator
+      <h2 id={`${uid}-qr-heading`} className="section-title settings-legend">
+        <QrBoardIcon size={19} />
+        <span>Evangelist QR Board Studio</span>
       </h2>
-      <p className="subtle-text" style={{ marginBlock: '0.35rem 1.1rem' }}>
-        Give each volunteer their own QR board so players see{' '}
-        <strong>&ldquo;Beat {volunteerName || 'Me'}!&rdquo;</strong> and every contact is
-        automatically tagged to the volunteer they met.
+      <p className="subtle-text" style={{ marginBlock: '0.35rem 1.15rem' }}>
+        Give each evangelist their own QR lanyard/board so street players see{' '}
+        <strong>&ldquo;Beat {volunteerName.trim() || 'Me'}!&rdquo;</strong> and every new contact
+        is automatically assigned to them in Live Contacts.
       </p>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(15rem, 1fr))',
-          gap: '1rem',
-          alignItems: 'start',
-        }}
-      >
+      <div className="qr-studio-grid">
         <div>
           <div className="form-group">
             <label htmlFor={`${uid}-vol`} className="form-label">
-              Volunteer / Challenger Name
+              Evangelist / Challenger Name
             </label>
             <span id={`${uid}-vol-hint`} className="field-hint">
-              Leave blank for a general team board.
+              Leave blank for a general church team board.
             </span>
             <input
               id={`${uid}-vol`}
               type="text"
               className="form-input"
               maxLength={40}
+              autoCorrect="off"
+              autoCapitalize="words"
+              spellCheck={false}
               value={volunteerName}
               aria-describedby={`${uid}-vol-hint`}
               onChange={(e) => setVolunteerName(e.target.value)}
@@ -103,15 +127,18 @@ export function QrBoardMaker({ settings }: QrBoardMakerProps) {
 
           <div className="form-group">
             <label htmlFor={`${uid}-target`} className="form-label">
-              Target Score to Beat (10–30 pts)
+              Target Score to Beat (5–50 pts)
             </label>
             <span id={`${uid}-target-hint`} className="field-hint">
-              Shown on every results screen as &ldquo;beat {volunteerName.trim() || 'the team'}&rsquo;s score&rdquo;.
+              Displayed on the results screen as &ldquo;beat{' '}
+              {volunteerName.trim() || 'the team'}&rsquo;s score&rdquo;.
             </span>
             <input
               id={`${uid}-target`}
               type="text"
               inputMode="numeric"
+              autoCorrect="off"
+              spellCheck={false}
               className="form-input"
               value={String(targetScore)}
               aria-describedby={`${uid}-target-hint`}
@@ -122,7 +149,7 @@ export function QrBoardMaker({ settings }: QrBoardMakerProps) {
             />
           </div>
 
-          <div className="form-group">
+          <div className="form-group" style={{ marginBlockEnd: 0 }}>
             <label htmlFor={`${uid}-base`} className="form-label">
               Public Website URL
             </label>
@@ -139,47 +166,23 @@ export function QrBoardMaker({ settings }: QrBoardMakerProps) {
           </div>
         </div>
 
-        <div
-          style={{
-            background: 'var(--bg-cream)',
-            color: 'var(--ink-on-cream)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '1.25rem',
-            textAlign: 'center',
-            border: '2px solid var(--accent-gold)',
-          }}
-        >
-          <div style={{ fontWeight: 900, fontSize: '1.1rem', color: 'var(--accent-crimson)' }}>
-            🎄 SCAN &amp; PLAY IN 20 SECONDS!
+        <div className="qr-preview-card">
+          <div className="qr-preview-card__eyebrow">
+            {settings.churchName.toUpperCase()} · STREET ARCADE
           </div>
-          <div style={{ fontWeight: 800, fontSize: '1.25rem', marginBlock: '0.2rem 0.65rem' }}>
+          <div className="qr-preview-card__headline">
             {volunteerName.trim()
               ? `Can You Beat ${volunteerName.trim()}'s ${targetScore} Pts?`
-              : 'Win a Free Christmas Gift!'}
+              : 'Scan, Play & Receive a Christmas Blessing Gift!'}
           </div>
           {qrDataUrl && (
             <img
               src={qrDataUrl}
               alt={`QR code linking to ${shareUrl}`}
-              style={{
-                inlineSize: '13.5rem',
-                blockSize: '13.5rem',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid #d4c5ab',
-              }}
+              className="qr-preview-card__img"
             />
           )}
-          <p
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.76rem',
-              wordBreak: 'break-all',
-              marginBlock: '0.6rem 0.9rem',
-              color: 'var(--ink-on-cream-muted)',
-            }}
-          >
-            {shareUrl}
-          </p>
+          <p className="qr-preview-card__url">{shareUrl}</p>
 
           <div style={{ display: 'grid', gap: '0.5rem' }}>
             {qrDataUrl && (
@@ -188,7 +191,8 @@ export function QrBoardMaker({ settings }: QrBoardMakerProps) {
                 download={`qr-board-${(volunteerName.trim() || 'team').toLowerCase()}.png`}
                 className="btn btn--primary btn--sm btn--full"
               >
-                ⬇ Download QR PNG
+                <DownloadPassIcon size={15} />
+                <span>Download QR PNG</span>
               </a>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
@@ -197,14 +201,15 @@ export function QrBoardMaker({ settings }: QrBoardMakerProps) {
                 className="btn btn--cream-outline btn--sm"
                 onClick={handleCopy}
               >
-                {copied ? '✓ Copied!' : 'Copy Link'}
+                {copied ? <CheckCircleIcon size={14} /> : <CopyIcon size={14} />}
+                <span>{copied ? 'Copied!' : 'Copy Link'}</span>
               </button>
               <button
                 type="button"
                 className="btn btn--cream-outline btn--sm"
                 onClick={() => dialogRef.current?.showModal()}
               >
-                🖨 Poster View
+                <span>A4 Poster View</span>
               </button>
             </div>
           </div>
@@ -212,18 +217,26 @@ export function QrBoardMaker({ settings }: QrBoardMakerProps) {
       </div>
 
       {/* Native <dialog> opened via showModal() for full Printable A4 Board Poster */}
-      <dialog ref={dialogRef} className="poster-dialog" aria-labelledby={`${uid}-poster-title`}>
+      <dialog
+        ref={dialogRef}
+        {...({ closedby: 'any' } as Record<string, string>)}
+        className="poster-dialog"
+        aria-labelledby={`${uid}-poster-title`}
+      >
         <div className="printable-board" style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--accent-crimson)' }}>
             {settings.churchName.toUpperCase()} · CHRISTMAS ARCADE CHALLENGE
           </div>
-          <h2 id={`${uid}-poster-title`} style={{ fontSize: '1.85rem', margin: '0.35rem 0', fontWeight: 900 }}>
+          <h2
+            id={`${uid}-poster-title`}
+            style={{ fontSize: '1.8rem', margin: '0.35rem 0', fontWeight: 900 }}
+          >
             {volunteerName.trim()
-              ? `🎄 Beat ${volunteerName.trim()} & Win a Gift!`
-              : '🎄 Play 20s & Win a Free Gift!'}
+              ? `Beat ${volunteerName.trim()} & Receive a Christmas Gift!`
+              : 'Play 45s & Receive a Christmas Blessing Gift!'}
           </h2>
           <p style={{ margin: '0 0 0.9rem', fontWeight: 600 }}>
-            Scan with your phone camera · Pick any quick game · Claim your{' '}
+            Scan with your phone camera · Pick any quick game · Show our team for your{' '}
             <strong>{settings.giftDescription}</strong>!
           </p>
           {qrDataUrl && (
@@ -233,8 +246,8 @@ export function QrBoardMaker({ settings }: QrBoardMakerProps) {
               style={{ inlineSize: '17rem', blockSize: '17rem' }}
             />
           )}
-          <p style={{ margin: '0.75rem 0 0', fontWeight: 800, fontSize: '0.98rem' }}>
-            🏒 Starlight Hockey (2P) · 🛷 Santa Dash · 🧱 Block Stack · ⚔️ Berry Slash · 🍬 Candy Match
+          <p style={{ margin: '0.75rem 0 0', fontWeight: 800, fontSize: '0.95rem' }}>
+            Starlight Hockey (2P Versus) · Santa Dash · Block Stack · Berry Slash · Candy Match
           </p>
         </div>
         <div
@@ -258,7 +271,7 @@ export function QrBoardMaker({ settings }: QrBoardMakerProps) {
             className="btn btn--primary btn--sm"
             onClick={() => window.print()}
           >
-            🖨 Print A4 Board
+            Print A4 Board
           </button>
         </div>
       </dialog>
