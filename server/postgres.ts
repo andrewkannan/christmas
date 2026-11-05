@@ -1,5 +1,5 @@
 import pg from 'pg';
-import type { FollowUpStatus, GameId } from '../src/types.ts';
+import type { FollowUpStatus, GameId, TeamUserRole } from '../src/types.ts';
 
 const { Pool } = pg;
 
@@ -56,11 +56,23 @@ export interface PersistedGameRunRow {
   finished_ms: number | null;
 }
 
+export interface PersistedTeamUserRow {
+  id: number;
+  name: string;
+  role: TeamUserRole;
+  passcode_digest: string;
+  passcode_hash: string;
+  active: number;
+  created_at: string;
+  last_login_at: string;
+}
+
 export interface HydratedSnapshot {
   settings: PersistedSettingsRow | null;
   leads: PersistedLeadRow[];
   events: PersistedAnalyticsEventRow[];
   runs: PersistedGameRunRow[];
+  teamUsers: PersistedTeamUserRow[];
 }
 
 export interface RemotePersistenceAdapter {
@@ -70,6 +82,8 @@ export interface RemotePersistenceAdapter {
   upsertLead(row: PersistedLeadRow): Promise<void>;
   upsertAnalyticsEvent(row: PersistedAnalyticsEventRow): Promise<void>;
   upsertGameRun(row: PersistedGameRunRow): Promise<void>;
+  upsertTeamUser(row: PersistedTeamUserRow): Promise<void>;
+  deleteTeamUser(id: number): Promise<void>;
   linkVisitorToLead(leadId: number, visitorId: string): Promise<void>;
   close(): Promise<void>;
 }
@@ -146,6 +160,19 @@ export const POSTGRES_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_pg_runs_board ON game_runs(game_id, status, score DESC);
   CREATE INDEX IF NOT EXISTS idx_pg_runs_visitor ON game_runs(visitor_id);
   CREATE INDEX IF NOT EXISTS idx_pg_runs_lead ON game_runs(lead_id);
+
+  CREATE TABLE IF NOT EXISTS team_users (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    passcode_digest TEXT NOT NULL UNIQUE,
+    passcode_hash TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    last_login_at TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_pg_team_users_digest ON team_users(passcode_digest);
 `;
 
 /**
@@ -218,13 +245,14 @@ export class PostgresPersistenceAdapter implements RemotePersistenceAdapter {
   }
 
   async loadSnapshot(): Promise<HydratedSnapshot> {
-    const [settingsRes, leadsRes, eventsRes, runsRes] = await Promise.all([
+    const [settingsRes, leadsRes, eventsRes, runsRes, teamUsersRes] = await Promise.all([
       this.pool.query<{ id: number; json: string | Record<string, unknown>; updated_at: string }>(
         'SELECT id, json, updated_at FROM settings WHERE id = 1'
       ),
       this.pool.query<Record<string, unknown>>('SELECT * FROM leads ORDER BY id ASC'),
       this.pool.query<Record<string, unknown>>('SELECT * FROM analytics_events ORDER BY id ASC'),
       this.pool.query<Record<string, unknown>>('SELECT * FROM game_runs ORDER BY started_ms ASC'),
+      this.pool.query<Record<string, unknown>>('SELECT * FROM team_users ORDER BY id ASC'),
     ]);
 
     const rawSetting = settingsRes.rows[0];
@@ -287,7 +315,18 @@ export class PostgresPersistenceAdapter implements RemotePersistenceAdapter {
         r.finished_ms !== null && r.finished_ms !== undefined ? Number(r.finished_ms) : null,
     }));
 
-    return { settings, leads, events, runs };
+    const teamUsers: PersistedTeamUserRow[] = teamUsersRes.rows.map((r) => ({
+      id: Number(r.id),
+      name: String(r.name),
+      role: (r.role === 'admin' ? 'admin' : 'member') as TeamUserRole,
+      passcode_digest: String(r.passcode_digest),
+      passcode_hash: String(r.passcode_hash),
+      active: r.active ? 1 : 0,
+      created_at: String(r.created_at),
+      last_login_at: String(r.last_login_at ?? ''),
+    }));
+
+    return { settings, leads, events, runs, teamUsers };
   }
 
   async upsertSettings(row: PersistedSettingsRow): Promise<void> {
@@ -399,6 +438,35 @@ export class PostgresPersistenceAdapter implements RemotePersistenceAdapter {
         row.finished_ms,
       ]
     );
+  }
+
+  async upsertTeamUser(row: PersistedTeamUserRow): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO team_users (
+         id, name, role, passcode_digest, passcode_hash, active, created_at, last_login_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         role = EXCLUDED.role,
+         passcode_digest = EXCLUDED.passcode_digest,
+         passcode_hash = EXCLUDED.passcode_hash,
+         active = EXCLUDED.active,
+         last_login_at = EXCLUDED.last_login_at`,
+      [
+        row.id,
+        row.name,
+        row.role,
+        row.passcode_digest,
+        row.passcode_hash,
+        row.active,
+        row.created_at,
+        row.last_login_at,
+      ]
+    );
+  }
+
+  async deleteTeamUser(id: number): Promise<void> {
+    await this.pool.query('DELETE FROM team_users WHERE id = $1', [id]);
   }
 
   async linkVisitorToLead(leadId: number, visitorId: string): Promise<void> {

@@ -14,6 +14,10 @@ import type {
   RunFinishResult,
   TeamLeadRecord,
   TeamLeadsResponse,
+  TeamMemberRecord,
+  TeamSessionUser,
+  TeamUserRole,
+  TeamUsersResponse,
 } from '../types.ts';
 import type { RoundEndReason } from '../games/rules.ts';
 
@@ -168,12 +172,18 @@ export function leaveHockeyRoomKeepalive(code: string, token: string): void {
   }).catch(() => {});
 }
 
-export async function checkTeamSession(): Promise<{ authenticated: boolean }> {
+export async function checkTeamSession(): Promise<{
+  authenticated: boolean;
+  user?: TeamSessionUser | null;
+}> {
   const res = await fetch('/api/team/session', { credentials: 'include' });
   return parseJsonOrThrow(res);
 }
 
-export async function loginTeamPin(pin: string): Promise<{ authenticated: boolean }> {
+export async function loginTeamPin(pin: string): Promise<{
+  authenticated: boolean;
+  user?: TeamSessionUser | null;
+}> {
   const res = await fetch('/api/team/login', {
     method: 'POST',
     credentials: 'include',
@@ -185,6 +195,51 @@ export async function loginTeamPin(pin: string): Promise<{ authenticated: boolea
 
 export async function logoutTeam(): Promise<void> {
   await fetch('/api/team/logout', { method: 'POST', credentials: 'include' });
+}
+
+export async function fetchTeamUsers(): Promise<TeamUsersResponse> {
+  const res = await fetch('/api/team/users', { credentials: 'include' });
+  return parseJsonOrThrow(res);
+}
+
+export async function createTeamMember(payload: {
+  name: string;
+  passcode: string;
+  role: TeamUserRole;
+}): Promise<{ user: TeamMemberRecord }> {
+  const res = await fetch('/api/team/users', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function patchTeamMember(
+  id: number,
+  patch: {
+    name?: string;
+    role?: TeamUserRole;
+    active?: boolean;
+    passcode?: string;
+  }
+): Promise<{ user: TeamMemberRecord }> {
+  const res = await fetch(`/api/team/users/${id}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function deleteTeamMember(id: number): Promise<{ ok: boolean }> {
+  const res = await fetch(`/api/team/users/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  return parseJsonOrThrow(res);
 }
 
 export async function fetchMasterAnalytics(): Promise<MasterAnalyticsResponse> {

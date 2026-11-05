@@ -1,12 +1,12 @@
 import express from 'express';
-import type { Request } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import QRCode from 'qrcode';
 import { z } from 'zod';
+import type { TeamSessionUser } from '../src/types.ts';
 import type { ArcadeDatabase } from './db.ts';
 import {
   clearTeamSessionCookie,
-  isRequestAuthenticated,
-  requireTeamAuth,
+  getRequestCookiePayload,
   setTeamSessionCookie,
   SlidingWindowRateLimiter,
   verifyTeamPin,
@@ -129,6 +129,41 @@ const LeadPatchSchema = z.object({
   notes: z.string().max(1000).optional(),
   followUpStatus: z.enum(['new', 'contacted', 'replied', 'confirmed', 'not_free']).optional(),
   volunteerName: z.string().trim().max(40).optional(),
+});
+
+const CreateTeamUserSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Please enter the team member name.')
+    .max(60, 'Name must be 60 characters or fewer.'),
+  passcode: z
+    .string()
+    .trim()
+    .regex(
+      /^[A-Za-z0-9]{4,24}$/,
+      'Passcode must be 4–24 letters or numbers with no spaces (e.g. AK2708).'
+    ),
+  role: z.enum(['admin', 'member']).optional().default('member'),
+});
+
+const PatchTeamUserSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Please enter the team member name.')
+    .max(60, 'Name must be 60 characters or fewer.')
+    .optional(),
+  role: z.enum(['admin', 'member']).optional(),
+  active: z.boolean().optional(),
+  passcode: z
+    .string()
+    .trim()
+    .regex(
+      /^[A-Za-z0-9]{4,24}$/,
+      'Passcode must be 4–24 letters or numbers with no spaces (e.g. AK2708).'
+    )
+    .optional(),
 });
 
 const ActiveGameIdEnum = z.enum([
@@ -420,42 +455,213 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
     })
   );
 
-  // --- Team PIN Auth & Protected Organizer Endpoints ---
+  // --- Team Passcode / Master PIN Auth & Protected Organizer Endpoints ---
+
+  const resolveTeamSessionUser = (req: Request): TeamSessionUser | null => {
+    const payload = getRequestCookiePayload(req);
+    if (!payload) return null;
+    if (payload.authMethod === 'master_pin') {
+      return {
+        id: null,
+        name: 'Team Admin',
+        role: 'admin',
+        authMethod: 'master_pin',
+      };
+    }
+    if (payload.authMethod === 'passcode' && payload.memberId !== null) {
+      const member = db.getTeamUserById(payload.memberId);
+      if (!member || !member.active) return null;
+      return {
+        id: member.id,
+        name: member.name,
+        role: member.role,
+        authMethod: 'passcode',
+      };
+    }
+    return null;
+  };
+
+  const requireActiveTeamAuth = (req: Request, res: Response, next: NextFunction): void => {
+    const user = resolveTeamSessionUser(req);
+    if (!user) {
+      res.status(401).json({ error: 'Team passcode or PIN session required.' });
+      return;
+    }
+    next();
+  };
+
+  const requireTeamAdmin = (req: Request, res: Response, next: NextFunction): void => {
+    const user = resolveTeamSessionUser(req);
+    if (!user) {
+      res.status(401).json({ error: 'Team passcode or PIN session required.' });
+      return;
+    }
+    if (user.role !== 'admin') {
+      res.status(403).json({ error: 'Team Leader / Admin permission required.' });
+      return;
+    }
+    next();
+  };
 
   router.get('/team/session', (req, res) => {
-    res.json({ authenticated: isRequestAuthenticated(req) });
+    const user = resolveTeamSessionUser(req);
+    res.json({ authenticated: Boolean(user), user });
   });
 
-  router.post('/team/login', (req, res) => {
-    const ip = getClientIp(req);
-    if (!pinLimiter.isAllowed(ip)) {
-      res.status(429).json({
-        error: 'Too many incorrect PIN attempts. Please wait 15 minutes before retrying.',
-      });
-      return;
-    }
+  router.post(
+    '/team/login',
+    asyncHandler(async (req, res) => {
+      const ip = getClientIp(req);
+      if (!pinLimiter.isAllowed(ip)) {
+        res.status(429).json({
+          error: 'Too many incorrect passcode or PIN attempts. Please wait 15 minutes before retrying.',
+        });
+        return;
+      }
 
-    const pin = typeof req.body?.pin === 'string' ? req.body.pin.trim() : '';
-    if (!pin || !verifyTeamPin(pin)) {
-      res.status(401).json({ error: 'Incorrect Team PIN.' });
-      return;
-    }
+      const rawCode =
+        typeof req.body?.passcode === 'string' && req.body.passcode.trim()
+          ? req.body.passcode.trim()
+          : typeof req.body?.pin === 'string'
+            ? req.body.pin.trim()
+            : '';
 
-    pinLimiter.reset(ip);
-    setTeamSessionCookie(req, res);
-    res.json({ authenticated: true });
-  });
+      if (!rawCode) {
+        res.status(401).json({ error: 'Incorrect passcode or Team PIN.' });
+        return;
+      }
+
+      if (verifyTeamPin(rawCode)) {
+        const masterAdmin: TeamSessionUser = {
+          id: null,
+          name: 'Team Admin',
+          role: 'admin',
+          authMethod: 'master_pin',
+        };
+        pinLimiter.reset(ip);
+        setTeamSessionCookie(req, res, masterAdmin);
+        res.json({ authenticated: true, user: masterAdmin });
+        return;
+      }
+
+      const memberUser = db.authenticateTeamUserByPasscode(rawCode);
+      if (!memberUser) {
+        res.status(401).json({ error: 'Incorrect passcode or Team PIN.' });
+        return;
+      }
+
+      await db.flushPersistence();
+      pinLimiter.reset(ip);
+      setTeamSessionCookie(req, res, memberUser);
+      res.json({ authenticated: true, user: memberUser });
+    })
+  );
 
   router.post('/team/logout', (req, res) => {
     clearTeamSessionCookie(req, res);
-    res.json({ authenticated: false });
+    res.json({ authenticated: false, user: null });
   });
 
-  router.get('/team/master-stats', requireTeamAuth, (_req, res) => {
+  router.get('/team/users', requireActiveTeamAuth, (_req, res) => {
+    res.json({ users: db.listTeamUsers() });
+  });
+
+  router.post(
+    '/team/users',
+    requireTeamAdmin,
+    asyncHandler(async (req, res) => {
+      const parsed = CreateTeamUserSchema.safeParse(req.body);
+      if (!parsed.success) {
+        const msg = parsed.error.issues[0]?.message || 'Please check the member name and passcode.';
+        res.status(400).json({ error: msg });
+        return;
+      }
+
+      const outcome = db.createTeamUser(parsed.data);
+      if (!outcome.ok) {
+        res.status(outcome.status).json({ error: outcome.error });
+        return;
+      }
+
+      await db.flushPersistence();
+      res.status(201).json({ user: outcome.user });
+    })
+  );
+
+  router.patch(
+    '/team/users/:id',
+    requireTeamAdmin,
+    asyncHandler(async (req, res) => {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid team member ID.' });
+        return;
+      }
+
+      const parsed = PatchTeamUserSchema.safeParse(req.body);
+      if (!parsed.success) {
+        const msg = parsed.error.issues[0]?.message || 'Invalid team member update payload.';
+        res.status(400).json({ error: msg });
+        return;
+      }
+
+      const actor = resolveTeamSessionUser(req);
+      if (actor && actor.id === id) {
+        if (parsed.data.active === false) {
+          res.status(400).json({ error: 'You cannot pause your own active account.' });
+          return;
+        }
+        if (parsed.data.role === 'member') {
+          res.status(400).json({
+            error: 'You cannot remove your own Team Leader / Admin role while signed in.',
+          });
+          return;
+        }
+      }
+
+      const outcome = db.updateTeamUser(id, parsed.data);
+      if (!outcome.ok) {
+        res.status(outcome.status).json({ error: outcome.error });
+        return;
+      }
+
+      await db.flushPersistence();
+      res.json({ user: outcome.user });
+    })
+  );
+
+  router.delete(
+    '/team/users/:id',
+    requireTeamAdmin,
+    asyncHandler(async (req, res) => {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid team member ID.' });
+        return;
+      }
+
+      const actor = resolveTeamSessionUser(req);
+      if (actor && actor.id === id) {
+        res.status(400).json({ error: 'You cannot remove your own active account.' });
+        return;
+      }
+
+      const deleted = db.deleteTeamUser(id);
+      if (!deleted) {
+        res.status(404).json({ error: 'Team member not found.' });
+        return;
+      }
+
+      await db.flushPersistence();
+      res.json({ ok: true });
+    })
+  );
+
+  router.get('/team/master-stats', requireActiveTeamAuth, (_req, res) => {
     res.json(db.getMasterAnalytics());
   });
 
-  router.get('/team/activity-log', requireTeamAuth, (req, res) => {
+  router.get('/team/activity-log', requireActiveTeamAuth, (req, res) => {
     const parsed = ActivityLogQuerySchema.safeParse(req.query);
     if (!parsed.success) {
       res.status(400).json({ error: 'Invalid activity log filter parameters.' });
@@ -464,14 +670,14 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
     res.json(db.listActivityLogs(parsed.data));
   });
 
-  router.get('/team/leads', requireTeamAuth, (req, res) => {
+  router.get('/team/leads', requireActiveTeamAuth, (req, res) => {
     const payload = db.listTeamLeads(getPublicBaseUrl(req));
     res.json(payload);
   });
 
   router.patch(
     '/team/leads/:id',
-    requireTeamAuth,
+    requireActiveTeamAuth,
     asyncHandler(async (req, res) => {
       const id = Number(req.params.id);
       if (!Number.isInteger(id) || id <= 0) {
@@ -493,7 +699,7 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
     })
   );
 
-  router.get('/team/leads/export.csv', requireTeamAuth, (req, res) => {
+  router.get('/team/leads/export.csv', requireActiveTeamAuth, (req, res) => {
     const { leads } = db.listTeamLeads(getPublicBaseUrl(req));
     const headers = [
       'ID',
@@ -567,7 +773,7 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
 
   router.put(
     '/team/settings',
-    requireTeamAuth,
+    requireTeamAdmin,
     asyncHandler(async (req, res) => {
       const parsed = SettingsSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -584,7 +790,7 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
     })
   );
 
-  router.get('/team/qr.svg', requireTeamAuth, async (req, res) => {
+  router.get('/team/qr.svg', requireActiveTeamAuth, async (req, res) => {
     const targetUrl = String(req.query.url || '').trim();
     if (!targetUrl || !/^https?:\/\//i.test(targetUrl) || targetUrl.length > 500) {
       res.status(400).json({ error: 'Valid http(s) URL required.' });

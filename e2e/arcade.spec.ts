@@ -398,6 +398,46 @@ test('/team Command Center displays 6 official campaign targets (1500/500/500/50
   await page.getByLabel('Search Guest, Phone, Code, or Remarks').fill(uniqueNoteKeyword);
   await expect(page.getByText(guestName)).toBeVisible();
 
+  // Open Team Members tab, add team member with personal passcode, then sign in with passcode only
+  await page.locator('.tab-bar').getByRole('button', { name: /Team Members/ }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Outreach Team Members & Passcode Access' })
+  ).toBeVisible();
+
+  const memberName = isPixel ? 'Andrew Kannan' : 'Grace Lim';
+  const memberPasscode = isPixel ? 'AK2708' : 'GL1905';
+  const expectedRoleBadge = isPixel ? 'Leader' : 'Evangelist';
+
+  await page.getByLabel('Full Name').fill(memberName);
+  await page.getByLabel('Personal Login Passcode').fill(memberPasscode);
+  if (isPixel) {
+    await page.getByRole('radio', { name: /Team Leader \/ Admin/ }).check();
+  } else {
+    await page.getByRole('radio', { name: /Evangelist \/ Team Member/ }).check();
+  }
+  await page.getByRole('button', { name: 'Add Team Member' }).click();
+
+  await expect(page.getByText(`${memberName} added to the team!`)).toBeVisible();
+  await expect(page.locator('.passcode-issued-banner__code')).toHaveText(memberPasscode);
+  await expect(page.locator('.team-roster-table').getByText(memberName)).toBeVisible();
+
+  // Lock console and sign back in using ONLY the personal passcode (lowercase to test case-insensitivity)
+  await page.getByRole('button', { name: 'Lock Console' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Team Command Center Sign-In' })
+  ).toBeVisible();
+
+  await page.getByLabel('Team Access PIN').fill(memberPasscode.toLowerCase());
+  await page.getByRole('button', { name: 'Unlock Command Center' }).click();
+
+  await expect(page.locator('.signed-in-user-pill')).toContainText(
+    `${memberName} · ${expectedRoleBadge}`
+  );
+
+  // Verify QR Board Maker pre-fills the signed-in team member's name
+  await page.locator('.tab-bar').getByRole('button', { name: /QR Board Maker/ }).click();
+  await expect(page.getByLabel('Evangelist / Challenger Name')).toHaveValue(memberName);
+
   expect(consoleErrors).toEqual([]);
 });
 

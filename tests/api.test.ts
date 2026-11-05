@@ -773,5 +773,198 @@ describe('Christmas Pocket Arcade API & Security', () => {
       ])
     );
   });
+
+  it('supports adding team members, case-insensitive passcode-only sign-in, role authorization, self-lockout guard, and live session revocation', async () => {
+    const masterAgent = request.agent(app);
+    const masterLogin = await masterAgent
+      .post('/api/team/login')
+      .set('X-Forwarded-For', '203.0.113.10')
+      .send({ pin: '7788' })
+      .expect(200);
+    expect(masterLogin.body).toEqual({
+      authenticated: true,
+      user: {
+        id: null,
+        name: 'Team Admin',
+        role: 'admin',
+        authMethod: 'master_pin',
+      },
+    });
+
+    // 1. Add Andrew Kannan (Team Leader / Admin, passcode AK2708) & Grace Lim (Evangelist, GL1905)
+    const createAndrew = await masterAgent
+      .post('/api/team/users')
+      .send({ name: 'Andrew Kannan', passcode: 'AK2708', role: 'admin' })
+      .expect(201);
+    expect(createAndrew.body.user).toMatchObject({
+      name: 'Andrew Kannan',
+      role: 'admin',
+      active: true,
+      lastLoginAt: '',
+    });
+    // Ensure raw passcode, scrypt hash, and digest NEVER leak in API responses
+    expect(JSON.stringify(createAndrew.body)).not.toContain('AK2708');
+    expect(JSON.stringify(createAndrew.body)).not.toContain('scrypt$');
+    expect(createAndrew.body.user.passcode_hash).toBeUndefined();
+    expect(createAndrew.body.user.passcode_digest).toBeUndefined();
+
+    const createGrace = await masterAgent
+      .post('/api/team/users')
+      .send({ name: 'Grace Lim', passcode: 'GL1905', role: 'member' })
+      .expect(201);
+    expect(createGrace.body.user).toMatchObject({
+      name: 'Grace Lim',
+      role: 'member',
+      active: true,
+    });
+
+    const listRes = await masterAgent.get('/api/team/users').expect(200);
+    expect(listRes.body.users).toHaveLength(2);
+    expect(JSON.stringify(listRes.body)).not.toContain('AK2708');
+    expect(JSON.stringify(listRes.body)).not.toContain('GL1905');
+
+    // 2. Reject duplicate passcode (case-insensitive) and Master PIN collisions
+    await masterAgent
+      .post('/api/team/users')
+      .send({ name: 'Duplicate Code User', passcode: 'ak2708', role: 'member' })
+      .expect(409);
+
+    await masterAgent
+      .post('/api/team/users')
+      .send({ name: 'Master Pin Collision', passcode: '7788', role: 'member' })
+      .expect(409);
+
+    // 3. Passcode-only sign-in (case-insensitive) for Andrew Kannan & Grace Lim
+    const andrewAgent = request.agent(app);
+    const andrewLogin = await andrewAgent
+      .post('/api/team/login')
+      .set('X-Forwarded-For', '203.0.113.11')
+      .send({ pin: 'ak2708' })
+      .expect(200);
+    expect(andrewLogin.body).toEqual({
+      authenticated: true,
+      user: {
+        id: createAndrew.body.user.id,
+        name: 'Andrew Kannan',
+        role: 'admin',
+        authMethod: 'passcode',
+      },
+    });
+
+    const andrewSession = await andrewAgent.get('/api/team/session').expect(200);
+    expect(andrewSession.body.user.name).toBe('Andrew Kannan');
+    const rosterAfterAndrewLogin = await andrewAgent.get('/api/team/users').expect(200);
+    const andrewRecord = rosterAfterAndrewLogin.body.users.find(
+      (u: { name: string }) => u.name === 'Andrew Kannan'
+    );
+    expect(andrewRecord.lastLoginAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+    const graceAgent = request.agent(app);
+    const graceLogin = await graceAgent
+      .post('/api/team/login')
+      .set('X-Forwarded-For', '203.0.113.12')
+      .send({ pin: 'gl1905' })
+      .expect(200);
+    expect(graceLogin.body.user).toMatchObject({
+      id: createGrace.body.user.id,
+      name: 'Grace Lim',
+      role: 'member',
+      authMethod: 'passcode',
+    });
+
+    // Seed a contact so we can verify member CRM write access
+    await request(app)
+      .post('/api/leads')
+      .send({
+        name: 'Hannah Tan',
+        phone: '012-909 4455',
+        countryCode: '60',
+        gamePlayed: 'santa-dash',
+        score: 21,
+        targetScore: 18,
+        volunteerName: 'Grace Lim',
+        clientRequestId: 'req-hannah-team-role-01',
+        visitorId: 'vis-hannah-team-role-01',
+      })
+      .expect(201);
+
+    // 4. Evangelist / Member role permissions: allowed outreach CRM & logs, forbidden admin mutations
+    const graceLeads = await graceAgent.get('/api/team/leads').expect(200);
+    expect(graceLeads.body.leads).toHaveLength(1);
+    await graceAgent.get('/api/team/activity-log').expect(200);
+    await graceAgent.get('/api/team/users').expect(200);
+    await graceAgent
+      .patch(`/api/team/leads/${graceLeads.body.leads[0].id}`)
+      .send({ notes: 'Followed up by Grace!', followUpStatus: 'contacted' })
+      .expect(200);
+
+    await graceAgent
+      .post('/api/team/users')
+      .send({ name: 'Unauthorized Add', passcode: 'UA1122', role: 'member' })
+      .expect(403);
+    await graceAgent
+      .patch(`/api/team/users/${createAndrew.body.user.id}`)
+      .send({ active: false })
+      .expect(403);
+    await graceAgent
+      .delete(`/api/team/users/${createAndrew.body.user.id}`)
+      .expect(403);
+    const pubCfg = await request(app).get('/api/public/config').expect(200);
+    await graceAgent
+      .put('/api/team/settings')
+      .send(pubCfg.body.settings)
+      .expect(403);
+
+    // 5. Self-lockout guard: Andrew cannot pause, demote, or delete his own active admin account
+    await andrewAgent
+      .patch(`/api/team/users/${createAndrew.body.user.id}`)
+      .send({ active: false })
+      .expect(400);
+    await andrewAgent
+      .patch(`/api/team/users/${createAndrew.body.user.id}`)
+      .send({ role: 'member' })
+      .expect(400);
+    await andrewAgent
+      .delete(`/api/team/users/${createAndrew.body.user.id}`)
+      .expect(400);
+
+    // 6. Live session revocation & passcode rotation
+    await andrewAgent
+      .patch(`/api/team/users/${createGrace.body.user.id}`)
+      .send({ active: false })
+      .expect(200);
+
+    // Grace's existing cookie is immediately revoked on the next request
+    await graceAgent.get('/api/team/leads').expect(401);
+    const revokedSession = await graceAgent.get('/api/team/session').expect(200);
+    expect(revokedSession.body.authenticated).toBe(false);
+
+    // Re-enable Grace and rotate passcode to GL2026
+    await andrewAgent
+      .patch(`/api/team/users/${createGrace.body.user.id}`)
+      .send({ active: true, passcode: 'GL2026' })
+      .expect(200);
+
+    // Old passcode fails, new passcode succeeds (case-insensitive)
+    await request(app)
+      .post('/api/team/login')
+      .set('X-Forwarded-For', '203.0.113.13')
+      .send({ pin: 'GL1905' })
+      .expect(401);
+
+    await request(app)
+      .post('/api/team/login')
+      .set('X-Forwarded-For', '203.0.113.14')
+      .send({ pin: 'gl2026' })
+      .expect(200);
+
+    // Admin can cleanly remove Grace
+    await andrewAgent
+      .delete(`/api/team/users/${createGrace.body.user.id}`)
+      .expect(200);
+    const afterDelete = await andrewAgent.get('/api/team/users').expect(200);
+    expect(afterDelete.body.users).toHaveLength(1);
+    expect(afterDelete.body.users[0].name).toBe('Andrew Kannan');
+  });
 });
 

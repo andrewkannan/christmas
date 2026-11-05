@@ -9,6 +9,7 @@ import {
   type PersistedGameRunRow,
   type PersistedLeadRow,
   type PersistedSettingsRow,
+  type PersistedTeamUserRow,
   type QueryablePool,
   type RemotePersistenceAdapter,
 } from '../server/postgres.ts';
@@ -19,6 +20,7 @@ class SharedMemoryPostgresStore implements RemotePersistenceAdapter {
   leads = new Map<number, PersistedLeadRow>();
   events = new Map<number, PersistedAnalyticsEventRow>();
   runs = new Map<string, PersistedGameRunRow>();
+  teamUsers = new Map<number, PersistedTeamUserRow>();
   closedCount = 0;
 
   async loadSnapshot(): Promise<HydratedSnapshot> {
@@ -28,6 +30,9 @@ class SharedMemoryPostgresStore implements RemotePersistenceAdapter {
       events: [...this.events.values()].sort((a, b) => a.id - b.id).map((r) => ({ ...r })),
       runs: [...this.runs.values()]
         .sort((a, b) => a.started_ms - b.started_ms)
+        .map((r) => ({ ...r })),
+      teamUsers: [...this.teamUsers.values()]
+        .sort((a, b) => a.id - b.id)
         .map((r) => ({ ...r })),
     };
   }
@@ -46,6 +51,14 @@ class SharedMemoryPostgresStore implements RemotePersistenceAdapter {
 
   async upsertGameRun(row: PersistedGameRunRow): Promise<void> {
     this.runs.set(row.id, { ...row });
+  }
+
+  async upsertTeamUser(row: PersistedTeamUserRow): Promise<void> {
+    this.teamUsers.set(row.id, { ...row });
+  }
+
+  async deleteTeamUser(id: number): Promise<void> {
+    this.teamUsers.delete(id);
   }
 
   async linkVisitorToLead(leadId: number, visitorId: string): Promise<void> {
@@ -171,6 +184,23 @@ describe('Railway PostgreSQL URL resolution & adapter mapping', () => {
             ],
           };
         }
+        if (text.includes('FROM team_users')) {
+          return {
+            rows: [
+              {
+                id: '1',
+                name: 'Andrew Kannan',
+                role: 'admin',
+                passcode_digest: 'digest-ak',
+                passcode_hash: 'scrypt$salt$hash',
+                active: 1,
+                last_login_at: '2026-11-05T10:15:00.000Z',
+                created_at: '2026-11-05T10:00:00.000Z',
+                updated_at: '2026-11-05T10:15:00.000Z',
+              } as unknown as R,
+            ],
+          };
+        }
         return { rows: [] };
       },
       async end() {},
@@ -186,20 +216,30 @@ describe('Railway PostgreSQL URL resolution & adapter mapping', () => {
     expect(snap.events[0]?.lead_id).toBe(1);
     expect(snap.runs[0]?.started_ms).toBe(1762336800000);
     expect(snap.runs[0]?.finished_ms).toBe(1762336812000);
+    expect(snap.teamUsers[0]).toMatchObject({
+      id: 1,
+      name: 'Andrew Kannan',
+      role: 'admin',
+      active: 1,
+    });
 
     await adapter.upsertSettings({
       id: 1,
       json: '{"churchName":"CCC JB Bilingual"}',
       updated_at: '2026-11-05T11:00:00.000Z',
     });
+    await adapter.upsertTeamUser(snap.teamUsers[0]!);
+    await adapter.deleteTeamUser(99);
     await adapter.linkVisitorToLead(1, 'vis-1');
     expect(executedQueries.some((q) => q.text.includes('INSERT INTO settings'))).toBe(true);
+    expect(executedQueries.some((q) => q.text.includes('INSERT INTO team_users'))).toBe(true);
+    expect(executedQueries.some((q) => q.text.includes('DELETE FROM team_users'))).toBe(true);
     expect(executedQueries.some((q) => q.text.includes('UPDATE game_runs SET lead_id'))).toBe(true);
   });
 });
 
 describe('Simulated Railway git push container wipe & PostgreSQL hydration', () => {
-  it('preserves contacts, pastoral remarks, RSVPs, leaderboards, settings, and ID sequences across a full container wipe', async () => {
+  it('preserves contacts, team members, personal passcodes, pastoral remarks, RSVPs, leaderboards, settings, and ID sequences across a full container wipe', async () => {
     process.env.TEAM_PIN = '7788';
     const sharedPg = new SharedMemoryPostgresStore();
     let fakeClock = 1_762_340_000_000;
@@ -217,6 +257,16 @@ describe('Simulated Railway git push container wipe & PostgreSQL hydration', () 
 
     const agent1 = request.agent(c1.app);
     await agent1.post('/api/team/login').send({ pin: '7788' }).expect(200);
+
+    // Add team members with personal passcodes in Container #1
+    await agent1
+      .post('/api/team/users')
+      .send({ name: 'Andrew Kannan', passcode: 'AK2708', role: 'admin' })
+      .expect(201);
+    await agent1
+      .post('/api/team/users')
+      .send({ name: 'Grace Lim', passcode: 'GL1905', role: 'member' })
+      .expect(201);
 
     // Update campaign settings & targets in Container #1
     const currentCfg = await request(c1.app).get('/api/public/config').expect(200);
@@ -303,6 +353,7 @@ describe('Simulated Railway git push container wipe & PostgreSQL hydration', () 
     expect(hydration.hydratedLeads).toBe(1);
     expect(hydration.hydratedRuns).toBe(1);
     expect(hydration.hydratedEvents).toBeGreaterThanOrEqual(2);
+    expect(hydration.hydratedTeamUsers).toBe(2);
 
     // Public config & custom targets survived the container wipe
     const cfgAfter = await request(c2.app).get('/api/public/config').expect(200);
@@ -320,9 +371,24 @@ describe('Simulated Railway git push container wipe & PostgreSQL hydration', () 
       score: 22,
     });
 
-    // Team CRM leads, remarks, RSVP stage, and storage status survived the container wipe
+    // Team member Andrew Kannan signs in on Container #2 with ONLY personal passcode (lowercase!)
     const agent2 = request.agent(c2.app);
-    await agent2.post('/api/team/login').send({ pin: '7788' }).expect(200);
+    const loginAfter = await agent2.post('/api/team/login').send({ pin: 'ak2708' }).expect(200);
+    expect(loginAfter.body).toEqual({
+      authenticated: true,
+      user: {
+        id: 1,
+        name: 'Andrew Kannan',
+        role: 'admin',
+        authMethod: 'passcode',
+      },
+    });
+
+    const usersAfter = await agent2.get('/api/team/users').expect(200);
+    expect(usersAfter.body.users).toHaveLength(2);
+    expect(usersAfter.body.users.map((u: { name: string }) => u.name)).toEqual(
+      expect.arrayContaining(['Andrew Kannan', 'Grace Lim'])
+    );
 
     const leadsAfter = await agent2.get('/api/team/leads').expect(200);
     expect(leadsAfter.body.leads).toHaveLength(1);

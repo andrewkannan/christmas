@@ -17,10 +17,15 @@ import { DEFAULT_REMINDER_TEMPLATE_CLIENT } from './teamHelpers.ts';
 
 interface EventSettingsFormProps {
   initialSettings: EventSettings;
+  readOnly?: boolean;
   onSaved: (updated: EventSettings) => void;
 }
 
-export function EventSettingsForm({ initialSettings, onSaved }: EventSettingsFormProps) {
+export function EventSettingsForm({
+  initialSettings,
+  readOnly = false,
+  onSaved,
+}: EventSettingsFormProps) {
   const uid = useId();
   const [form, setForm] = useState<EventSettings>(() => ({
     ...initialSettings,
@@ -53,6 +58,7 @@ export function EventSettingsForm({ initialSettings, onSaved }: EventSettingsFor
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (readOnly) return;
     setSaving(true);
     setStatusMsg(null);
     try {
@@ -74,6 +80,18 @@ export function EventSettingsForm({ initialSettings, onSaved }: EventSettingsFor
 
   return (
     <form method="post" onSubmit={handleSave} className="settings-stack">
+      {readOnly && (
+        <div className="card-panel team-readonly-note">
+          <SlidersIcon size={18} />
+          <div>
+            <strong>View-Only Campaign Settings</strong>
+            <p className="subtle-text" style={{ margin: '0.18rem 0 0' }}>
+              Team Leaders / Admins can update campaign targets, celebration service details, and
+              WhatsApp templates.
+            </p>
+          </div>
+        </div>
+      )}
       {/* 1. Evangelism Campaign Targets */}
       <section className="card-panel settings-fieldset" aria-labelledby={`${uid}-sec-targets`}>
         <div className="settings-fieldset__header">
@@ -476,11 +494,13 @@ export function EventSettingsForm({ initialSettings, onSaved }: EventSettingsFor
         </div>
       )}
 
-      <div className="settings-save-bar">
-        <button type="submit" className="btn btn--primary" disabled={saving}>
-          {saving ? 'Saving Settings…' : 'Save Targets & Live Event Settings'}
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="settings-save-bar">
+          <button type="submit" className="btn btn--primary" disabled={saving}>
+            {saving ? 'Saving Settings…' : 'Save Targets & Live Event Settings'}
+          </button>
+        </div>
+      )}
     </form>
   );
 }

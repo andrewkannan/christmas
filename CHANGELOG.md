@@ -2,6 +2,19 @@
 
 All notable changes to **Christmas Pocket Arcade** are documented in this file.
 
+## [1.6.3] - 2026-11-05
+
+### Added
+- **Team Members Management & Personal Passcode-Only Sign-In (`src/team/TeamMembersPanel.tsx`, `src/team/TeamLogin.tsx`, `server/auth.ts`, `server/routes.ts`):**
+  - Team members can now sign in at `/team` using **only their personal alphanumeric passcode** (4–24 letters or numbers, case-insensitive, e.g. `AK2708` or `ak2708` — initials + DOB or random numbers) with zero username/email prompt, while preserving Master `TEAM_PIN` admin access.
+  - Added a dedicated **`Team Members`** tab in the `CCC JB Bilingual Command Center` where Team Leaders / Admins can add members (`Full Name`, `Personal Login Passcode` with `Show`/`Hide` + 1-tap `Suggest Code`, and `Evangelist / Team Member` vs `Team Leader / Admin` role cards), copy/send a 1-tap **WhatsApp Login Invite**, rotate passcodes in a native `<dialog closedby="any">` modal, toggle roles, pause/enable logins, or remove members with self-lockout protection.
+  - Added a live signed-in identity badge in the Command Center header (`Andrew Kannan · Leader` / `Evangelist` / `Team Admin · Master PIN`), automatic pre-fill + 1-tap Team Roster chips in **QR Board Maker**, and team roster suggestions in CRM Evangelist reassignment.
+- **Salted Scrypt Passcode Encryption, Role Authorization & PostgreSQL Persistence (`server/auth.ts`, `server/db.ts`, `server/postgres.ts`):**
+  - Passcodes are normalized (`UPPERCASE`, trimmed), indexed by a domain-separated `SHA-256` digest (`UNIQUE`) with collision checks against existing members and `TEAM_PIN`, and verified via salted `crypto.scryptSync` + `crypto.timingSafeEqual` (hashes and digests never leave the server).
+  - Enforced backend role-based authorization (`requireTeamAdmin` vs `requireActiveTeamAuth`) and live session verification on every `/api/team/*` request so pausing or removing a member immediately revokes their active session cookie (`401`).
+  - Persisted `team_users` in Railway PostgreSQL (`PostgresPersistenceAdapter` startup hydration + write-through `upsertTeamUser` / `deleteTeamUser`) so team accounts and passcodes survive `git push` container redeploys.
+- **Tests (`tests/api.test.ts`, `tests/postgresPersistence.test.ts`, `e2e/arcade.spec.ts`):** Added unit/integration, simulated container-wipe, and Playwright E2E coverage for adding team members, case-insensitive passcode-only sign-in, role permissions, self-lockout prevention, and live session revocation.
+
 ## [1.6.2] - 2026-11-05
 
 ### Added

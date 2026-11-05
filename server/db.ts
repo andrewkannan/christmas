@@ -24,11 +24,22 @@ import {
   type StorageStatusInfo,
   type TeamDashboardStats,
   type TeamLeadRecord,
+  type TeamMemberRecord,
+  type TeamSessionUser,
+  type TeamUserRole,
   type TrackEventInput,
   type VolunteerAnalyticsRow,
 } from '../src/types.ts';
 import { RUN_EXPIRY_MS, isPlausibleScore, type RoundEndReason } from '../src/games/rules.ts';
 import { formatBoardName } from '../src/games/boardName.ts';
+import {
+  computePasscodeDigest,
+  hashPasscodeScrypt,
+  isValidPasscodeFormat,
+  normalizePasscode,
+  verifyPasscodeScrypt,
+  verifyTeamPin,
+} from './auth.ts';
 import {
   DEFAULT_REMINDER_TEMPLATE,
   buildPersonalPassUrl,
@@ -39,6 +50,7 @@ import type {
   PersistedAnalyticsEventRow,
   PersistedGameRunRow,
   PersistedLeadRow,
+  PersistedTeamUserRow,
   RemotePersistenceAdapter,
 } from './postgres.ts';
 
@@ -184,10 +196,16 @@ export class ArcadeDatabase {
     hydratedLeads: number;
     hydratedEvents: number;
     hydratedRuns: number;
+    hydratedTeamUsers: number;
   }> {
     const snap = await adapter.loadSnapshot();
+    const snapTeamUsers = snap.teamUsers ?? [];
     const remoteHasData = Boolean(
-      snap.settings || snap.leads.length > 0 || snap.events.length > 0 || snap.runs.length > 0
+      snap.settings ||
+        snap.leads.length > 0 ||
+        snap.events.length > 0 ||
+        snap.runs.length > 0 ||
+        snapTeamUsers.length > 0
     );
 
     if (remoteHasData) {
@@ -197,8 +215,9 @@ export class ArcadeDatabase {
           DELETE FROM game_runs;
           DELETE FROM analytics_events;
           DELETE FROM leads;
+          DELETE FROM team_users;
           DELETE FROM settings;
-          DELETE FROM sqlite_sequence WHERE name IN ('leads', 'analytics_events');
+          DELETE FROM sqlite_sequence WHERE name IN ('leads', 'analytics_events', 'team_users');
         `);
 
         if (snap.settings) {
@@ -284,6 +303,25 @@ export class ArcadeDatabase {
           );
         }
 
+        const insertTeamUser = this.db.prepare(`
+          INSERT INTO team_users (
+            id, name, role, passcode_digest, passcode_hash,
+            active, created_at, last_login_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        for (const u of snapTeamUsers) {
+          insertTeamUser.run(
+            u.id,
+            u.name,
+            u.role === 'admin' ? 'admin' : 'member',
+            u.passcode_digest,
+            u.passcode_hash,
+            u.active ? 1 : 0,
+            u.created_at,
+            u.last_login_at || ''
+          );
+        }
+
         this.db.exec('COMMIT');
       } catch (err) {
         this.db.exec('ROLLBACK');
@@ -315,6 +353,12 @@ export class ArcadeDatabase {
       for (const r of localRuns) {
         await adapter.upsertGameRun(r);
       }
+      const localTeamUsers = this.db
+        .prepare('SELECT * FROM team_users ORDER BY id ASC')
+        .all() as unknown as PersistedTeamUserRow[];
+      for (const u of localTeamUsers) {
+        await adapter.upsertTeamUser(u);
+      }
     }
 
     this.remote = adapter;
@@ -324,6 +368,7 @@ export class ArcadeDatabase {
       hydratedLeads: snap.leads.length,
       hydratedEvents: snap.events.length,
       hydratedRuns: snap.runs.length,
+      hydratedTeamUsers: snapTeamUsers.length,
     };
   }
 
@@ -375,6 +420,21 @@ export class ArcadeDatabase {
     if (row) {
       this.enqueueRemote((remote) => remote.upsertGameRun(row));
     }
+  }
+
+  private syncTeamUserById(userId: number): void {
+    if (!this.remote) return;
+    const row = this.db
+      .prepare('SELECT * FROM team_users WHERE id = ?')
+      .get(userId) as unknown as PersistedTeamUserRow | undefined;
+    if (row) {
+      this.enqueueRemote((remote) => remote.upsertTeamUser(row));
+    }
+  }
+
+  private syncDeleteTeamUser(userId: number): void {
+    if (!this.remote) return;
+    this.enqueueRemote((remote) => remote.deleteTeamUser(userId));
   }
 
   async flushPersistence(): Promise<void> {
@@ -451,6 +511,19 @@ export class ArcadeDatabase {
       CREATE INDEX IF NOT EXISTS idx_runs_board ON game_runs(game_id, status, score DESC);
       CREATE INDEX IF NOT EXISTS idx_runs_visitor ON game_runs(visitor_id);
       CREATE INDEX IF NOT EXISTS idx_runs_lead ON game_runs(lead_id);
+
+      CREATE TABLE IF NOT EXISTS team_users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member',
+        passcode_digest TEXT NOT NULL UNIQUE,
+        passcode_hash TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        last_login_at TEXT NOT NULL DEFAULT ''
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_team_users_digest ON team_users(passcode_digest);
     `);
 
     // Safe backwards-compatible migrations for pre-existing leads tables
@@ -1820,6 +1893,250 @@ export class ArcadeDatabase {
         achievedAt: new Date(r.finished_ms ?? this.now()).toISOString(),
       })),
       me: mine ? { rank: mine.rank, score: mine.score } : null,
+    };
+  }
+
+  listTeamUsers(): TeamMemberRecord[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, name, role, passcode_digest, passcode_hash, active, created_at, last_login_at
+         FROM team_users
+         ORDER BY active DESC,
+                  CASE WHEN role = 'admin' THEN 0 ELSE 1 END ASC,
+                  name COLLATE NOCASE ASC,
+                  id ASC`
+      )
+      .all() as unknown as PersistedTeamUserRow[];
+    return rows.map((row) => this.toTeamMemberRecord(row));
+  }
+
+  getTeamUserById(id: number): TeamMemberRecord | null {
+    const row = this.db
+      .prepare(
+        `SELECT id, name, role, passcode_digest, passcode_hash, active, created_at, last_login_at
+         FROM team_users
+         WHERE id = ?`
+      )
+      .get(id) as unknown as PersistedTeamUserRow | undefined;
+    return row ? this.toTeamMemberRecord(row) : null;
+  }
+
+  authenticateTeamUserByPasscode(rawPasscode: string): TeamSessionUser | null {
+    const trimmed = rawPasscode.trim();
+    if (!isValidPasscodeFormat(trimmed)) return null;
+
+    const digest = computePasscodeDigest(trimmed);
+    const row = this.db
+      .prepare(
+        `SELECT id, name, role, passcode_digest, passcode_hash, active, created_at, last_login_at
+         FROM team_users
+         WHERE passcode_digest = ?`
+      )
+      .get(digest) as unknown as PersistedTeamUserRow | undefined;
+
+    if (!row || !row.active) return null;
+    if (!verifyPasscodeScrypt(trimmed, row.passcode_hash)) return null;
+
+    const nowIso = new Date(this.now()).toISOString();
+    this.db.prepare('UPDATE team_users SET last_login_at = ? WHERE id = ?').run(nowIso, row.id);
+    this.syncTeamUserById(row.id);
+
+    return {
+      id: row.id,
+      name: row.name,
+      role: row.role === 'admin' ? 'admin' : 'member',
+      authMethod: 'passcode',
+    };
+  }
+
+  createTeamUser(input: {
+    name: string;
+    passcode: string;
+    role?: TeamUserRole;
+  }):
+    | { ok: true; user: TeamMemberRecord }
+    | { ok: false; status: number; error: string } {
+    const name = input.name.trim();
+    if (!name || name.length > 60) {
+      return {
+        ok: false,
+        status: 400,
+        error: 'Please enter the team member name (1–60 characters).',
+      };
+    }
+
+    const rawPasscode = input.passcode.trim();
+    if (!isValidPasscodeFormat(rawPasscode)) {
+      return {
+        ok: false,
+        status: 400,
+        error: 'Passcode must be 4–24 letters or numbers (e.g. AK2708).',
+      };
+    }
+
+    if (
+      verifyTeamPin(rawPasscode) ||
+      verifyTeamPin(normalizePasscode(rawPasscode)) ||
+      verifyTeamPin(rawPasscode.toLowerCase())
+    ) {
+      return {
+        ok: false,
+        status: 409,
+        error: 'Choose a personal passcode different from the Master Team PIN.',
+      };
+    }
+
+    const digest = computePasscodeDigest(rawPasscode);
+    const collision = this.db
+      .prepare('SELECT id FROM team_users WHERE passcode_digest = ?')
+      .get(digest) as { id: number } | undefined;
+    if (collision) {
+      return {
+        ok: false,
+        status: 409,
+        error: 'That passcode is already assigned to another team member. Please pick a unique code.',
+      };
+    }
+
+    const hash = hashPasscodeScrypt(rawPasscode);
+    const role: TeamUserRole = input.role === 'admin' ? 'admin' : 'member';
+    const createdAt = new Date(this.now()).toISOString();
+
+    const info = this.db
+      .prepare(
+        `INSERT INTO team_users (
+           name, role, passcode_digest, passcode_hash, active, created_at, last_login_at
+         ) VALUES (?, ?, ?, ?, 1, ?, '')`
+      )
+      .run(name, role, digest, hash, createdAt);
+
+    const newId = Number(info.lastInsertRowid);
+    this.syncTeamUserById(newId);
+    const created = this.getTeamUserById(newId);
+    if (!created) {
+      return { ok: false, status: 500, error: 'Failed to load created team member.' };
+    }
+    return { ok: true, user: created };
+  }
+
+  updateTeamUser(
+    id: number,
+    patch: {
+      name?: string;
+      role?: TeamUserRole;
+      active?: boolean;
+      passcode?: string;
+    }
+  ):
+    | { ok: true; user: TeamMemberRecord }
+    | { ok: false; status: number; error: string } {
+    const existing = this.db
+      .prepare(
+        `SELECT id, name, role, passcode_digest, passcode_hash, active, created_at, last_login_at
+         FROM team_users
+         WHERE id = ?`
+      )
+      .get(id) as unknown as PersistedTeamUserRow | undefined;
+
+    if (!existing) {
+      return { ok: false, status: 404, error: 'Team member not found.' };
+    }
+
+    let nextName = existing.name;
+    if (patch.name !== undefined) {
+      const trimmedName = patch.name.trim();
+      if (!trimmedName || trimmedName.length > 60) {
+        return {
+          ok: false,
+          status: 400,
+          error: 'Please enter a valid team member name (1–60 characters).',
+        };
+      }
+      nextName = trimmedName;
+    }
+
+    const nextRole: TeamUserRole =
+      patch.role !== undefined
+        ? patch.role === 'admin'
+          ? 'admin'
+          : 'member'
+        : existing.role === 'admin'
+          ? 'admin'
+          : 'member';
+
+    const nextActive =
+      patch.active !== undefined ? (patch.active ? 1 : 0) : existing.active ? 1 : 0;
+
+    let nextDigest = existing.passcode_digest;
+    let nextHash = existing.passcode_hash;
+    if (patch.passcode !== undefined) {
+      const rawPasscode = patch.passcode.trim();
+      if (!isValidPasscodeFormat(rawPasscode)) {
+        return {
+          ok: false,
+          status: 400,
+          error: 'Passcode must be 4–24 letters or numbers (e.g. AK2708).',
+        };
+      }
+      if (
+        verifyTeamPin(rawPasscode) ||
+        verifyTeamPin(normalizePasscode(rawPasscode)) ||
+        verifyTeamPin(rawPasscode.toLowerCase())
+      ) {
+        return {
+          ok: false,
+          status: 409,
+          error: 'Choose a personal passcode different from the Master Team PIN.',
+        };
+      }
+      const candidateDigest = computePasscodeDigest(rawPasscode);
+      const collision = this.db
+        .prepare('SELECT id FROM team_users WHERE passcode_digest = ? AND id != ?')
+        .get(candidateDigest, id) as { id: number } | undefined;
+      if (collision) {
+        return {
+          ok: false,
+          status: 409,
+          error: 'That passcode is already assigned to another team member. Please pick a unique code.',
+        };
+      }
+      nextDigest = candidateDigest;
+      nextHash = hashPasscodeScrypt(rawPasscode);
+    }
+
+    this.db
+      .prepare(
+        `UPDATE team_users
+         SET name = ?, role = ?, passcode_digest = ?, passcode_hash = ?, active = ?
+         WHERE id = ?`
+      )
+      .run(nextName, nextRole, nextDigest, nextHash, nextActive, id);
+
+    this.syncTeamUserById(id);
+    const updated = this.getTeamUserById(id);
+    if (!updated) {
+      return { ok: false, status: 500, error: 'Failed to load updated team member.' };
+    }
+    return { ok: true, user: updated };
+  }
+
+  deleteTeamUser(id: number): boolean {
+    const res = this.db.prepare('DELETE FROM team_users WHERE id = ?').run(id);
+    if (Number(res.changes) > 0) {
+      this.syncDeleteTeamUser(id);
+      return true;
+    }
+    return false;
+  }
+
+  private toTeamMemberRecord(row: PersistedTeamUserRow): TeamMemberRecord {
+    return {
+      id: row.id,
+      name: row.name,
+      role: row.role === 'admin' ? 'admin' : 'member',
+      active: Boolean(row.active),
+      createdAt: row.created_at,
+      lastLoginAt: row.last_login_at || '',
     };
   }
 

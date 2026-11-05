@@ -5660,6 +5660,518 @@ dialog::backdrop {
   color: var(--ink-primary);
 }
 
+/* --- Team Members & Passcode Management (v1.6.3) --- */
+.signed-in-user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.62rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  color: #78350f;
+  border: 1px solid rgba(217, 119, 6, 0.42);
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.team-members-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.team-members-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.team-members-hero__intro {
+  flex: 1 1 22rem;
+  min-inline-size: 0;
+}
+
+.team-members-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.team-members-kpi {
+  padding: 0.52rem 0.85rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-inline-size: 6.2rem;
+}
+
+.team-members-kpi__val {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: var(--ink-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.team-members-kpi__lbl {
+  font-size: 0.71rem;
+  font-weight: 700;
+  color: var(--ink-secondary);
+}
+
+.passcode-issued-banner {
+  padding: 0.95rem 1.05rem;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+  border: 1.5px solid rgba(5, 150, 105, 0.45);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.passcode-issued-banner__body {
+  flex: 1 1 20rem;
+  min-inline-size: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.passcode-issued-banner__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  color: #065f46;
+  font-size: 0.94rem;
+}
+
+.passcode-issued-banner__desc {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #064e3b;
+  line-height: 1.4;
+}
+
+.passcode-issued-banner__code {
+  display: inline-block;
+  padding: 0.12rem 0.48rem;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid rgba(5, 150, 105, 0.45);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #065f46;
+}
+
+.passcode-issued-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.team-add-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.team-add-form__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.privacy-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.2rem 0.58rem;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid rgba(5, 150, 105, 0.32);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.team-add-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr));
+  gap: 0.95rem;
+  align-items: start;
+}
+
+.passcode-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.42rem;
+  align-items: center;
+}
+
+.passcode-input-row__control {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.field-inline-error {
+  grid-column: 1 / -1;
+  display: none;
+  margin-block-start: 0.15rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--danger-ink, #b91c1c);
+}
+
+/* Deferred validation feedback after user interaction (:user-invalid) */
+.form-input:user-invalid {
+  border-color: #dc2626;
+  background-color: #fef2f2;
+}
+
+.passcode-input-row__control:user-invalid ~ .field-inline-error {
+  display: block;
+}
+
+.team-role-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.team-role-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 0.65rem;
+  margin-block-start: 0.35rem;
+}
+
+.team-role-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.6rem;
+  align-items: start;
+  padding: 0.72rem 0.85rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border-subtle);
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.team-role-card input[type='radio'] {
+  margin-block-start: 0.2rem;
+  inline-size: 1.05rem;
+  block-size: 1.05rem;
+  accent-color: var(--accent-crimson);
+}
+
+.team-role-card--selected {
+  background: #fffbeb;
+  border-color: rgba(217, 119, 6, 0.6);
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.14);
+}
+
+.team-role-card__body {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.team-role-card__body strong {
+  font-size: 0.86rem;
+  color: var(--ink-primary);
+}
+
+.team-role-card__body span {
+  font-size: 0.76rem;
+  color: var(--ink-secondary);
+  line-height: 1.35;
+}
+
+.team-add-form__footer {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.team-readonly-note {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  align-items: start;
+  background: #fffbeb;
+  border-color: rgba(217, 119, 6, 0.38);
+  color: #78350f;
+}
+
+.member-self-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.08rem 0.44rem;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #78350f;
+  border: 1px solid rgba(217, 119, 6, 0.4);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.member-role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.58rem;
+  border-radius: 999px;
+  font-size: 0.73rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.member-role-badge--admin {
+  background: #fef3c7;
+  color: #78350f;
+  border: 1px solid rgba(217, 119, 6, 0.45);
+}
+
+.member-role-badge--member {
+  background: var(--bg-tinted);
+  color: var(--ink-primary);
+  border: 1px solid var(--border-strong);
+}
+
+.member-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.58rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.member-status-badge--active {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid rgba(5, 150, 105, 0.38);
+}
+
+.member-status-badge--paused {
+  background: #fff1f2;
+  color: #9f1239;
+  border: 1px solid #fda4af;
+}
+
+.team-roster-row--paused {
+  opacity: 0.75;
+}
+
+.team-member-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.team-remove-btn {
+  color: var(--danger-ink, #b91c1c);
+}
+
+.confirm-inline-group {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.inline-link-btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--accent-gold-bright);
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.qr-roster-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-block-start: 0.5rem;
+}
+
+.team-roster-region {
+  container-type: inline-size;
+  overflow-x: auto;
+}
+
+.team-roster-table {
+  inline-size: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: start;
+}
+
+.team-roster-table thead th {
+  padding: 0.62rem 0.85rem;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-secondary);
+  background: var(--bg-elevated);
+  border-block-end: 1.5px solid var(--border-subtle);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.team-roster-table thead th:first-child {
+  border-start-start-radius: var(--radius-md);
+}
+
+.team-roster-table thead th:last-child {
+  border-start-end-radius: var(--radius-md);
+}
+
+.team-roster-table tbody th,
+.team-roster-table tbody td {
+  padding: 0.78rem 0.85rem;
+  border-block-end: 1px solid var(--border-subtle);
+  vertical-align: middle;
+  text-align: start;
+}
+
+.team-roster-table tbody tr:last-child th,
+.team-roster-table tbody tr:last-child td {
+  border-block-end: 0;
+}
+
+.crm-guest-cell__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.crm-guest-cell__name {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--ink-primary);
+}
+
+.crm-guest-cell__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block-start: 0.18rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--ink-secondary);
+}
+
+@container (width < 680px) {
+  .team-roster-table,
+  .team-roster-table thead,
+  .team-roster-table tbody,
+  .team-roster-table tr,
+  .team-roster-table th,
+  .team-roster-table td {
+    display: block;
+  }
+
+  .team-roster-table thead {
+    display: none;
+  }
+
+  .team-roster-table {
+    --member-col-2: 'Role';
+    --member-col-3: 'Status';
+    --member-col-4: 'Last Sign-In';
+    --member-col-5: 'Manage';
+  }
+
+  .team-roster-table tbody tr {
+    margin-block-end: 0.85rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: #ffffff;
+    overflow: hidden;
+  }
+
+  .team-roster-table tbody th {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 2;
+    background: var(--bg-elevated);
+    border-block-end: 1px solid var(--border-subtle);
+    padding: 0.65rem 0.8rem;
+  }
+
+  .team-roster-table tbody td {
+    padding: 0.52rem 0.8rem;
+    border-block-end: 1px solid var(--border-subtle);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem;
+  }
+
+  .team-roster-table tbody td:last-child {
+    border-block-end: 0;
+  }
+
+  .team-roster-table tbody td:nth-child(2)::before {
+    content: var(--member-col-2) ': ';
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--ink-secondary);
+  }
+
+  .team-roster-table tbody td:nth-child(3)::before {
+    content: var(--member-col-3) ': ';
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--ink-secondary);
+  }
+
+  .team-roster-table tbody td:nth-child(4)::before {
+    content: var(--member-col-4) ': ';
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--ink-secondary);
+  }
+
+  .team-roster-table tbody td:nth-child(5)::before {
+    content: var(--member-col-5) ': ';
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--ink-secondary);
+  }
+}
+
+@media (max-width: 560px) {
+  .passcode-input-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .passcode-input-row > button:nth-of-type(2) {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
+}
+
 @media (forced-colors: active) {
   .arcade-tile,
   .card-panel,
@@ -5688,7 +6200,12 @@ dialog::backdrop {
   .storage-status-pill,
   .storage-warning-banner,
   .crm-timeline-box,
-  .crm-timeline-item {
+  .crm-timeline-item,
+  .signed-in-user-pill,
+  .passcode-issued-banner,
+  .team-role-card,
+  .member-role-badge,
+  .member-status-badge {
     border: 1.5px solid CanvasText;
   }
 

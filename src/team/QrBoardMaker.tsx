@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import type { EventSettings } from '../types.ts';
+import type { EventSettings, TeamMemberRecord } from '../types.ts';
 import {
   CheckCircleIcon,
   CopyIcon,
@@ -10,16 +10,35 @@ import {
 
 interface QrBoardMakerProps {
   settings: EventSettings;
+  defaultVolunteerName?: string;
+  teamMembers?: TeamMemberRecord[];
 }
 
-export function QrBoardMaker({ settings }: QrBoardMakerProps) {
+export function QrBoardMaker({
+  settings,
+  defaultVolunteerName,
+  teamMembers = [],
+}: QrBoardMakerProps) {
   const uid = useId();
   const dialogRef = useRef<HTMLDialogElement | null>(null);
-  const [volunteerName, setVolunteerName] = useState('Andrew');
+  const [volunteerName, setVolunteerName] = useState(
+    () => defaultVolunteerName?.trim() || 'Andrew'
+  );
   const [targetScore, setTargetScore] = useState(18);
   const [baseUrl, setBaseUrl] = useState(() => window.location.origin);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (defaultVolunteerName?.trim()) {
+      setVolunteerName(defaultVolunteerName.trim());
+    }
+  }, [defaultVolunteerName]);
+
+  const activeRosterNames = useMemo(
+    () => teamMembers.filter((m) => m.active).map((m) => m.name),
+    [teamMembers]
+  );
 
   const shareUrl = useMemo(() => {
     const raw = baseUrl.trim().replace(/\/+$/, '');
@@ -123,6 +142,24 @@ export function QrBoardMaker({ settings }: QrBoardMakerProps) {
               aria-describedby={`${uid}-vol-hint`}
               onChange={(e) => setVolunteerName(e.target.value)}
             />
+            {activeRosterNames.length > 0 && (
+              <div className="qr-roster-chips" role="group" aria-label="Select team member">
+                {activeRosterNames.map((memberName) => {
+                  const selected = volunteerName.trim().toLowerCase() === memberName.toLowerCase();
+                  return (
+                    <button
+                      key={memberName}
+                      type="button"
+                      className={`quick-tag-chip${selected ? ' quick-tag-chip--active' : ''}`}
+                      aria-pressed={selected}
+                      onClick={() => setVolunteerName(memberName)}
+                    >
+                      {memberName}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="form-group">

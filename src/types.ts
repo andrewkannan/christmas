@@ -490,3 +490,26 @@ export interface JoinHockeyRoomResponse {
   snapshot: HockeyRoomSnapshot;
 }
 
+export type TeamUserRole = 'admin' | 'member';
+
+export interface TeamSessionUser {
+  id: number | null;
+  name: string;
+  role: TeamUserRole;
+  authMethod: 'master_pin' | 'passcode';
+}
+
+export interface TeamMemberRecord {
+  id: number;
+  name: string;
+  role: TeamUserRole;
+  active: boolean;
+  createdAt: string;
+  lastLoginAt: string;
+}
+
+export interface TeamUsersResponse {
+  users: TeamMemberRecord[];
+}
+
+

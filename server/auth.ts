@@ -1,8 +1,10 @@
 import crypto from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
+import type { TeamSessionUser, TeamUserRole } from '../src/types.ts';
 
 const COOKIE_NAME = 'xmas_team_session';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 16; // 16 hours (full outreach day)
+const PASSCODE_DIGEST_PEPPER = 'xmas-team-passcode-v1';
 
 const FALLBACK_DEV_SECRET = crypto.randomBytes(32).toString('hex');
 
@@ -21,17 +23,92 @@ export function verifyTeamPin(candidate: string): boolean {
   return crypto.timingSafeEqual(hashA, hashB);
 }
 
-export function createSessionCookieValue(): string {
+/**
+ * Normalizes personal passcodes (e.g. " ak2708 " -> "AK2708") so evangelists can sign in
+ * comfortably from mobile keyboards regardless of Shift/caps state.
+ */
+export function normalizePasscode(raw: string): string {
+  return raw.trim().toUpperCase();
+}
+
+export function isValidPasscodeFormat(raw: string): boolean {
+  return /^[A-Za-z0-9]{4,24}$/.test(raw.trim());
+}
+
+/**
+ * Deterministic SHA-256 lookup digest used strictly to enforce UNIQUE passcodes across
+ * team members and perform O(1) candidate lookup before verifying the salted scrypt hash.
+ */
+export function computePasscodeDigest(rawPasscode: string): string {
+  const normalized = normalizePasscode(rawPasscode);
+  return crypto
+    .createHash('sha256')
+    .update(`${PASSCODE_DIGEST_PEPPER}:${normalized}`)
+    .digest('hex');
+}
+
+/**
+ * Salted scrypt key derivation for storing personal team passcodes safely at rest.
+ */
+export function hashPasscodeScrypt(rawPasscode: string): string {
+  const normalized = normalizePasscode(rawPasscode);
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.scryptSync(normalized, salt, 64).toString('hex');
+  return `scrypt$${salt}$${derived}`;
+}
+
+export function verifyPasscodeScrypt(rawPasscode: string, storedHash: string): boolean {
+  const parts = storedHash.split('$');
+  if (parts.length !== 3 || parts[0] !== 'scrypt') return false;
+  const [, salt, expectedHex] = parts;
+  if (!salt || !expectedHex) return false;
+  try {
+    const normalized = normalizePasscode(rawPasscode);
+    const actualBuf = crypto.scryptSync(normalized, salt, 64);
+    const expectedBuf = Buffer.from(expectedHex, 'hex');
+    if (actualBuf.length !== expectedBuf.length) return false;
+    return crypto.timingSafeEqual(actualBuf, expectedBuf);
+  } catch {
+    return false;
+  }
+}
+
+export interface ParsedTeamSessionPayload {
+  accessRole: TeamUserRole;
+  memberId: number | null;
+  memberName: string;
+  authMethod: 'master_pin' | 'passcode';
+  exp: number;
+}
+
+export function createSessionCookieValue(user?: TeamSessionUser): string {
   const exp = Date.now() + SESSION_TTL_MS;
-  const payload = Buffer.from(JSON.stringify({ role: 'team', exp })).toString('base64url');
+  const sessionUser: TeamSessionUser = user ?? {
+    id: null,
+    name: 'Team Admin',
+    role: 'admin',
+    authMethod: 'master_pin',
+  };
+  const payload = Buffer.from(
+    JSON.stringify({
+      role: 'team',
+      accessRole: sessionUser.role,
+      memberId: sessionUser.id,
+      memberName: sessionUser.name,
+      authMethod: sessionUser.authMethod,
+      exp,
+    })
+  ).toString('base64url');
   const sig = crypto.createHmac('sha256', getSessionSecret()).update(payload).digest('base64url');
   return `${payload}.${sig}`;
 }
 
-export function verifySessionCookieValue(rawValue: string | undefined): boolean {
-  if (!rawValue || !rawValue.includes('.')) return false;
+export function parseSessionCookieValue(
+  rawValue: string | undefined
+): ParsedTeamSessionPayload | null {
+  if (!rawValue || !rawValue.includes('.')) return null;
   const [payload, sig] = rawValue.split('.');
-  if (!payload || !sig) return false;
+  if (!payload || !sig) return null;
 
   const expectedSig = crypto
     .createHmac('sha256', getSessionSecret())
@@ -41,18 +118,46 @@ export function verifySessionCookieValue(rawValue: string | undefined): boolean 
   const bufA = Buffer.from(sig);
   const bufB = Buffer.from(expectedSig);
   if (bufA.length !== bufB.length || !crypto.timingSafeEqual(bufA, bufB)) {
-    return false;
+    return null;
   }
 
   try {
     const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
       role?: string;
+      accessRole?: string;
+      memberId?: number | null;
+      memberName?: string;
+      authMethod?: string;
       exp?: number;
     };
-    return parsed.role === 'team' && typeof parsed.exp === 'number' && parsed.exp > Date.now();
+    if (parsed.role !== 'team' || typeof parsed.exp !== 'number' || parsed.exp <= Date.now()) {
+      return null;
+    }
+    const accessRole: TeamUserRole = parsed.accessRole === 'member' ? 'member' : 'admin';
+    const authMethod: 'master_pin' | 'passcode' =
+      parsed.authMethod === 'passcode' ? 'passcode' : 'master_pin';
+    const memberId =
+      typeof parsed.memberId === 'number' && Number.isInteger(parsed.memberId) && parsed.memberId > 0
+        ? parsed.memberId
+        : null;
+    const memberName =
+      typeof parsed.memberName === 'string' && parsed.memberName.trim()
+        ? parsed.memberName.trim().slice(0, 60)
+        : 'Team Admin';
+    return {
+      accessRole,
+      memberId,
+      memberName,
+      authMethod,
+      exp: parsed.exp,
+    };
   } catch {
-    return false;
+    return null;
   }
+}
+
+export function verifySessionCookieValue(rawValue: string | undefined): boolean {
+  return parseSessionCookieValue(rawValue) !== null;
 }
 
 export function parseCookies(cookieHeader: string | undefined): Record<string, string> {
@@ -75,8 +180,12 @@ function isHttpsRequest(req: Request): boolean {
   return Boolean(req.secure || forwardedProto === 'https');
 }
 
-export function setTeamSessionCookie(req: Request, res: Response): void {
-  const token = createSessionCookieValue();
+export function setTeamSessionCookie(
+  req: Request,
+  res: Response,
+  user?: TeamSessionUser
+): void {
+  const token = createSessionCookieValue(user);
   const directives = [
     `${COOKIE_NAME}=${encodeURIComponent(token)}`,
     'Path=/',
@@ -100,9 +209,13 @@ export function clearTeamSessionCookie(req: Request, res: Response): void {
   res.setHeader('Set-Cookie', directives.join('; '));
 }
 
-export function isRequestAuthenticated(req: Request): boolean {
+export function getRequestCookiePayload(req: Request): ParsedTeamSessionPayload | null {
   const cookies = parseCookies(req.headers.cookie);
-  return verifySessionCookieValue(cookies[COOKIE_NAME]);
+  return parseSessionCookieValue(cookies[COOKIE_NAME]);
+}
+
+export function isRequestAuthenticated(req: Request): boolean {
+  return getRequestCookiePayload(req) !== null;
 }
 
 export function requireTeamAuth(req: Request, res: Response, next: NextFunction): void {

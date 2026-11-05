@@ -6,6 +6,7 @@ import {
   type GameLeaderboard,
   type PublicClaimResult,
   type RunFinishResult,
+  type TeamSessionUser,
 } from './types.ts';
 import type { PlayfieldProps } from './games/playfield.ts';
 import { checkTeamSession, fetchLeaderboards, fetchPublicConfig, fetchSavedPass } from './lib/api.ts';
@@ -78,6 +79,7 @@ export function App() {
     window.location.pathname.startsWith('/team') ? 'team' : 'player'
   );
   const [teamAuthed, setTeamAuthed] = useState<boolean | null>(null);
+  const [teamUser, setTeamUser] = useState<TeamSessionUser | null>(null);
   const [settings, setSettings] = useState<EventSettings>(FALLBACK_SETTINGS);
   const [googleCalendarUrl, setGoogleCalendarUrl] = useState(
     'https://calendar.google.com/calendar/render?action=TEMPLATE'
@@ -157,8 +159,14 @@ export function App() {
   useEffect(() => {
     if (routeMode === 'team') {
       checkTeamSession()
-        .then((res) => setTeamAuthed(res.authenticated))
-        .catch(() => setTeamAuthed(false));
+        .then((res) => {
+          setTeamAuthed(res.authenticated);
+          setTeamUser(res.authenticated ? (res.user ?? null) : null);
+        })
+        .catch(() => {
+          setTeamAuthed(false);
+          setTeamUser(null);
+        });
     }
   }, [routeMode]);
 
@@ -338,6 +346,7 @@ export function App() {
             <div className="card-panel">Checking session…</div>
           ) : teamAuthed ? (
             <TeamDashboard
+              currentUser={teamUser}
               settings={settings}
               onSettingsUpdated={(next) => {
                 setSettings(next);
@@ -345,10 +354,18 @@ export function App() {
                   .then((r) => setGoogleCalendarUrl(r.googleCalendarUrl))
                   .catch(() => {});
               }}
-              onLoggedOut={() => setTeamAuthed(false)}
+              onLoggedOut={() => {
+                setTeamUser(null);
+                setTeamAuthed(false);
+              }}
             />
           ) : (
-            <TeamLogin onAuthenticated={() => setTeamAuthed(true)} />
+            <TeamLogin
+              onAuthenticated={(user) => {
+                setTeamUser(user);
+                setTeamAuthed(true);
+              }}
+            />
           )
         ) : (
           <>

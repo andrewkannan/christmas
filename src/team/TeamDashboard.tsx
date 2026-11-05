@@ -6,10 +6,13 @@ import {
   type MasterAnalyticsResponse,
   type TeamDashboardStats,
   type TeamLeadRecord,
+  type TeamMemberRecord,
+  type TeamSessionUser,
 } from '../types.ts';
 import {
   fetchMasterAnalytics,
   fetchTeamLeads,
+  fetchTeamUsers,
   logoutTeam,
   patchTeamLead,
 } from '../lib/api.ts';
@@ -21,18 +24,21 @@ import {
   EyeScanIcon,
   FlameIcon,
   GiftBoxIcon,
+  KeyPasscodeIcon,
   LockIcon,
   NoteEditIcon,
   QrBoardIcon,
   ReplayIcon,
   SlidersIcon,
   TargetGoalIcon,
+  UserPlusIcon,
   UsersCrmIcon,
   WhatsAppIcon,
 } from '../components/Icons.tsx';
 import { MasterAnalytics } from './MasterAnalytics.tsx';
 import { QrBoardMaker } from './QrBoardMaker.tsx';
 import { EventSettingsForm } from './EventSettingsForm.tsx';
+import { TeamMembersPanel } from './TeamMembersPanel.tsx';
 import { ContactCrmDialog } from './ContactCrmDialog.tsx';
 import {
   ActivityLogDialog,
@@ -48,20 +54,28 @@ import {
 } from './teamHelpers.ts';
 
 interface TeamDashboardProps {
+  currentUser: TeamSessionUser | null;
   settings: EventSettings;
   onSettingsUpdated: (next: EventSettings) => void;
   onLoggedOut: () => void;
 }
 
 export function TeamDashboard({
+  currentUser,
   settings,
   onSettingsUpdated,
   onLoggedOut,
 }: TeamDashboardProps) {
   const uid = useId();
-  const [activeTab, setActiveTab] = useState<'master' | 'leads' | 'qr' | 'settings'>('master');
+  const [activeTab, setActiveTab] = useState<'master' | 'leads' | 'members' | 'qr' | 'settings'>(
+    'master'
+  );
   const [masterData, setMasterData] = useState<MasterAnalyticsResponse | null>(null);
   const [leads, setLeads] = useState<TeamLeadRecord[]>([]);
+  const [teamUsers, setTeamUsers] = useState<TeamMemberRecord[]>([]);
+  const [qrPrefillName, setQrPrefillName] = useState<string | undefined>(() =>
+    currentUser?.authMethod === 'passcode' ? currentUser.name : undefined
+  );
   const [stats, setStats] = useState<TeamDashboardStats>({
     totalLeads: 0,
     giftsClaimed: 0,
@@ -88,15 +102,23 @@ export function TeamDashboard({
     useState<ActivityLogModalRequest | null>(null);
   const [copiedLeadPhoneId, setCopiedLeadPhoneId] = useState<number | null>(null);
 
+  useEffect(() => {
+    if (currentUser?.authMethod === 'passcode' && currentUser.name) {
+      setQrPrefillName(currentUser.name);
+    }
+  }, [currentUser]);
+
   const loadData = useCallback(async () => {
     try {
-      const [leadsRes, masterRes] = await Promise.all([
+      const [leadsRes, masterRes, usersRes] = await Promise.all([
         fetchTeamLeads(),
         fetchMasterAnalytics(),
+        fetchTeamUsers(),
       ]);
       setLeads(leadsRes.leads);
       setStats(leadsRes.stats);
       setMasterData(masterRes);
+      setTeamUsers(usersRes.users);
       setLastSyncedAt(
         new Date().toLocaleTimeString([], {
           hour: '2-digit',
@@ -107,7 +129,7 @@ export function TeamDashboard({
       setError(null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not load dashboard data.';
-      if (msg.includes('PIN') || msg.includes('401')) {
+      if (msg.includes('PIN') || msg.includes('passcode') || msg.includes('401')) {
         onLoggedOut();
         return;
       }
@@ -121,7 +143,7 @@ export function TeamDashboard({
     void loadData();
     if (!autoSync) return;
     const interval = setInterval(() => {
-      if (activeTab === 'master' || activeTab === 'leads') {
+      if (activeTab === 'master' || activeTab === 'leads' || activeTab === 'members') {
         void loadData();
       }
     }, 5000);
@@ -133,10 +155,15 @@ export function TeamDashboard({
     [stats.byVolunteer]
   );
 
-  const volunteerSuggestions = useMemo(
-    () => volunteerOptions.filter((v) => v !== 'Unassigned'),
-    [volunteerOptions]
-  );
+  const volunteerSuggestions = useMemo(() => {
+    const merged = new Set<string>(volunteerOptions.filter((v) => v !== 'Unassigned'));
+    for (const member of teamUsers) {
+      if (member.active && member.name.trim()) {
+        merged.add(member.name.trim());
+      }
+    }
+    return Array.from(merged).sort((a, b) => a.localeCompare(b));
+  }, [volunteerOptions, teamUsers]);
 
   const selectedLead = useMemo(
     () => (selectedLeadId !== null ? leads.find((l) => l.id === selectedLeadId) ?? null : null),
@@ -254,6 +281,7 @@ export function TeamDashboard({
   ];
 
   const storageInfo = masterData?.storage;
+  const isMemberOnly = currentUser?.role === 'member';
 
   return (
     <section aria-labelledby={`${uid}-dash-title`} className="team-console">
@@ -262,6 +290,19 @@ export function TeamDashboard({
         <div className="team-console__brand">
           <div className="team-console__eyebrow-row">
             <span className="challenger-tag">Evangelism &amp; Pastoral CRM</span>
+            {currentUser && (
+              <span className="signed-in-user-pill">
+                <KeyPasscodeIcon size={13} />
+                <span>
+                  {currentUser.name} ·{' '}
+                  {currentUser.authMethod === 'master_pin'
+                    ? 'Master PIN'
+                    : currentUser.role === 'admin'
+                      ? 'Leader'
+                      : 'Evangelist'}
+                </span>
+              </span>
+            )}
             <span className="sync-status-pill" aria-live="off">
               <span className={`live-dot${autoSync ? '' : ' live-dot--paused'}`} />
               <span>
@@ -391,6 +432,15 @@ export function TeamDashboard({
         </button>
         <button
           type="button"
+          className={`btn btn--sm ${activeTab === 'members' ? 'btn--gold' : 'btn--ghost'}`}
+          aria-pressed={activeTab === 'members'}
+          onClick={() => setActiveTab('members')}
+        >
+          <UserPlusIcon size={16} />
+          <span>Team Members ({teamUsers.length})</span>
+        </button>
+        <button
+          type="button"
           className={`btn btn--sm ${activeTab === 'qr' ? 'btn--gold' : 'btn--ghost'}`}
           aria-pressed={activeTab === 'qr'}
           onClick={() => setActiveTab('qr')}
@@ -431,13 +481,34 @@ export function TeamDashboard({
           />
         ) : null)}
 
-      {/* View 2: QR Board Maker */}
-      {activeTab === 'qr' && <QrBoardMaker settings={settings} />}
+      {/* View 2: Team Members & Passcode Management */}
+      {activeTab === 'members' && (
+        <TeamMembersPanel
+          currentUser={currentUser}
+          members={teamUsers}
+          churchName={settings.churchName}
+          onMembersChanged={() => void loadData()}
+          onOpenQrForMember={(memberName) => {
+            setQrPrefillName(memberName);
+            setActiveTab('qr');
+          }}
+        />
+      )}
 
-      {/* View 3: Targets & Event Settings */}
+      {/* View 3: QR Board Maker */}
+      {activeTab === 'qr' && (
+        <QrBoardMaker
+          settings={settings}
+          defaultVolunteerName={qrPrefillName}
+          teamMembers={teamUsers}
+        />
+      )}
+
+      {/* View 4: Targets & Event Settings */}
       {activeTab === 'settings' && (
         <EventSettingsForm
           initialSettings={settings}
+          readOnly={isMemberOnly}
           onSaved={(next) => {
             onSettingsUpdated(next);
             void loadData();
@@ -445,7 +516,7 @@ export function TeamDashboard({
         />
       )}
 
-      {/* View 4: Live Contacts Pastoral CRM */}
+      {/* View 5: Live Contacts Pastoral CRM */}
       {activeTab === 'leads' && (
         <div className="crm-leads-stack">
           <div className="card-panel crm-toolbar">

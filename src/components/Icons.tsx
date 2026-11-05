@@ -782,5 +782,35 @@ export function ShareViralIcon({ size = 17, className }: IconProps) {
   );
 }
 
+export function UserPlusIcon({ size = 17, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <circle cx="9.5" cy="8.5" r="3.3" stroke="currentColor" strokeWidth="2" />
+      <path
+        d="M3.5 19.2C4.2 15.8 6.5 14.2 9.5 14.2C12.5 14.2 14.8 15.8 15.5 19.2"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path d="M18.5 8.5V14.5M15.5 11.5H21.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function KeyPasscodeIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <circle cx="8" cy="14" r="4.2" stroke="currentColor" strokeWidth="2" />
+      <path
+        d="M11.2 11L19.5 4.5M16.5 6.8L19 9.5M19 4.9L21.2 7.4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 
 
