@@ -2,6 +2,22 @@
 
 All notable changes to **Christmas Pocket Arcade** are documented in this file.
 
+## [1.6.2] - 2026-11-05
+
+### Added
+- **Interactive Click & Activity Audit Logs Across `CCC JB Bilingual Command Center` (`src/team/ActivityLogDialog.tsx`, `src/team/MasterAnalytics.tsx`, `src/team/TeamDashboard.tsx`):**
+  - Every metric in **Mission Control** is now clickable to inspect the exact chronological log of **who** performed the click (Guest Name, `+Phone` with 1-click Copy, `XMAS-XXXX`, RSVP stage, or `Unregistered Street Visitor · Device #tag`), **what** exact action they took, **which evangelist QR board** they scanned (`On Street` vs `After Street`), and **exact timestamp**:
+    - All **6 Official Campaign Target Scorecards** (`Total QR Scans & Page Views`, `Games Started`, `Registered Contacts`, `Physical Gifts Handed Out`, `Games Played AFTER Street Interaction`, `Shared Invites + Saved Tickets + Calendar Adds`).
+    - All **6 Supporting Pulse Chips**, including **`Maps & Waze Clicks`** (`X Maps · Y Waze`), `Unique Phones`, `Saved-Session Returns`, `VIP Invite Opens`, and `Team WhatsApps Sent`.
+    - All **6 Conversion Funnel Stages**, **Arcade Cabinet** game rows, **Evangelist** `Log` buttons, **Live Activity Stream** rows, and the hero **`Full Click Log`** button.
+  - Native `<dialog closedby="any">` audit log inspector with 16 category filter pills (`All`, `Maps & Waze`, `Google Maps`, `Waze`, `Shares + Tickets + Calendar`, `WhatsApp Shares`, `E-Tickets Saved`, `Calendar Adds`, etc.), removable scope chips (`leadId`, `gameId`, `volunteer`), live search across guest name/phone/code/evangelist, `@container` mobile stacked cards, and 1-click **`Open CRM`**.
+- **Separate Google Maps vs. Waze Click Tracking & Lifecycle Audit Events (`WinnerPass.tsx`, `server/db.ts`, `server/routes.ts`):**
+  - Separated Waze clicks (`waze_click`) from Google Maps clicks (`maps_click`) on the VIP Celebration Invitation while keeping `mapsDirectionsClicks` aggregated (`googleMapsClicks + wazeClicks`) and adding `Google Maps Clicks` and `Waze Clicks` columns to `/api/team/leads/export.csv`.
+  - Recorded server-verified `'lead_registered'` and `'gift_claimed'` events in `analytics_events` (persisted to PostgreSQL via `syncEventById`) with automatic `UNION ALL` historical fallbacks and retroactive `visitor_id -> lead_id` guest resolution on `GET /api/team/activity-log` (protected by `requireTeamAuth`).
+- **Per-Contact Click & Activity Timelines (`src/team/ContactCrmDialog.tsx`, `src/team/TeamDashboard.tsx`):**
+  - Added `Maps/Waze` click counts and a **`Log`** button on every `Live Contacts` row, plus `X Maps · Y Waze` snapshot stats and a live **Complete Click & Activity Log** timeline inside every guest's CRM modal.
+- **Tests (`tests/api.test.ts`, `e2e/arcade.spec.ts`):** Added `/api/team/activity-log` auth, server-only event spoofing rejection, `maps_click` vs `waze_click` filtering, search/evangelist/lead scoping tests, and Playwright E2E coverage across desktop & mobile `/team`.
+
 ## [1.6.1] - 2026-11-05
 
 ### Fixed

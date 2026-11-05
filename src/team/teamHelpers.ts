@@ -103,7 +103,7 @@ export function getLeadEngagementTier(
     | 'gamesAfterInteraction'
     | 'ticketDownloads'
     | 'eInviteViews'
-  >
+  > & { directionsClicks?: number }
 ): LeadEngagementTier {
   if (
     lead.calendarAdds > 0 ||
@@ -115,6 +115,7 @@ export function getLeadEngagementTier(
   if (
     lead.gamesAfterInteraction === 1 ||
     lead.ticketDownloads > 0 ||
+    (lead.directionsClicks ?? 0) > 0 ||
     lead.eInviteViews > 1
   ) {
     return 'warm';
@@ -128,10 +129,95 @@ export function getLeadEngagementScore(lead: TeamLeadRecord): number {
     (lead.followUpStatus === 'replied' ? 15 : 0) +
     lead.calendarAdds * 18 +
     lead.inviteShares * 16 +
+    (lead.directionsClicks ?? 0) * 12 +
     lead.gamesAfterInteraction * 10 +
     lead.ticketDownloads * 8 +
     Math.max(0, lead.eInviteViews - 1) * 4 +
     lead.totalGamesPlayed * 2
+  );
+}
+
+export interface EventActionMeta {
+  label: string;
+  shortBadge: string;
+  tone: 'crimson' | 'gold' | 'emerald' | 'blue' | 'waze' | 'neutral';
+}
+
+export const EVENT_ACTION_META: Record<string, EventActionMeta> = {
+  page_view: {
+    label: 'Scanned QR / Opened Arcade',
+    shortBadge: 'QR / Page View',
+    tone: 'neutral',
+  },
+  game_start: {
+    label: 'Started Arcade Game',
+    shortBadge: 'Game Start',
+    tone: 'gold',
+  },
+  game_complete: {
+    label: 'Completed Arcade Game',
+    shortBadge: 'Game Complete',
+    tone: 'gold',
+  },
+  lead_registered: {
+    label: 'Registered Name & WhatsApp',
+    shortBadge: 'Registered Contact',
+    tone: 'crimson',
+  },
+  gift_claimed: {
+    label: 'Collected Physical Blessing Gift',
+    shortBadge: 'Gift Collected',
+    tone: 'emerald',
+  },
+  e_invite_view: {
+    label: 'Opened VIP Celebration Invitation',
+    shortBadge: 'VIP Invite Open',
+    tone: 'crimson',
+  },
+  ticket_download: {
+    label: 'Saved Personalized E-Ticket PNG',
+    shortBadge: 'E-Ticket Saved',
+    tone: 'gold',
+  },
+  invite_share_whatsapp: {
+    label: 'Shared Friend Challenge on WhatsApp',
+    shortBadge: 'WhatsApp Share',
+    tone: 'emerald',
+  },
+  calendar_google: {
+    label: 'Clicked Add to Google Calendar',
+    shortBadge: 'Google Calendar',
+    tone: 'blue',
+  },
+  calendar_ics: {
+    label: 'Clicked Save Apple / Phone Calendar (.ics)',
+    shortBadge: 'Apple Calendar (.ics)',
+    tone: 'blue',
+  },
+  maps_click: {
+    label: 'Clicked Google Maps Directions',
+    shortBadge: 'Google Maps Click',
+    tone: 'emerald',
+  },
+  waze_click: {
+    label: 'Clicked Waze Navigation',
+    shortBadge: 'Waze Click',
+    tone: 'waze',
+  },
+  team_whatsapp_followup: {
+    label: 'Team Sent Personal WhatsApp Invite',
+    shortBadge: 'Team WhatsApp',
+    tone: 'emerald',
+  },
+};
+
+export function getEventActionMeta(eventType: string): EventActionMeta {
+  return (
+    EVENT_ACTION_META[eventType] ?? {
+      label: eventType,
+      shortBadge: eventType,
+      tone: 'neutral',
+    }
   );
 }
 
@@ -178,6 +264,19 @@ export function formatShortTimestamp(iso: string): string {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+  });
+}
+
+export function formatExactLogTimestamp(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
   });
 }
 

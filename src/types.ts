@@ -89,13 +89,34 @@ export type AnalyticsEventType =
   | 'page_view'
   | 'game_start'
   | 'game_complete'
+  | 'lead_registered'
+  | 'gift_claimed'
   | 'e_invite_view'
   | 'ticket_download'
   | 'invite_share_whatsapp'
   | 'calendar_google'
   | 'calendar_ics'
   | 'maps_click'
+  | 'waze_click'
   | 'team_whatsapp_followup';
+
+export type ActivityLogCategory =
+  | 'all'
+  | 'page_views'
+  | 'return_views'
+  | 'games_started'
+  | 'games_after'
+  | 'registered_contacts'
+  | 'physical_gifts'
+  | 'viral_actions'
+  | 'directions'
+  | 'maps_only'
+  | 'waze_only'
+  | 'invite_views'
+  | 'shares'
+  | 'tickets'
+  | 'calendar'
+  | 'team_whatsapp';
 
 export type FollowUpStatus = 'new' | 'contacted' | 'replied' | 'confirmed' | 'not_free';
 
@@ -205,6 +226,9 @@ export interface TeamLeadRecord {
   ticketDownloads: number;
   calendarAdds: number;
   eInviteViews: number;
+  directionsClicks: number;
+  googleMapsClicks: number;
+  wazeClicks: number;
   lastActiveAt: string;
 }
 
@@ -245,6 +269,8 @@ export interface MasterOverviewTotals {
   googleCalendarAdds: number;
   icsCalendarDownloads: number;
   mapsDirectionsClicks: number;
+  googleMapsClicks: number;
+  wazeClicks: number;
   teamWhatsappFollowupsSent: number;
   teamWhatsappClicksTotal: number;
   confirmedRsvps: number;
@@ -279,13 +305,39 @@ export interface VolunteerAnalyticsRow {
 export interface RecentActivityItem {
   id: number;
   eventType: AnalyticsEventType;
+  leadId: number | null;
   guestName: string | null;
+  guestPhone: string | null;
   redemptionCode: string | null;
+  visitorTag: string;
   volunteerName: string;
   gameId: string;
   score: number;
   isPostInteraction: boolean;
   createdAt: string;
+}
+
+export interface ActivityLogEntry {
+  id: string;
+  eventType: AnalyticsEventType;
+  leadId: number | null;
+  guestName: string | null;
+  guestPhone: string | null;
+  redemptionCode: string | null;
+  followUpStatus: FollowUpStatus | null;
+  visitorId: string;
+  visitorTag: string;
+  volunteerName: string;
+  gameId: string;
+  score: number;
+  isPostInteraction: boolean;
+  createdAt: string;
+}
+
+export interface ActivityLogResponse {
+  category: ActivityLogCategory;
+  totalMatching: number;
+  entries: ActivityLogEntry[];
 }
 
 export interface StorageStatusInfo {

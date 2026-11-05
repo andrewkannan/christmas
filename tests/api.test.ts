@@ -99,6 +99,7 @@ describe('Christmas Pocket Arcade API & Security', () => {
     await request(app).get('/api/team/leads').expect(401);
     await request(app).get('/api/team/leads/export.csv').expect(401);
     await request(app).get('/api/team/master-stats').expect(401);
+    await request(app).get('/api/team/activity-log').expect(401);
 
     // 5 wrong PIN attempts -> 6th attempt gets 429 rate limited
     for (let i = 0; i < 5; i++) {
@@ -592,6 +593,185 @@ describe('Christmas Pocket Arcade API & Security', () => {
       .expect(200);
     expect(nextSettings.body.settings.campaignTargets.pageViews).toBe(2000);
     expect(nextSettings.body.settings.campaignTargets.gamesStarted).toBe(650);
+  });
+
+  it('tracks distinct Google Maps and Waze clicks and serves filterable Click & Activity Audit Logs by metric, game, evangelist, search, and guest ID', async () => {
+    // Public /api/events must reject server-only event types ('lead_registered', 'gift_claimed')
+    await request(app)
+      .post('/api/events')
+      .send({ visitorId: 'vis-spoof-reg', eventType: 'lead_registered' })
+      .expect(400);
+    await request(app)
+      .post('/api/events')
+      .send({ visitorId: 'vis-spoof-gift', eventType: 'gift_claimed' })
+      .expect(400);
+
+    const visitorId = 'vis-lucas-audit-01';
+
+    // 1. Pre-registration street scan + Santa Dash game
+    await request(app)
+      .post('/api/events')
+      .send({ visitorId, eventType: 'page_view', volunteerName: 'Andrew' })
+      .expect(201);
+    await request(app)
+      .post('/api/events')
+      .send({
+        visitorId,
+        eventType: 'game_start',
+        gameId: 'santa-dash',
+        volunteerName: 'Andrew',
+      })
+      .expect(201);
+    await request(app)
+      .post('/api/events')
+      .send({
+        visitorId,
+        eventType: 'game_complete',
+        gameId: 'santa-dash',
+        score: 38,
+        volunteerName: 'Andrew',
+      })
+      .expect(201);
+
+    // 2. Lucas registers Name + Phone -> logs lead_registered & links pre-registration events
+    const regRes = await request(app)
+      .post('/api/leads')
+      .send({
+        name: 'Lucas Lim',
+        phone: '017-332 8899',
+        countryCode: '60',
+        gamePlayed: 'santa-dash',
+        score: 38,
+        targetScore: 18,
+        volunteerName: 'Andrew',
+        clientRequestId: 'req-lucas-audit-01',
+        visitorId,
+      })
+      .expect(201);
+    const claimToken = regRes.body.claim.claimToken as string;
+    const redemptionCode = regRes.body.claim.redemptionCode as string;
+
+    // 3. Lucas claims physical gift + clicks BOTH Google Maps and Waze + shares on WhatsApp
+    await request(app).post(`/api/public/claim/${claimToken}`).expect(200);
+    await request(app)
+      .post('/api/events')
+      .send({
+        visitorId,
+        claimToken,
+        eventType: 'maps_click',
+        isPostInteraction: true,
+        volunteerName: 'Andrew',
+      })
+      .expect(201);
+    await request(app)
+      .post('/api/events')
+      .send({
+        visitorId,
+        claimToken,
+        eventType: 'waze_click',
+        isPostInteraction: true,
+        volunteerName: 'Andrew',
+      })
+      .expect(201);
+    await request(app)
+      .post('/api/events')
+      .send({
+        visitorId,
+        claimToken,
+        eventType: 'invite_share_whatsapp',
+        isPostInteraction: true,
+        volunteerName: 'Andrew',
+      })
+      .expect(201);
+
+    // 4. An unregistered street visitor also clicks Waze
+    await request(app)
+      .post('/api/events')
+      .send({
+        visitorId: 'vis-anon-waze-99',
+        eventType: 'waze_click',
+        isPostInteraction: false,
+        volunteerName: 'Sarah',
+      })
+      .expect(201);
+
+    // 5. Team logs in and inspects Master Analytics + Activity Log drill-downs
+    const agent = request.agent(app);
+    await agent
+      .post('/api/team/login')
+      .set('X-Forwarded-For', '198.51.100.99')
+      .send({ pin: '7788' })
+      .expect(200);
+
+    const master = await agent.get('/api/team/master-stats').expect(200);
+    expect(master.body.overview.googleMapsClicks).toBe(1);
+    expect(master.body.overview.wazeClicks).toBe(2);
+    expect(master.body.overview.mapsDirectionsClicks).toBe(3);
+
+    const leadsRes = await agent.get('/api/team/leads').expect(200);
+    const lucas = leadsRes.body.leads[0];
+    expect(lucas.googleMapsClicks).toBe(1);
+    expect(lucas.wazeClicks).toBe(1);
+    expect(lucas.directionsClicks).toBe(2);
+
+    // Combined Maps & Waze audit log
+    const dirLog = await agent
+      .get('/api/team/activity-log?category=directions')
+      .expect(200);
+    expect(dirLog.body.totalMatching).toBe(3);
+    expect(dirLog.body.entries).toHaveLength(3);
+    const lucasDirClicks = dirLog.body.entries.filter(
+      (e: { guestName: string | null }) => e.guestName === 'Lucas Lim'
+    );
+    expect(lucasDirClicks).toHaveLength(2);
+    expect(lucasDirClicks[0].guestPhone).toBe('60173328899');
+    expect(lucasDirClicks[0].redemptionCode).toBe(redemptionCode);
+
+    // Waze-only vs Google-Maps-only filter
+    const wazeOnly = await agent
+      .get('/api/team/activity-log?category=waze_only')
+      .expect(200);
+    expect(wazeOnly.body.totalMatching).toBe(2);
+    expect(
+      wazeOnly.body.entries.every((e: { eventType: string }) => e.eventType === 'waze_click')
+    ).toBe(true);
+
+    const mapsOnly = await agent
+      .get('/api/team/activity-log?category=maps_only')
+      .expect(200);
+    expect(mapsOnly.body.totalMatching).toBe(1);
+    expect(mapsOnly.body.entries[0].guestName).toBe('Lucas Lim');
+
+    // Search filter + Volunteer filter + Per-Guest complete timeline
+    const searchLucasDirs = await agent
+      .get('/api/team/activity-log?category=directions&search=Lucas')
+      .expect(200);
+    expect(searchLucasDirs.body.totalMatching).toBe(2);
+
+    const sarahLog = await agent
+      .get('/api/team/activity-log?volunteer=Sarah')
+      .expect(200);
+    expect(sarahLog.body.totalMatching).toBe(1);
+    expect(sarahLog.body.entries[0].visitorTag).toMatch(/^#/);
+
+    const lucasTimeline = await agent
+      .get(`/api/team/activity-log?leadId=${lucas.id}`)
+      .expect(200);
+    const timelineEventTypes = lucasTimeline.body.entries.map(
+      (e: { eventType: string }) => e.eventType
+    );
+    expect(timelineEventTypes).toEqual(
+      expect.arrayContaining([
+        'page_view',
+        'game_start',
+        'game_complete',
+        'lead_registered',
+        'gift_claimed',
+        'maps_click',
+        'waze_click',
+        'invite_share_whatsapp',
+      ])
+    );
   });
 });
 

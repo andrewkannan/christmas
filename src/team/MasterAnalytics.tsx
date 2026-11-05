@@ -2,6 +2,7 @@ import { useId, type CSSProperties, type ReactNode } from 'react';
 import {
   DEFAULT_CAMPAIGN_TARGETS,
   GAME_LABELS_MAP,
+  type ActivityLogCategory,
   type MasterAnalyticsResponse,
 } from '../types.ts';
 import {
@@ -19,34 +20,28 @@ import {
   UsersCrmIcon,
   WhatsAppIcon,
 } from '../components/Icons.tsx';
-import { computeTargetMetric, type ContactQuickFilter } from './teamHelpers.ts';
+import type { ActivityLogModalRequest } from './ActivityLogDialog.tsx';
+import {
+  computeTargetMetric,
+  getEventActionMeta,
+  type ContactQuickFilter,
+} from './teamHelpers.ts';
 
 interface MasterAnalyticsProps {
   data: MasterAnalyticsResponse;
   hotLeadsCount: number;
   onRefresh: () => void;
   onJumpToContacts: (filter: ContactQuickFilter, volunteer?: string) => void;
+  onOpenActivityLog: (req: ActivityLogModalRequest) => void;
   onOpenSettings: () => void;
 }
-
-const EVENT_LABELS: Record<string, string> = {
-  page_view: 'Page / QR Scan View',
-  game_start: 'Started Game',
-  game_complete: 'Completed Game',
-  e_invite_view: 'Opened VIP E-Invitation',
-  ticket_download: 'Saved E-Ticket PNG',
-  invite_share_whatsapp: 'Shared Friend Challenge on WhatsApp',
-  calendar_google: 'Added Google Calendar',
-  calendar_ics: 'Saved Phone Calendar (.ics)',
-  maps_click: 'Opened Venue Directions (Maps / Waze)',
-  team_whatsapp_followup: 'Team Sent WhatsApp Follow-Up',
-};
 
 export function MasterAnalytics({
   data,
   hotLeadsCount,
   onRefresh,
   onJumpToContacts,
+  onOpenActivityLog,
   onOpenSettings,
 }: MasterAnalyticsProps) {
   const uid = useId();
@@ -65,6 +60,8 @@ export function MasterAnalytics({
   const targetItems: Array<{
     id: string;
     title: string;
+    logSubtitle: string;
+    logCategory: ActivityLogCategory;
     current: number;
     target: number;
     accent: 'crimson' | 'emerald' | 'gold';
@@ -74,6 +71,8 @@ export function MasterAnalytics({
     {
       id: 'page-views',
       title: 'Total QR Scans & Page Views',
+      logSubtitle: 'Every QR board scan and arcade page open across street & return visits',
+      logCategory: 'page_views',
       current: overview.totalPageViews,
       target: targets.pageViews,
       accent: 'crimson',
@@ -83,6 +82,8 @@ export function MasterAnalytics({
     {
       id: 'games-started',
       title: 'Games Started',
+      logSubtitle: 'Every arcade game round started and completed with player & score attribution',
+      logCategory: 'games_started',
       current: overview.totalGamesStarted,
       target: targets.gamesStarted,
       accent: 'gold',
@@ -92,6 +93,8 @@ export function MasterAnalytics({
     {
       id: 'registered-contacts',
       title: 'Registered Contacts (Name + Phone)',
+      logSubtitle: 'Chronological log of every guest who registered their Name & WhatsApp number',
+      logCategory: 'registered_contacts',
       current: overview.totalLeads,
       target: targets.leads,
       accent: 'crimson',
@@ -101,6 +104,8 @@ export function MasterAnalytics({
     {
       id: 'physical-gifts',
       title: 'Physical Gifts Handed Out',
+      logSubtitle: 'Every guest who received their physical Christmas Blessing Gift',
+      logCategory: 'physical_gifts',
       current: overview.giftsClaimed,
       target: targets.giftsHandedOut,
       accent: 'emerald',
@@ -113,6 +118,8 @@ export function MasterAnalytics({
     {
       id: 'games-after',
       title: 'Games Played AFTER Street Interaction',
+      logSubtitle: 'Guests who kept playing arcade games on their phone after leaving the street booth',
+      logCategory: 'games_after',
       current: overview.gamesAfterInteraction,
       target: targets.gamesAfter,
       accent: 'gold',
@@ -122,6 +129,8 @@ export function MasterAnalytics({
     {
       id: 'viral-actions',
       title: 'Shared Invites + Saved Tickets + Calendar Adds',
+      logSubtitle: 'Every WhatsApp friend challenge share, E-Ticket PNG download, and Calendar save',
+      logCategory: 'viral_actions',
       current: totalViralActions,
       target: targets.viralActions,
       accent: 'emerald',
@@ -144,10 +153,21 @@ export function MasterAnalytics({
   const stageRate = (num: number, den: number) =>
     den > 0 ? `${Math.min(100, Math.round((num / den) * 100))}%` : '—';
 
-  const funnelStages = [
+  const funnelStages: Array<{
+    id: string;
+    label: string;
+    logTitle: string;
+    logCategory: ActivityLogCategory;
+    current: number;
+    target: number;
+    conversionPill: string;
+    detail: string;
+  }> = [
     {
       id: 'f-views',
       label: '1. Total QR Scans & Page Views',
+      logTitle: 'Stage 1 Log — Total QR Scans & Page Views',
+      logCategory: 'page_views',
       current: overview.totalPageViews,
       target: targets.pageViews,
       conversionPill: `${overview.uniqueVisitors.toLocaleString()} unique phones`,
@@ -156,6 +176,8 @@ export function MasterAnalytics({
     {
       id: 'f-games',
       label: '2. Games Started',
+      logTitle: 'Stage 2 Log — Games Started & Completed',
+      logCategory: 'games_started',
       current: overview.totalGamesStarted,
       target: targets.gamesStarted,
       conversionPill: `${stageRate(overview.totalGamesStarted, overview.totalPageViews)} of views`,
@@ -164,6 +186,8 @@ export function MasterAnalytics({
     {
       id: 'f-leads',
       label: '3. Registered Contacts (Name + Phone)',
+      logTitle: 'Stage 3 Log — Registered Contacts',
+      logCategory: 'registered_contacts',
       current: overview.totalLeads,
       target: targets.leads,
       conversionPill: `${overview.visitorToLeadRatePct}% of unique phones`,
@@ -172,6 +196,8 @@ export function MasterAnalytics({
     {
       id: 'f-gifts',
       label: '4. Physical Gifts Handed Out',
+      logTitle: 'Stage 4 Log — Physical Gifts Handed Out',
+      logCategory: 'physical_gifts',
       current: overview.giftsClaimed,
       target: targets.giftsHandedOut,
       conversionPill: `${stageRate(overview.giftsClaimed, overview.totalLeads)} of contacts`,
@@ -180,6 +206,8 @@ export function MasterAnalytics({
     {
       id: 'f-after',
       label: '5. Games Played AFTER Street Interaction',
+      logTitle: 'Stage 5 Log — Games Played AFTER Street Interaction',
+      logCategory: 'games_after',
       current: overview.gamesAfterInteraction,
       target: targets.gamesAfter,
       conversionPill: `${overview.uniquePlayersAfterInteraction.toLocaleString()} returning players`,
@@ -188,6 +216,8 @@ export function MasterAnalytics({
     {
       id: 'f-viral',
       label: '6. Shared Invites + Saved Tickets + Calendar Adds',
+      logTitle: 'Stage 6 Log — Shared Invites + Saved Tickets + Calendar Adds',
+      logCategory: 'viral_actions',
       current: totalViralActions,
       target: targets.viralActions,
       conversionPill: `${overview.invitationsShared} shares · ${totalCalendarSaves} calendar`,
@@ -219,6 +249,21 @@ export function MasterAnalytics({
           </div>
 
           <div className="console-hero__controls">
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              onClick={() =>
+                onOpenActivityLog({
+                  title: 'Complete Campaign Click & Activity Log',
+                  subtitle:
+                    'Every QR scan, game round, registration, gift handoff, Google Maps click, Waze click, share, and calendar save.',
+                  category: 'all',
+                })
+              }
+            >
+              <EyeScanIcon size={15} />
+              <span>Full Click Log</span>
+            </button>
             <button type="button" className="btn btn--ghost btn--sm" onClick={onOpenSettings}>
               <SlidersIcon size={15} />
               <span>Adjust Targets</span>
@@ -297,7 +342,7 @@ export function MasterAnalytics({
         </div>
       </section>
 
-      {/* 2. Official 6 Evangelism Campaign Target Scorecards */}
+      {/* 2. Official 6 Evangelism Campaign Target Scorecards (Click any card to view exact audit log) */}
       <section aria-labelledby={`${uid}-targets-heading`}>
         <div className="section-header-row">
           <div>
@@ -305,8 +350,8 @@ export function MasterAnalytics({
               Official Evangelism Campaign Targets (6 Goals)
             </h2>
             <p className="subtle-text">
-              Live progress against your street outreach, gift blessing, and post-interaction
-              benchmarks.
+              Click any target card or metric chip below to inspect the exact log of who clicked and
+              when.
             </p>
           </div>
         </div>
@@ -318,7 +363,7 @@ export function MasterAnalytics({
             return (
               <article
                 key={item.id}
-                className={`target-card target-card--${item.accent}${
+                className={`target-card target-card--interactive target-card--${item.accent}${
                   metric.isMet ? ' target-card--met' : ''
                 }`}
               >
@@ -359,13 +404,30 @@ export function MasterAnalytics({
 
                 <div className="target-card__footer">
                   <span className="target-card__sub">{item.subtext}</span>
-                  <span
-                    className={`target-card__status${
-                      metric.isMet ? ' target-card__status--met' : ''
-                    }`}
-                  >
-                    {metric.statusLabel}
-                  </span>
+                  <div className="target-card__footer-right">
+                    <span
+                      className={`target-card__status${
+                        metric.isMet ? ' target-card__status--met' : ''
+                      }`}
+                    >
+                      {metric.statusLabel}
+                    </span>
+                    <button
+                      type="button"
+                      className="target-card__log-btn"
+                      aria-label={`View log for ${item.title}`}
+                      onClick={() =>
+                        onOpenActivityLog({
+                          title: item.title,
+                          subtitle: item.logSubtitle,
+                          category: item.logCategory,
+                        })
+                      }
+                    >
+                      <span>View Log</span>
+                      <ArrowRightIcon size={12} />
+                    </button>
+                  </div>
                 </div>
               </article>
             );
@@ -373,40 +435,108 @@ export function MasterAnalytics({
         </div>
       </section>
 
-      {/* 3. Secondary Supporting Pulse Strip */}
-      <div className="pulse-strip" aria-label="Supporting engagement metrics">
-        <div className="pulse-chip">
+      {/* 3. Secondary Supporting Pulse Strip — Every Metric Opens Its Exact Click Log */}
+      <div className="pulse-strip" role="group" aria-label="Supporting engagement metrics">
+        <button
+          type="button"
+          className="pulse-chip pulse-chip--interactive"
+          onClick={() =>
+            onOpenActivityLog({
+              title: 'Unique Phones & QR Scan Log',
+              subtitle: 'Every QR scan and visitor session across the campaign',
+              category: 'page_views',
+            })
+          }
+        >
           <span className="pulse-chip__label">Unique Phones</span>
           <strong className="pulse-chip__val">{overview.uniqueVisitors.toLocaleString()}</strong>
-        </div>
-        <div className="pulse-chip">
+          <span className="pulse-chip__cta">View log →</span>
+        </button>
+
+        <button
+          type="button"
+          className="pulse-chip pulse-chip--interactive"
+          onClick={() =>
+            onOpenActivityLog({
+              title: 'Saved-Session Return Visits',
+              subtitle: 'Guests who reopened their saved pass or arcade link after street outreach',
+              category: 'return_views',
+            })
+          }
+        >
           <span className="pulse-chip__label">Saved-Session Returns</span>
           <strong className="pulse-chip__val">
             {overview.returnViewsAfterInteraction.toLocaleString()}
           </strong>
-        </div>
-        <div className="pulse-chip">
+          <span className="pulse-chip__cta">View log →</span>
+        </button>
+
+        <button
+          type="button"
+          className="pulse-chip pulse-chip--interactive"
+          onClick={() =>
+            onOpenActivityLog({
+              title: 'VIP Celebration Invitation Opens',
+              subtitle: 'Every guest who opened the VIP Celebration Invitation screen',
+              category: 'invite_views',
+            })
+          }
+        >
           <span className="pulse-chip__label">VIP Invite Opens</span>
           <strong className="pulse-chip__val">{overview.eInviteViews.toLocaleString()}</strong>
-        </div>
-        <div className="pulse-chip">
+          <span className="pulse-chip__cta">View log →</span>
+        </button>
+
+        <button
+          type="button"
+          className="pulse-chip pulse-chip--interactive"
+          onClick={() =>
+            onOpenActivityLog({
+              title: 'Google Maps & Waze Venue Clicks',
+              subtitle:
+                'Exact log of every guest who clicked Google Maps or Waze on their VIP Invitation',
+              category: 'directions',
+            })
+          }
+        >
           <span className="pulse-chip__label">Maps &amp; Waze Clicks</span>
           <strong className="pulse-chip__val">
             {overview.mapsDirectionsClicks.toLocaleString()}
           </strong>
-        </div>
-        <div className="pulse-chip">
+          <span className="pulse-chip__cta">
+            {overview.googleMapsClicks} Maps · {overview.wazeClicks} Waze →
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="pulse-chip pulse-chip--interactive"
+          onClick={() =>
+            onOpenActivityLog({
+              title: 'Team Personal WhatsApp Follow-Up Log',
+              subtitle: 'Every personal WhatsApp invitation sent by evangelists from Command Center',
+              category: 'team_whatsapp',
+            })
+          }
+        >
           <span className="pulse-chip__label">Team WhatsApps Sent</span>
           <strong className="pulse-chip__val">
             {overview.teamWhatsappFollowupsSent.toLocaleString()}
           </strong>
-        </div>
-        <div className="pulse-chip">
+          <span className="pulse-chip__cta">View log →</span>
+        </button>
+
+        <button
+          type="button"
+          className="pulse-chip pulse-chip--interactive"
+          onClick={() => onJumpToContacts('with_remarks')}
+        >
           <span className="pulse-chip__label">Contacts w/ Remarks</span>
           <strong className="pulse-chip__val">
             {overview.contactsWithRemarks.toLocaleString()}
           </strong>
-        </div>
+          <span className="pulse-chip__cta">View notes →</span>
+        </button>
       </div>
 
       {/* 4. 6-Stage Target vs. Conversion Funnel */}
@@ -417,8 +547,8 @@ export function MasterAnalytics({
               Street-to-Celebration Conversion Funnel
             </h3>
             <p className="subtle-text">
-              Each stage measured directly against its official target and stage-to-stage
-              conversion rate.
+              Each stage measured directly against its official target — click View Log on any stage
+              to inspect who completed it.
             </p>
           </div>
         </div>
@@ -439,6 +569,19 @@ export function MasterAnalytics({
                       {metric.current.toLocaleString()}{' '}
                       <span>/ {metric.target.toLocaleString()}</span> ({metric.pct}%)
                     </strong>
+                    <button
+                      type="button"
+                      className="table-link-btn funnel-log-btn"
+                      aria-label={`View log for ${stage.label}`}
+                      onClick={() =>
+                        onOpenActivityLog({
+                          title: stage.logTitle,
+                          category: stage.logCategory,
+                        })
+                      }
+                    >
+                      View Log →
+                    </button>
                   </div>
                 </div>
                 <progress
@@ -474,7 +617,7 @@ export function MasterAnalytics({
             }
           >
             <caption id={`${uid}-games-caption`}>
-              Arcade Cabinet Performance (Street vs. Post-Interaction)
+              Arcade Cabinet Performance (tap any game to see who played)
             </caption>
             <thead>
               <tr>
@@ -486,24 +629,43 @@ export function MasterAnalytics({
               </tr>
             </thead>
             <tbody>
-              {byGame.map((g) => (
-                <tr key={g.gameId}>
-                  <th scope="row">{GAME_LABELS_MAP[g.gameId] || g.gameId}</th>
-                  <td>
-                    <strong>{g.completions}</strong>{' '}
-                    <span className="subtle-text" style={{ fontSize: '0.78rem' }}>
-                      ({g.starts} starts)
-                    </span>
-                  </td>
-                  <td>{g.duringInteraction}</td>
-                  <td style={{ color: 'var(--accent-gold-bright)', fontWeight: 800 }}>
-                    {g.afterInteraction}
-                  </td>
-                  <td>
-                    {g.highScore} / {g.avgScore}
-                  </td>
-                </tr>
-              ))}
+              {byGame.map((g) => {
+                const gameLabel = GAME_LABELS_MAP[g.gameId] || g.gameId;
+                return (
+                  <tr key={g.gameId}>
+                    <th scope="row">
+                      <button
+                        type="button"
+                        className="table-link-btn"
+                        onClick={() =>
+                          onOpenActivityLog({
+                            title: `${gameLabel} — Player & Round Log`,
+                            subtitle:
+                              'Every street and post-interaction round played on this arcade cabinet',
+                            category: 'games_started',
+                            gameId: g.gameId,
+                          })
+                        }
+                      >
+                        {gameLabel}
+                      </button>
+                    </th>
+                    <td>
+                      <strong>{g.completions}</strong>{' '}
+                      <span className="subtle-text" style={{ fontSize: '0.78rem' }}>
+                        ({g.starts} starts)
+                      </span>
+                    </td>
+                    <td>{g.duringInteraction}</td>
+                    <td style={{ color: 'var(--accent-gold-bright)', fontWeight: 800 }}>
+                      {g.afterInteraction}
+                    </td>
+                    <td>
+                      {g.highScore} / {g.avgScore}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -553,13 +715,30 @@ export function MasterAnalytics({
                   return (
                     <tr key={v.volunteerName}>
                       <th scope="row">
-                        <button
-                          type="button"
-                          className="table-link-btn"
-                          onClick={() => onJumpToContacts('all', v.volunteerName)}
-                        >
-                          {v.volunteerName}
-                        </button>
+                        <div className="vol-cell-actions">
+                          <button
+                            type="button"
+                            className="table-link-btn"
+                            onClick={() => onJumpToContacts('all', v.volunteerName)}
+                          >
+                            {v.volunteerName}
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-copy-btn"
+                            aria-label={`View click log for evangelist ${v.volunteerName}`}
+                            onClick={() =>
+                              onOpenActivityLog({
+                                title: `${v.volunteerName} — Evangelist QR & Click Log`,
+                                subtitle: `Every scan, game round, registration, and VIP invite click from ${v.volunteerName}'s QR board`,
+                                category: 'all',
+                                volunteer: v.volunteerName,
+                              })
+                            }
+                          >
+                            Log
+                          </button>
+                        </div>
                       </th>
                       <td>
                         {v.views}{' '}
@@ -598,46 +777,107 @@ export function MasterAnalytics({
 
       {/* 6. Live Outreach & Post-Street Activity Stream */}
       <section className="card-panel" aria-labelledby={`${uid}-stream-heading`}>
-        <h3
-          id={`${uid}-stream-heading`}
-          className="section-title"
-          style={{ marginBlockEnd: '0.8rem' }}
-        >
-          Live Player &amp; Invitation Activity Stream
-        </h3>
+        <div className="section-header-row" style={{ marginBlockEnd: '0.8rem' }}>
+          <div>
+            <h3 id={`${uid}-stream-heading`} className="section-title">
+              Live Player &amp; Invitation Activity Stream
+            </h3>
+            <p className="subtle-text">
+              Tap any live event below to inspect that guest’s complete click &amp; gameplay history.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() =>
+              onOpenActivityLog({
+                title: 'Complete Campaign Click & Activity Log',
+                subtitle:
+                  'Searchable audit log of every guest click (Maps, Waze, Shares, Tickets, Calendar, Games, Scans)',
+                category: 'all',
+              })
+            }
+          >
+            <EyeScanIcon size={15} />
+            <span>View Full Click &amp; Activity Log</span>
+          </button>
+        </div>
+
         {recentActivity.length === 0 ? (
           <p className="subtle-text">
-            Real-time scans, arcade rounds, friend shares, and calendar saves stream here
-            automatically.
+            Real-time scans, arcade rounds, Maps/Waze clicks, friend shares, and calendar saves
+            stream here automatically.
           </p>
         ) : (
           <ul role="list" className="activity-list">
-            {recentActivity.slice(0, 20).map((ev) => (
-              <li key={ev.id} className="activity-item">
-                <div className="activity-item__main">
-                  <strong>{EVENT_LABELS[ev.eventType] || ev.eventType}</strong>
-                  <span>{ev.guestName ? ` · ${ev.guestName}` : ' · Street Visitor'}</span>
-                  {ev.gameId ? (
-                    <span>
-                      {' '}
-                      ({GAME_LABELS_MAP[ev.gameId] || ev.gameId}
-                      {ev.eventType === 'game_complete' ? ` · ${ev.score} pts` : ''})
+            {recentActivity.slice(0, 20).map((ev) => {
+              const actionMeta = getEventActionMeta(ev.eventType);
+              return (
+                <li key={ev.id} className="activity-item">
+                  <button
+                    type="button"
+                    className="activity-item__btn"
+                    onClick={() => {
+                      if (ev.leadId !== null && ev.guestName) {
+                        onOpenActivityLog({
+                          title: `${ev.guestName} — Complete Click & Activity Log`,
+                          subtitle: `${ev.redemptionCode ? `${ev.redemptionCode} · ` : ''}${
+                            ev.guestPhone ? `+${ev.guestPhone}` : ''
+                          }`,
+                          category: 'all',
+                          leadId: ev.leadId,
+                        });
+                      } else {
+                        onOpenActivityLog({
+                          title: `${actionMeta.shortBadge} — Activity Log`,
+                          category:
+                            ev.eventType === 'maps_click'
+                              ? 'maps_only'
+                              : ev.eventType === 'waze_click'
+                                ? 'waze_only'
+                                : 'all',
+                        });
+                      }
+                    }}
+                  >
+                    <div className="activity-item__main">
+                      <span className={`log-action-badge log-action-badge--${actionMeta.tone}`}>
+                        {actionMeta.shortBadge}
+                      </span>
+                      <strong>
+                        {ev.guestName
+                          ? ev.guestName
+                          : `Street Visitor ${ev.visitorTag || ''}`}
+                      </strong>
+                      {ev.redemptionCode ? (
+                        <span className="subtle-text" style={{ fontSize: '0.78rem' }}>
+                          ({ev.redemptionCode})
+                        </span>
+                      ) : null}
+                      {ev.gameId ? (
+                        <span>
+                          · {GAME_LABELS_MAP[ev.gameId] || ev.gameId}
+                          {ev.eventType === 'game_complete' ? ` (${ev.score} pts)` : ''}
+                        </span>
+                      ) : null}
+                      {ev.volunteerName ? (
+                        <span className="subtle-text"> · Evangelist: {ev.volunteerName}</span>
+                      ) : null}
+                      {ev.isPostInteraction && (
+                        <span className="post-street-pill">After Street</span>
+                      )}
+                    </div>
+                    <span className="activity-item__time">
+                      {new Date(ev.createdAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      })}
                     </span>
-                  ) : null}
-                  {ev.volunteerName ? <span> · Evangelist: {ev.volunteerName}</span> : null}
-                  {ev.isPostInteraction && (
-                    <span className="post-street-pill">After Street</span>
-                  )}
-                </div>
-                <span className="activity-item__time">
-                  {new Date(ev.createdAt).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                  })}
-                </span>
-              </li>
-            ))}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

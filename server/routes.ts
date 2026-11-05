@@ -60,11 +60,40 @@ const TrackEventSchema = z.object({
     'calendar_google',
     'calendar_ics',
     'maps_click',
+    'waze_click',
   ]),
   gameId: GameIdEnum.optional(),
   score: z.number().int().min(0).max(9999).optional(),
   isPostInteraction: z.boolean().optional(),
   volunteerName: z.string().trim().max(40).optional(),
+});
+
+const ActivityLogCategoryEnum = z.enum([
+  'all',
+  'page_views',
+  'return_views',
+  'games_started',
+  'games_after',
+  'registered_contacts',
+  'physical_gifts',
+  'viral_actions',
+  'directions',
+  'maps_only',
+  'waze_only',
+  'invite_views',
+  'shares',
+  'tickets',
+  'calendar',
+  'team_whatsapp',
+]);
+
+const ActivityLogQuerySchema = z.object({
+  category: ActivityLogCategoryEnum.optional().default('all'),
+  gameId: z.string().trim().max(40).optional(),
+  leadId: z.coerce.number().int().positive().optional(),
+  volunteer: z.string().trim().max(60).optional(),
+  search: z.string().trim().max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional().default(250),
 });
 
 const CampaignTargetsSchema = z.object({
@@ -426,6 +455,15 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
     res.json(db.getMasterAnalytics());
   });
 
+  router.get('/team/activity-log', requireTeamAuth, (req, res) => {
+    const parsed = ActivityLogQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid activity log filter parameters.' });
+      return;
+    }
+    res.json(db.listActivityLogs(parsed.data));
+  });
+
   router.get('/team/leads', requireTeamAuth, (req, res) => {
     const payload = db.listTeamLeads(getPublicBaseUrl(req));
     res.json(payload);
@@ -477,6 +515,8 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
       'E-Tickets Downloaded',
       'Calendar Adds',
       'E-Invite Views',
+      'Google Maps Clicks',
+      'Waze Clicks',
       'Created At',
       'Last Active At',
     ];
@@ -484,7 +524,10 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
       const engagementTier =
         l.calendarAdds > 0 || l.inviteShares > 0 || l.gamesAfterInteraction >= 2
           ? 'Hot'
-          : l.gamesAfterInteraction === 1 || l.ticketDownloads > 0 || l.eInviteViews > 1
+          : l.gamesAfterInteraction === 1 ||
+              l.ticketDownloads > 0 ||
+              l.directionsClicks > 0 ||
+              l.eInviteViews > 1
             ? 'Warm'
             : 'Street';
       return [
@@ -507,6 +550,8 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
         l.ticketDownloads,
         l.calendarAdds,
         l.eInviteViews,
+        l.googleMapsClicks,
+        l.wazeClicks,
         l.createdAt,
         l.lastActiveAt,
       ]

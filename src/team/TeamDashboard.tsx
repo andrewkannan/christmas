@@ -18,6 +18,7 @@ import {
   CheckCircleIcon,
   CopyIcon,
   DownloadPassIcon,
+  EyeScanIcon,
   FlameIcon,
   GiftBoxIcon,
   LockIcon,
@@ -33,6 +34,10 @@ import { MasterAnalytics } from './MasterAnalytics.tsx';
 import { QrBoardMaker } from './QrBoardMaker.tsx';
 import { EventSettingsForm } from './EventSettingsForm.tsx';
 import { ContactCrmDialog } from './ContactCrmDialog.tsx';
+import {
+  ActivityLogDialog,
+  type ActivityLogModalRequest,
+} from './ActivityLogDialog.tsx';
 import {
   formatShortTimestamp,
   getFollowUpStageMeta,
@@ -79,6 +84,8 @@ export function TeamDashboard({
 
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
   const [focusNotesOnOpen, setFocusNotesOnOpen] = useState(false);
+  const [activityLogRequest, setActivityLogRequest] =
+    useState<ActivityLogModalRequest | null>(null);
   const [copiedLeadPhoneId, setCopiedLeadPhoneId] = useState<number | null>(null);
 
   const loadData = useCallback(async () => {
@@ -419,6 +426,7 @@ export function TeamDashboard({
             hotLeadsCount={stats.hotLeadsCount}
             onRefresh={() => void loadData()}
             onJumpToContacts={handleJumpToContacts}
+            onOpenActivityLog={setActivityLogRequest}
             onOpenSettings={() => setActiveTab('settings')}
           />
         ) : null)}
@@ -656,7 +664,8 @@ export function TeamDashboard({
                             <div className="lead-game-cell__metrics">
                               {lead.totalGamesPlayed} played ({lead.gamesAfterInteraction} after) ·{' '}
                               {lead.inviteShares} shares ·{' '}
-                              {lead.calendarAdds + lead.ticketDownloads} saved
+                              {lead.calendarAdds + lead.ticketDownloads} saved ·{' '}
+                              {lead.directionsClicks} Maps/Waze
                             </div>
                           </div>
                         </td>
@@ -768,6 +777,22 @@ export function TeamDashboard({
                               <button
                                 type="button"
                                 className="btn btn--ghost btn--xs"
+                                aria-label={`View click log for ${lead.name}`}
+                                onClick={() =>
+                                  setActivityLogRequest({
+                                    title: `${lead.name} — Complete Click & Activity Log`,
+                                    subtitle: `${lead.redemptionCode} · +${lead.normalizedPhone}`,
+                                    category: 'all',
+                                    leadId: lead.id,
+                                  })
+                                }
+                              >
+                                <EyeScanIcon size={13} />
+                                <span>Log</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn--ghost btn--xs"
                                 aria-label={`Open full CRM & remarks for ${lead.name}`}
                                 onClick={() => openLeadCrm(lead.id, false)}
                               >
@@ -794,6 +819,13 @@ export function TeamDashboard({
         volunteerSuggestions={volunteerSuggestions}
         onClose={() => setSelectedLeadId(null)}
         onSave={handlePatchLead}
+      />
+
+      {/* Native <dialog> Click & Activity Audit Log Modal */}
+      <ActivityLogDialog
+        request={activityLogRequest}
+        onClose={() => setActivityLogRequest(null)}
+        onInspectLead={(leadId) => openLeadCrm(leadId, false)}
       />
     </section>
   );

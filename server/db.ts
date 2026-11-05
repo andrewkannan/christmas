@@ -5,6 +5,9 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   DEFAULT_CAMPAIGN_TARGETS,
   type ActiveGameId,
+  type ActivityLogCategory,
+  type ActivityLogEntry,
+  type ActivityLogResponse,
   type AnalyticsEventType,
   type CampaignTargets,
   type EventSettings,
@@ -96,7 +99,15 @@ interface LeadEventAggRow {
   downloads: number;
   calendar_adds: number;
   invite_views: number;
+  maps_clicks: number;
+  waze_clicks: number;
   last_active_at: string | null;
+}
+
+function formatVisitorTag(visitorId: string): string {
+  const clean = (visitorId || '').replace(/[^a-zA-Z0-9]/g, '');
+  if (!clean) return '#anon';
+  return `#${clean.slice(-6).toLowerCase()}`;
 }
 
 export class ArcadeDatabase {
@@ -697,6 +708,22 @@ export class ArcadeDatabase {
       this.syncEventById(Number(evInfo.lastInsertRowid));
     }
 
+    const regInfo = this.db
+      .prepare(
+        `INSERT INTO analytics_events (
+          visitor_id, lead_id, event_type, game_id, score, is_post_interaction, volunteer_name, created_at
+        ) VALUES (?, ?, 'lead_registered', ?, ?, 0, ?, ?)`
+      )
+      .run(
+        cleanVisitorId || `lead-${inserted.id}`,
+        inserted.id,
+        inserted.game_played,
+        inserted.score,
+        inserted.volunteer_name,
+        createdAt
+      );
+    this.syncEventById(Number(regInfo.lastInsertRowid));
+
     return this.toEnrichedPublicClaimResult(inserted);
   }
 
@@ -718,6 +745,24 @@ export class ArcadeDatabase {
     this.db.prepare('UPDATE leads SET gift_claimed = 1 WHERE id = ?').run(existing.id);
     this.syncLeadById(existing.id);
 
+    if (!existing.gift_claimed) {
+      const giftInfo = this.db
+        .prepare(
+          `INSERT INTO analytics_events (
+            visitor_id, lead_id, event_type, game_id, score, is_post_interaction, volunteer_name, created_at
+          ) VALUES (?, ?, 'gift_claimed', ?, ?, 0, ?, ?)`
+        )
+        .run(
+          existing.visitor_id || `lead-${existing.id}`,
+          existing.id,
+          existing.game_played,
+          existing.score,
+          existing.volunteer_name,
+          new Date(this.now()).toISOString()
+        );
+      this.syncEventById(Number(giftInfo.lastInsertRowid));
+    }
+
     const updated = this.db
       .prepare('SELECT * FROM leads WHERE id = ?')
       .get(existing.id) as unknown as RawLeadRow;
@@ -735,6 +780,8 @@ export class ArcadeDatabase {
           SUM(CASE WHEN event_type = 'ticket_download' THEN 1 ELSE 0 END) AS downloads,
           SUM(CASE WHEN event_type IN ('calendar_google', 'calendar_ics') THEN 1 ELSE 0 END) AS calendar_adds,
           SUM(CASE WHEN event_type = 'e_invite_view' THEN 1 ELSE 0 END) AS invite_views,
+          SUM(CASE WHEN event_type = 'maps_click' THEN 1 ELSE 0 END) AS maps_clicks,
+          SUM(CASE WHEN event_type = 'waze_click' THEN 1 ELSE 0 END) AS waze_clicks,
           MAX(created_at) AS last_active_at
         FROM analytics_events
         WHERE lead_id IS NOT NULL
@@ -781,6 +828,9 @@ export class ArcadeDatabase {
       const afterGames = agg?.after_games ?? 0;
       const shares = agg?.shares ?? 0;
       const calendarAdds = agg?.calendar_adds ?? 0;
+      const googleMapsClicks = agg?.maps_clicks ?? 0;
+      const wazeClicks = agg?.waze_clicks ?? 0;
+      const directionsClicks = googleMapsClicks + wazeClicks;
       if (calendarAdds > 0 || shares > 0 || afterGames >= 2) {
         hotLeadsCount += 1;
       }
@@ -819,6 +869,9 @@ export class ArcadeDatabase {
         ticketDownloads: agg?.downloads ?? 0,
         calendarAdds,
         eInviteViews: agg?.invite_views ?? 0,
+        directionsClicks,
+        googleMapsClicks,
+        wazeClicks,
         lastActiveAt: agg?.last_active_at || row.created_at,
       };
     });
@@ -911,6 +964,25 @@ export class ArcadeDatabase {
       );
     this.syncLeadById(id);
 
+    // Log gift handoff when newly marked claimed from /team
+    if (nextGift === 1 && !existing.gift_claimed) {
+      const giftInfo = this.db
+        .prepare(
+          `INSERT INTO analytics_events (
+            visitor_id, lead_id, event_type, game_id, score, is_post_interaction, volunteer_name, created_at
+          ) VALUES (?, ?, 'gift_claimed', ?, ?, 0, ?, ?)`
+        )
+        .run(
+          existing.visitor_id || `lead-${existing.id}`,
+          existing.id,
+          existing.game_played,
+          existing.score,
+          nextVolunteer,
+          new Date(this.now()).toISOString()
+        );
+      this.syncEventById(Number(giftInfo.lastInsertRowid));
+    }
+
     // Log team WhatsApp follow-up action when newly marked sent
     if (nextWa === 1 && !existing.whatsapp_sent) {
       const waInfo = this.db
@@ -953,6 +1025,7 @@ export class ArcadeDatabase {
           SUM(CASE WHEN event_type = 'calendar_google' THEN 1 ELSE 0 END) AS cal_google,
           SUM(CASE WHEN event_type = 'calendar_ics' THEN 1 ELSE 0 END) AS cal_ics,
           SUM(CASE WHEN event_type = 'maps_click' THEN 1 ELSE 0 END) AS maps_clicks,
+          SUM(CASE WHEN event_type = 'waze_click' THEN 1 ELSE 0 END) AS waze_clicks,
           SUM(CASE WHEN event_type = 'team_whatsapp_followup' THEN 1 ELSE 0 END) AS team_wa_clicks
         FROM analytics_events`
       )
@@ -1126,47 +1199,62 @@ export class ArcadeDatabase {
       })
       .sort((a, b) => b.leadsCount - a.leadsCount || b.views - a.views);
 
-    // Recent Activity Stream (latest 30 events)
+    // Recent Activity Stream (latest 30 events with resolved guest identity)
     const rawRecent = this.db
       .prepare(
         `SELECT
           e.id,
           e.event_type,
+          e.visitor_id,
           e.volunteer_name,
           e.game_id,
           e.score,
           e.is_post_interaction,
           e.created_at,
+          l.id AS resolved_lead_id,
           l.name AS guest_name,
+          l.normalized_phone AS guest_phone,
           l.redemption_code AS redemption_code
         FROM analytics_events e
-        LEFT JOIN leads l ON l.id = e.lead_id
+        LEFT JOIN leads l ON l.id = COALESCE(
+          e.lead_id,
+          (SELECT l2.id FROM leads l2 WHERE l2.visitor_id != '' AND l2.visitor_id = e.visitor_id ORDER BY l2.id DESC LIMIT 1)
+        )
         ORDER BY e.id DESC
         LIMIT 30`
       )
       .all() as Array<{
       id: number;
       event_type: AnalyticsEventType;
+      visitor_id: string;
       volunteer_name: string;
       game_id: string;
       score: number;
       is_post_interaction: number;
       created_at: string;
+      resolved_lead_id: number | null;
       guest_name: string | null;
+      guest_phone: string | null;
       redemption_code: string | null;
     }>;
 
     const recentActivity: RecentActivityItem[] = rawRecent.map((r) => ({
       id: r.id,
       eventType: r.event_type,
+      leadId: r.resolved_lead_id ?? null,
       guestName: r.guest_name,
+      guestPhone: r.guest_phone,
       redemptionCode: r.redemption_code,
+      visitorTag: formatVisitorTag(r.visitor_id),
       volunteerName: r.volunteer_name,
       gameId: r.game_id,
       score: r.score,
       isPostInteraction: Boolean(r.is_post_interaction),
       createdAt: r.created_at,
     }));
+
+    const googleMapsClicks = eventSums.maps_clicks || 0;
+    const wazeClicks = eventSums.waze_clicks || 0;
 
     return {
       overview: {
@@ -1189,7 +1277,9 @@ export class ArcadeDatabase {
         invitationsShared: eventSums.invite_shares || 0,
         googleCalendarAdds: eventSums.cal_google || 0,
         icsCalendarDownloads: eventSums.cal_ics || 0,
-        mapsDirectionsClicks: eventSums.maps_clicks || 0,
+        mapsDirectionsClicks: googleMapsClicks + wazeClicks,
+        googleMapsClicks,
+        wazeClicks,
         teamWhatsappFollowupsSent: leadCounts.wa_sent || 0,
         teamWhatsappClicksTotal: eventSums.team_wa_clicks || 0,
         confirmedRsvps: leadCounts.confirmed_rsvps || 0,
@@ -1201,6 +1291,255 @@ export class ArcadeDatabase {
       byGame,
       byVolunteer,
       recentActivity,
+    };
+  }
+
+  listActivityLogs(options: {
+    category?: ActivityLogCategory;
+    gameId?: string;
+    leadId?: number;
+    volunteer?: string;
+    search?: string;
+    limit?: number;
+  } = {}): ActivityLogResponse {
+    const category: ActivityLogCategory = options.category ?? 'all';
+    const limit = Math.max(1, Math.min(500, Math.round(options.limit ?? 250)));
+
+    const whereClauses: string[] = ['1 = 1'];
+    const params: Array<string | number> = [];
+
+    switch (category) {
+      case 'page_views':
+        whereClauses.push("u.event_type = 'page_view'");
+        break;
+      case 'return_views':
+        whereClauses.push("u.event_type = 'page_view' AND u.is_post_interaction = 1");
+        break;
+      case 'games_started':
+        whereClauses.push("u.event_type IN ('game_start', 'game_complete')");
+        break;
+      case 'games_after':
+        whereClauses.push("u.event_type = 'game_complete' AND u.is_post_interaction = 1");
+        break;
+      case 'registered_contacts':
+        whereClauses.push("u.event_type = 'lead_registered'");
+        break;
+      case 'physical_gifts':
+        whereClauses.push("u.event_type = 'gift_claimed'");
+        break;
+      case 'viral_actions':
+        whereClauses.push(
+          "u.event_type IN ('invite_share_whatsapp', 'ticket_download', 'calendar_google', 'calendar_ics')"
+        );
+        break;
+      case 'directions':
+        whereClauses.push("u.event_type IN ('maps_click', 'waze_click')");
+        break;
+      case 'maps_only':
+        whereClauses.push("u.event_type = 'maps_click'");
+        break;
+      case 'waze_only':
+        whereClauses.push("u.event_type = 'waze_click'");
+        break;
+      case 'invite_views':
+        whereClauses.push("u.event_type = 'e_invite_view'");
+        break;
+      case 'shares':
+        whereClauses.push("u.event_type = 'invite_share_whatsapp'");
+        break;
+      case 'tickets':
+        whereClauses.push("u.event_type = 'ticket_download'");
+        break;
+      case 'calendar':
+        whereClauses.push("u.event_type IN ('calendar_google', 'calendar_ics')");
+        break;
+      case 'team_whatsapp':
+        whereClauses.push("u.event_type = 'team_whatsapp_followup'");
+        break;
+      case 'all':
+      default:
+        break;
+    }
+
+    if (options.leadId !== undefined && Number.isFinite(options.leadId)) {
+      whereClauses.push('u.resolved_lead_id = ?');
+      params.push(options.leadId);
+    }
+
+    if (options.gameId && options.gameId.trim()) {
+      whereClauses.push('u.game_id = ?');
+      params.push(options.gameId.trim());
+    }
+
+    if (options.volunteer && options.volunteer.trim()) {
+      const vol = options.volunteer.trim();
+      if (vol === 'General / Direct') {
+        whereClauses.push(
+          "COALESCE(NULLIF(u.volunteer_name, ''), COALESCE(gl.volunteer_name, '')) = ''"
+        );
+      } else {
+        whereClauses.push(
+          "(u.volunteer_name = ? OR (u.volunteer_name = '' AND COALESCE(gl.volunteer_name, '') = ?))"
+        );
+        params.push(vol, vol);
+      }
+    }
+
+    if (options.search && options.search.trim()) {
+      const term = `%${options.search.trim().toLowerCase()}%`;
+      whereClauses.push(
+        `(
+          LOWER(COALESCE(gl.name, '')) LIKE ? OR
+          LOWER(COALESCE(gl.normalized_phone, '')) LIKE ? OR
+          LOWER(COALESCE(gl.raw_phone, '')) LIKE ? OR
+          LOWER(COALESCE(gl.redemption_code, '')) LIKE ? OR
+          LOWER(COALESCE(u.volunteer_name, '')) LIKE ? OR
+          LOWER(COALESCE(u.visitor_id, '')) LIKE ? OR
+          LOWER(COALESCE(u.event_type, '')) LIKE ?
+        )`
+      );
+      params.push(term, term, term, term, term, term, term);
+    }
+
+    const baseCte = `
+      WITH unified AS (
+        SELECT
+          ('ev-' || e.id) AS log_id,
+          e.id AS sort_seq,
+          e.event_type AS event_type,
+          COALESCE(
+            e.lead_id,
+            (SELECT l2.id FROM leads l2 WHERE l2.visitor_id != '' AND l2.visitor_id = e.visitor_id ORDER BY l2.id DESC LIMIT 1)
+          ) AS resolved_lead_id,
+          e.visitor_id AS visitor_id,
+          e.volunteer_name AS volunteer_name,
+          e.game_id AS game_id,
+          e.score AS score,
+          e.is_post_interaction AS is_post_interaction,
+          e.created_at AS created_at
+        FROM analytics_events e
+
+        UNION ALL
+
+        SELECT
+          ('reg-' || l.id) AS log_id,
+          0 AS sort_seq,
+          'lead_registered' AS event_type,
+          l.id AS resolved_lead_id,
+          l.visitor_id AS visitor_id,
+          l.volunteer_name AS volunteer_name,
+          l.game_played AS game_id,
+          l.score AS score,
+          0 AS is_post_interaction,
+          l.created_at AS created_at
+        FROM leads l
+        WHERE NOT EXISTS (
+          SELECT 1 FROM analytics_events ae
+          WHERE ae.lead_id = l.id AND ae.event_type = 'lead_registered'
+        )
+
+        UNION ALL
+
+        SELECT
+          ('gift-' || l.id) AS log_id,
+          0 AS sort_seq,
+          'gift_claimed' AS event_type,
+          l.id AS resolved_lead_id,
+          l.visitor_id AS visitor_id,
+          l.volunteer_name AS volunteer_name,
+          l.game_played AS game_id,
+          l.score AS score,
+          0 AS is_post_interaction,
+          l.created_at AS created_at
+        FROM leads l
+        WHERE l.gift_claimed = 1
+          AND NOT EXISTS (
+            SELECT 1 FROM analytics_events ae
+            WHERE ae.lead_id = l.id AND ae.event_type = 'gift_claimed'
+          )
+      )
+    `;
+
+    const whereSql = whereClauses.join(' AND ');
+
+    const countRow = this.db
+      .prepare(
+        `${baseCte}
+         SELECT COUNT(*) AS cnt
+         FROM unified u
+         LEFT JOIN leads gl ON gl.id = u.resolved_lead_id
+         WHERE ${whereSql}`
+      )
+      .get(...params) as { cnt: number };
+
+    const rows = this.db
+      .prepare(
+        `${baseCte}
+         SELECT
+           u.log_id,
+           u.event_type,
+           u.resolved_lead_id,
+           u.visitor_id,
+           CASE WHEN u.volunteer_name != '' THEN u.volunteer_name ELSE COALESCE(gl.volunteer_name, '') END AS volunteer_name,
+           u.game_id,
+           u.score,
+           u.is_post_interaction,
+           u.created_at,
+           gl.name AS guest_name,
+           gl.normalized_phone AS guest_phone,
+           gl.redemption_code AS redemption_code,
+           gl.followup_status AS followup_status,
+           gl.whatsapp_sent AS whatsapp_sent
+         FROM unified u
+         LEFT JOIN leads gl ON gl.id = u.resolved_lead_id
+         WHERE ${whereSql}
+         ORDER BY u.created_at DESC, u.sort_seq DESC
+         LIMIT ?`
+      )
+      .all(...params, limit) as Array<{
+      log_id: string;
+      event_type: AnalyticsEventType;
+      resolved_lead_id: number | null;
+      visitor_id: string;
+      volunteer_name: string;
+      game_id: string;
+      score: number;
+      is_post_interaction: number;
+      created_at: string;
+      guest_name: string | null;
+      guest_phone: string | null;
+      redemption_code: string | null;
+      followup_status: FollowUpStatus | null;
+      whatsapp_sent: number | null;
+    }>;
+
+    const entries: ActivityLogEntry[] = rows.map((r) => {
+      let resolvedStatus: FollowUpStatus | null = null;
+      if (r.resolved_lead_id !== null) {
+        resolvedStatus = r.followup_status || (r.whatsapp_sent ? 'contacted' : 'new');
+      }
+      return {
+        id: r.log_id,
+        eventType: r.event_type,
+        leadId: r.resolved_lead_id ?? null,
+        guestName: r.guest_name,
+        guestPhone: r.guest_phone,
+        redemptionCode: r.redemption_code,
+        followUpStatus: resolvedStatus,
+        visitorId: r.visitor_id,
+        visitorTag: formatVisitorTag(r.visitor_id),
+        volunteerName: r.volunteer_name,
+        gameId: r.game_id,
+        score: r.score,
+        isPostInteraction: Boolean(r.is_post_interaction),
+        createdAt: r.created_at,
+      };
+    });
+
+    return {
+      category,
+      totalMatching: countRow.cnt || 0,
+      entries,
     };
   }
 

@@ -1,24 +1,30 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import {
   GAME_LABELS_MAP,
+  type ActivityLogEntry,
   type FollowUpStatus,
   type LeadPatchInput,
   type TeamLeadRecord,
 } from '../types.ts';
+import { fetchTeamActivityLog } from '../lib/api.ts';
 import {
   BellReminderIcon,
   CheckCircleIcon,
   CloseIcon,
   CopyIcon,
+  EyeScanIcon,
   FlameIcon,
   GiftBoxIcon,
   NoteEditIcon,
+  ReplayIcon,
   WhatsAppIcon,
 } from '../components/Icons.tsx';
 import {
   FOLLOWUP_STAGE_OPTIONS,
   QUICK_REMARK_TAGS,
+  formatExactLogTimestamp,
   formatShortTimestamp,
+  getEventActionMeta,
   getLeadEngagementTier,
   hasQuickTagInNotes,
   toggleQuickTagInNotes,
@@ -51,6 +57,9 @@ export function ContactCrmDialog({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [copiedKind, setCopiedKind] = useState<'phone' | 'link' | null>(null);
 
+  const [guestLogs, setGuestLogs] = useState<ActivityLogEntry[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+
   const activeLeadId = lead?.id ?? null;
 
   // Initialize draft state ONLY when switching to a different guest so 5s live polling never clobbers typing
@@ -63,6 +72,26 @@ export function ContactCrmDialog({
     setSaveError(null);
     setCopiedKind(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLeadId]);
+
+  const loadGuestActivity = async (targetLeadId: number) => {
+    setLogsLoading(true);
+    try {
+      const res = await fetchTeamActivityLog({ leadId: targetLeadId, limit: 60 });
+      setGuestLogs(res.entries);
+    } catch {
+      setGuestLogs([]);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeLeadId === null) {
+      setGuestLogs([]);
+      return;
+    }
+    void loadGuestActivity(activeLeadId);
   }, [activeLeadId]);
 
   // Open/close native <dialog> via showModal() + light-dismiss fallback for browsers without closedby
@@ -89,31 +118,46 @@ export function ContactCrmDialog({
     if (!dialog) return;
 
     const handleNativeClose = () => {
+      dialog.returnValue = '';
       onClose();
     };
     dialog.addEventListener('close', handleNativeClose);
 
     // Fallback light-dismiss when native closedby="any" is unsupported
     const supportsClosedBy = 'closedBy' in HTMLDialogElement.prototype;
-    const handleBackdropClick = (e: MouseEvent) => {
-      if (supportsClosedBy) return;
-      if (e.target !== dialog) return;
-      if (e.clientX === 0 && e.clientY === 0) return;
+    let pressedOutside = false;
+
+    const isOutsideDialog = (e: PointerEvent) => {
+      if (e.clientX === 0 && e.clientY === 0) return false;
       const rect = dialog.getBoundingClientRect();
-      const clickedInDialog =
-        rect.top <= e.clientY &&
-        e.clientY <= rect.top + rect.height &&
-        rect.left <= e.clientX &&
-        e.clientX <= rect.left + rect.width;
-      if (!clickedInDialog) {
+      return (
+        e.clientX < rect.left ||
+        e.clientX > rect.right ||
+        e.clientY < rect.top ||
+        e.clientY > rect.bottom
+      );
+    };
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if (supportsClosedBy) return;
+      pressedOutside = isOutsideDialog(e);
+    };
+
+    const handlePointerUp = (e: PointerEvent) => {
+      if (supportsClosedBy) return;
+      if (pressedOutside && isOutsideDialog(e)) {
         dialog.close();
       }
+      pressedOutside = false;
     };
-    dialog.addEventListener('click', handleBackdropClick);
+
+    dialog.addEventListener('pointerdown', handlePointerDown);
+    dialog.addEventListener('pointerup', handlePointerUp);
 
     return () => {
       dialog.removeEventListener('close', handleNativeClose);
-      dialog.removeEventListener('click', handleBackdropClick);
+      dialog.removeEventListener('pointerdown', handlePointerDown);
+      dialog.removeEventListener('pointerup', handlePointerUp);
     };
   }, [onClose]);
 
@@ -217,6 +261,10 @@ export function ContactCrmDialog({
                 <span className="crm-stat-chip">
                   <strong>{lead.inviteShares}</strong> shares ·{' '}
                   <strong>{lead.calendarAdds + lead.ticketDownloads}</strong> saved
+                </span>
+                <span className="crm-stat-chip">
+                  <strong>{lead.googleMapsClicks}</strong> Maps ·{' '}
+                  <strong>{lead.wazeClicks}</strong> Waze
                 </span>
               </div>
               <div className="crm-copy-actions">
@@ -379,6 +427,66 @@ export function ContactCrmDialog({
                 <BellReminderIcon size={15} />
                 <span>Service Reminder WhatsApp</span>
               </a>
+            </div>
+
+            {/* Guest Complete Click & Activity Log Timeline */}
+            <div className="crm-timeline-box">
+              <div className="crm-label-row">
+                <h3 className="form-label crm-label-with-icon" style={{ margin: 0 }}>
+                  <EyeScanIcon size={15} />
+                  <span>Complete Click &amp; Activity Log ({guestLogs.length})</span>
+                </h3>
+                <button
+                  type="button"
+                  className="inline-copy-btn"
+                  onClick={() => void loadGuestActivity(lead.id)}
+                >
+                  <ReplayIcon size={11} />
+                  <span>{logsLoading ? 'Syncing…' : 'Refresh'}</span>
+                </button>
+              </div>
+
+              {logsLoading && guestLogs.length === 0 ? (
+                <p className="subtle-text" style={{ margin: '0.4rem 0 0', fontSize: '0.8rem' }}>
+                  Loading guest clicks &amp; gameplay…
+                </p>
+              ) : guestLogs.length === 0 ? (
+                <p className="subtle-text" style={{ margin: '0.4rem 0 0', fontSize: '0.8rem' }}>
+                  No click history recorded yet.
+                </p>
+              ) : (
+                <ul role="list" className="crm-timeline-list">
+                  {guestLogs.map((entry) => {
+                    const actionMeta = getEventActionMeta(entry.eventType);
+                    return (
+                      <li key={entry.id} className="crm-timeline-item">
+                        <div className="crm-timeline-item__main">
+                          <span className={`log-action-badge log-action-badge--${actionMeta.tone}`}>
+                            {actionMeta.shortBadge}
+                          </span>
+                          <span className="crm-timeline-item__label">
+                            {actionMeta.label}
+                            {entry.gameId
+                              ? ` (${GAME_LABELS_MAP[entry.gameId] || entry.gameId}${
+                                  entry.eventType === 'game_complete' ||
+                                  entry.eventType === 'lead_registered'
+                                    ? ` · ${entry.score} pts`
+                                    : ''
+                                })`
+                              : ''}
+                          </span>
+                          {entry.isPostInteraction && (
+                            <span className="post-street-pill">After Street</span>
+                          )}
+                        </div>
+                        <span className="activity-item__time">
+                          {formatExactLogTimestamp(entry.createdAt)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
 
             {saveError && (

@@ -279,9 +279,10 @@ test('/team Command Center displays 6 official campaign targets (1500/500/500/50
   const guestName = isPixel ? 'Hannah Pixel' : 'Hannah Galaxy';
   const guestPhone = isPixel ? '012-998 7766' : '012-998 7767';
   const uniqueNoteKeyword = isPixel ? 'City Square' : 'Mount Austin';
+  const visitorId = `vis-hannah-${testInfo.project.name}-${Date.now()}`;
 
-  // Ensure a distinct contact exists for each browser profile in the shared server DB
-  await page.request.post('/api/leads', {
+  // Ensure a distinct contact + Google Maps & Waze clicks exist for each browser profile
+  const leadCreateRes = await page.request.post('/api/leads', {
     data: {
       name: guestName,
       phone: guestPhone,
@@ -290,7 +291,28 @@ test('/team Command Center displays 6 official campaign targets (1500/500/500/50
       score: 44,
       targetScore: 18,
       volunteerName: 'Andrew',
+      visitorId,
       clientRequestId: `e2e-hannah-${testInfo.project.name}-${Date.now()}`,
+    },
+  });
+  const { claim } = (await leadCreateRes.json()) as { claim: { claimToken: string } };
+
+  await page.request.post('/api/events', {
+    data: {
+      visitorId,
+      claimToken: claim.claimToken,
+      eventType: 'maps_click',
+      isPostInteraction: true,
+      volunteerName: 'Andrew',
+    },
+  });
+  await page.request.post('/api/events', {
+    data: {
+      visitorId,
+      claimToken: claim.claimToken,
+      eventType: 'waze_click',
+      isPostInteraction: true,
+      volunteerName: 'Andrew',
     },
   });
 
@@ -324,13 +346,31 @@ test('/team Command Center displays 6 official campaign targets (1500/500/500/50
     await expect(card.getByText(targetLabel)).toBeVisible();
   }
 
+  // Click Maps & Waze Clicks in Mission Control -> inspect who clicked Google Maps vs Waze
+  await page.getByRole('button', { name: /Maps & Waze Clicks/ }).click();
+  const logDialog = page.locator('dialog.activity-log-dialog[open]');
+  await expect(logDialog).toBeVisible();
+  await expect(
+    logDialog.getByRole('heading', { name: 'Google Maps & Waze Venue Clicks' })
+  ).toBeVisible();
+  await expect(logDialog.getByText(guestName).first()).toBeVisible();
+  await expect(logDialog.getByText('Google Maps Click').first()).toBeVisible();
+  await expect(logDialog.getByText('Waze Click').first()).toBeVisible();
+  await logDialog.getByRole('button', { name: 'Close Log' }).click();
+  await expect(logDialog).toHaveCount(0);
+
   // Switch to Live Contacts CRM and open guest's Remarks & Follow-Up modal
   await page.locator('.tab-bar').getByRole('button', { name: /Live Contacts/ }).click();
   await page.getByRole('button', { name: `Add remark for ${guestName}` }).click();
 
-  const crmDialog = page.locator('dialog.crm-dialog[open]');
+  const crmDialog = page.locator('dialog.crm-dialog:not(.activity-log-dialog)[open]');
   await expect(crmDialog).toBeVisible();
   await expect(crmDialog.getByRole('heading', { name: guestName })).toBeVisible();
+  await expect(
+    crmDialog.getByRole('heading', { name: /Complete Click & Activity Log/ })
+  ).toBeVisible();
+  await expect(crmDialog.getByText('Waze Click')).toBeVisible();
+  await expect(crmDialog.getByText('Google Maps Click')).toBeVisible();
 
   // Apply a 1-tap quick tag + custom remark + Confirmed Coming RSVP stage
   await crmDialog.getByRole('button', { name: /\+ Coming with family/ }).click();

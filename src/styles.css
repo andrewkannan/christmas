@@ -3998,14 +3998,18 @@ progress.funnel-progress::-moz-progress-bar {
 }
 
 .lead-actions-secondary {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+}
+
+.lead-actions-secondary > .btn {
+  flex: 1 1 auto;
 }
 
 /* Responsive @container Stacked Contact Cards on Narrow / Mobile Containers */
 @media (max-width: 760px) {
-  .table-wrapper {
+  .table-wrapper:not(.activity-log-table-wrap) {
     max-block-size: none;
     overflow-y: visible;
   }
@@ -4057,12 +4061,20 @@ progress.funnel-progress::-moz-progress-bar {
     --label-remarks: 'Pastoral Remarks';
     --label-status: 'Gift & RSVP';
     --label-actions: '1-Tap Outreach';
+    --label-action: 'Exact Click / Action';
+    --label-context: 'Evangelist & Stage';
+    --label-time: 'Exact Time';
+    --label-crm: 'Guest Record';
   }
 
   .leads-table:not(.analytics-table) td[data-col='game']::before,
   .leads-table:not(.analytics-table) td[data-col='remarks']::before,
   .leads-table:not(.analytics-table) td[data-col='status']::before,
-  .leads-table:not(.analytics-table) td[data-col='actions']::before {
+  .leads-table:not(.analytics-table) td[data-col='actions']::before,
+  .leads-table:not(.analytics-table) td[data-col='action']::before,
+  .leads-table:not(.analytics-table) td[data-col='context']::before,
+  .leads-table:not(.analytics-table) td[data-col='time']::before,
+  .leads-table:not(.analytics-table) td[data-col='crm']::before {
     display: block;
     margin-block-end: 0.32rem;
     font-size: 0.72rem;
@@ -4083,6 +4095,18 @@ progress.funnel-progress::-moz-progress-bar {
   }
   .leads-table:not(.analytics-table) td[data-col='actions']::before {
     content: var(--label-actions);
+  }
+  .leads-table:not(.analytics-table) td[data-col='action']::before {
+    content: var(--label-action);
+  }
+  .leads-table:not(.analytics-table) td[data-col='context']::before {
+    content: var(--label-context);
+  }
+  .leads-table:not(.analytics-table) td[data-col='time']::before {
+    content: var(--label-time);
+  }
+  .leads-table:not(.analytics-table) td[data-col='crm']::before {
+    content: var(--label-crm);
   }
 }
 
@@ -5300,6 +5324,342 @@ dialog::backdrop {
   color: #b91c1c;
 }
 
+/* Modal <dialog> & ::backdrop scroll containment (prevents background scroll chaining without touching html/body) */
+dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+/* Interactive Target Scorecards & Pulse Chips (Click-to-Inspect Audit Logs) */
+.target-card--interactive {
+  position: relative;
+  transition: border-color 140ms ease, box-shadow 140ms ease, translate 140ms ease;
+}
+
+.target-card--interactive:hover {
+  border-color: rgba(200, 0, 20, 0.42);
+  box-shadow: 0 10px 26px rgba(24, 24, 27, 0.11);
+  translate: 0px -1.5px;
+
+  @media (prefers-reduced-motion: reduce) {
+    translate: none;
+  }
+}
+
+.target-card--interactive:has(.target-card__log-btn:focus-visible) {
+  outline: 3px solid var(--accent-crimson);
+  outline-offset: 2px;
+}
+
+.target-card__footer-right {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.target-card__log-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  min-block-size: 26px;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(200, 0, 20, 0.28);
+  background: var(--accent-crimson-soft);
+  color: var(--accent-crimson);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.target-card__log-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-xl);
+}
+
+.target-card__log-btn:focus-visible {
+  outline: none;
+}
+
+.pulse-chip--interactive {
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color 130ms ease, background-color 130ms ease, translate 130ms ease;
+}
+
+.pulse-chip--interactive:hover {
+  border-color: rgba(200, 0, 20, 0.4);
+  background: #fffdfd;
+  translate: 0px -1px;
+
+  @media (prefers-reduced-motion: reduce) {
+    translate: none;
+  }
+}
+
+.pulse-chip__cta {
+  font-size: 0.71rem;
+  font-weight: 800;
+  color: var(--accent-crimson);
+  margin-block-start: 0.08rem;
+}
+
+.funnel-log-btn {
+  font-size: 0.76rem;
+  margin-inline-start: 0.15rem;
+}
+
+.vol-cell-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+/* Clickable Live Activity Stream Rows */
+.activity-item {
+  padding: 0;
+  overflow: hidden;
+}
+
+.activity-item__btn {
+  inline-size: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0.62rem 0.85rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.activity-item__btn:hover {
+  background: var(--bg-tinted);
+}
+
+.activity-item__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.38rem;
+  min-inline-size: 0;
+}
+
+/* Activity Log Modal Inspector & Action Tone Badges */
+.activity-log-dialog {
+  max-inline-size: 56rem;
+  max-block-size: min(54rem, 92dvh);
+}
+
+.activity-log-dialog__sheet {
+  max-block-size: min(54rem, 92dvh);
+}
+
+.activity-log-dialog__body {
+  gap: 0.8rem;
+}
+
+.log-scope-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.38rem;
+}
+
+.log-filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.34rem;
+}
+
+@media (max-width: 680px) {
+  .log-filter-pills {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-block-end: 0.25rem;
+    scrollbar-width: thin;
+  }
+
+  .log-filter-pills .crm-filter-pill--compact {
+    flex: 0 0 auto;
+  }
+}
+
+.crm-filter-pill--compact {
+  min-block-size: 32px;
+  padding: 0.24rem 0.62rem;
+  font-size: 0.74rem;
+}
+
+.log-search-bar {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) auto;
+  gap: 0.65rem;
+  align-items: end;
+}
+
+@media (max-width: 640px) {
+  .log-search-bar {
+    grid-template-columns: 1fr;
+  }
+}
+
+.log-search-bar__actions {
+  display: flex;
+  align-items: center;
+}
+
+.activity-log-table-wrap {
+  max-block-size: min(460px, 54dvh);
+}
+
+@media (max-width: 680px) {
+  .activity-log-table-wrap {
+    max-block-size: none;
+    overflow-y: visible;
+  }
+}
+
+.log-anon-name {
+  color: var(--ink-secondary);
+  font-weight: 800;
+}
+
+.log-action-cell {
+  display: grid;
+  gap: 0.2rem;
+  justify-items: start;
+}
+
+.log-action-cell__desc {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-secondary);
+}
+
+.log-action-cell__game {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--accent-gold-bright);
+}
+
+.log-context-cell {
+  display: grid;
+  gap: 0.24rem;
+  justify-items: start;
+}
+
+.log-action-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.26rem;
+  padding: 0.14rem 0.52rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.71rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.log-action-badge--crimson {
+  background: #fff1f2;
+  color: #9f1239;
+  border-color: #fda4af;
+}
+
+.log-action-badge--gold {
+  background: #fef3c7;
+  color: #78350f;
+  border-color: rgba(217, 119, 6, 0.45);
+}
+
+.log-action-badge--emerald {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: rgba(5, 150, 105, 0.4);
+}
+
+.log-action-badge--blue {
+  background: #e0f2fe;
+  color: #075985;
+  border-color: rgba(2, 132, 199, 0.42);
+}
+
+.log-action-badge--waze {
+  background: #ecfeff;
+  color: #0e7490;
+  border-color: rgba(6, 182, 212, 0.48);
+}
+
+.log-action-badge--neutral {
+  background: var(--bg-tinted);
+  color: var(--ink-primary);
+  border-color: var(--border-strong);
+}
+
+/* Complete Click & Activity Timeline inside Guest CRM Dialog */
+.crm-timeline-box {
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 0.5rem;
+}
+
+.crm-timeline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.36rem;
+  max-block-size: 13.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.crm-timeline-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  padding: 0.42rem 0.58rem;
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  font-size: 0.78rem;
+}
+
+.crm-timeline-item__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-inline-size: 0;
+}
+
+.crm-timeline-item__label {
+  font-weight: 700;
+  color: var(--ink-primary);
+}
+
 @media (forced-colors: active) {
   .arcade-tile,
   .card-panel,
@@ -5326,7 +5686,9 @@ dialog::backdrop {
   .hockey-matchmaker,
   .hockey-code-tile,
   .storage-status-pill,
-  .storage-warning-banner {
+  .storage-warning-banner,
+  .crm-timeline-box,
+  .crm-timeline-item {
     border: 1.5px solid CanvasText;
   }
 
@@ -5341,7 +5703,9 @@ dialog::backdrop {
   .crm-filter-pill,
   .remark-cell-btn,
   .rsvp-badge,
-  .quick-tag-chip {
+  .quick-tag-chip,
+  .target-card__log-btn,
+  .log-action-badge {
     border: 1.5px solid ButtonText;
   }
 }

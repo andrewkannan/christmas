@@ -1,5 +1,7 @@
 import type {
   ActiveGameId,
+  ActivityLogCategory,
+  ActivityLogResponse,
   CreateHockeyRoomResponse,
   EventSettings,
   FullGameLeaderboard,
@@ -192,6 +194,29 @@ export async function fetchMasterAnalytics(): Promise<MasterAnalyticsResponse> {
 
 export async function fetchTeamLeads(): Promise<TeamLeadsResponse> {
   const res = await fetch('/api/team/leads', { credentials: 'include' });
+  return parseJsonOrThrow(res);
+}
+
+export async function fetchTeamActivityLog(params: {
+  category?: ActivityLogCategory;
+  gameId?: string;
+  leadId?: number;
+  volunteer?: string;
+  search?: string;
+  limit?: number;
+}): Promise<ActivityLogResponse> {
+  const qs = new URLSearchParams();
+  if (params.category) qs.set('category', params.category);
+  if (params.gameId) qs.set('gameId', params.gameId);
+  if (params.leadId !== undefined) qs.set('leadId', String(params.leadId));
+  if (params.volunteer) qs.set('volunteer', params.volunteer);
+  if (params.search && params.search.trim()) qs.set('search', params.search.trim());
+  if (params.limit !== undefined) qs.set('limit', String(params.limit));
+
+  const query = qs.toString();
+  const res = await fetch(`/api/team/activity-log${query ? `?${query}` : ''}`, {
+    credentials: 'include',
+  });
   return parseJsonOrThrow(res);
 }
 

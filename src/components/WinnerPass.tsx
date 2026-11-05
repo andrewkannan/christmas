@@ -249,6 +249,7 @@ export function WinnerPass({
       | 'calendar_google'
       | 'calendar_ics'
       | 'maps_click'
+      | 'waze_click'
   ) => {
     void trackArcadeEvent(
       {
@@ -550,7 +551,7 @@ export function WinnerPass({
                   href={wazeHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={() => emitAction('maps_click')}
+                  onClick={() => emitAction('waze_click')}
                   className="direction-pill direction-pill--waze"
                 >
                   <WazeIcon size={16} />
