@@ -2,6 +2,19 @@
 
 All notable changes to **Christmas Pocket Arcade** are documented in this file.
 
+## [1.7.0] - 2026-11-10
+
+### Added
+- **Interactive Promo Video Director’s Storyboard at `/storyboard` (`src/storyboard/PromoStoryboard.tsx`, `src/storyboard/StoryboardArt.tsx`, `src/storyboard/storyboardData.ts`, `src/App.tsx`):**
+  - Added a dedicated `/storyboard` route (excluded from street `page_view` analytics and unlisted on `/` so guest arcade play stays clean, with a quick link inside `/team`).
+  - Built around the exact 3-shot opening (**Shot 01:** Vintage classic car chrome door entrance → **Shot 02:** Adjusting the centre rear-view mirror with eye-lock & smile → **Shot 03:** Incoming call from **`JESUS`** answered with *“Yes Appa!”*), followed by **3 selectable creative continuations**:
+    - **Cut A (`45s` Recommended):** *“Operation Christmas Joy”* — Classic car trunk vault pops open revealing glowing QR Code Boards & wrapped Christmas gifts → JB street scan → live 2-phone 4-digit `Starlight Hockey` showdown → physical gift + VIP Pass → full-circle mirror callback.
+    - **Cut B (`50s` Buddy-Comedy):** *“One Classic Car, Whole Evangelism Squad”* — Rapid curbside squad pickups with oversized QR boards & gift stacks before hitting the streets.
+    - **Cut C (`35s` Fast TikTok/IG Hook):** *“From Grey Scroll to Christmas Gold”* — Monochrome busy street bursts into vibrant Christmas color with every QR scan.
+  - Includes bespoke SVG frame illustrations, an interactive **Animatic Pitch Player** with **`9:16` Reels/TikTok safe-zone** vs **`16:9` Sanctuary Screen** framing guides, device-saved **`Mark Filmed`** shot tracking, collapsible `<details>` props & mirror-camera notes, and `@media print` A4 shot-sheet output.
+- **Built-In On-Set “JESUS Calling” Phone Screen Prop (`src/storyboard/PhoneCallPropDialog.tsx`):**
+  - Native `<dialog closedby="any">` dark-glass mobile call prop (`Shot 03 · Incoming Call` with live tap-to-Answer timer + `Shot 10 · Appa Message` lock-screen notification + `Hide Controls for Filming` clean camera mode) so the crew can film the dashboard call practically on set without VFX screen replacement.
+
 ## [1.6.3] - 2026-11-05
 
 ### Added

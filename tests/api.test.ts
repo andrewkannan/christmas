@@ -176,12 +176,15 @@ describe('Christmas Pocket Arcade API & Security', () => {
     expect(svgMarkup).toContain('<svg');
   });
 
-  it('serves built SPA index.html for both /?vs=Andrew and /team routes', async () => {
+  it('serves built SPA index.html for /?vs=Andrew, /team, and /storyboard routes', async () => {
     const rootHtml = await request(app).get('/?vs=Andrew&target=18').expect(200);
     expect(rootHtml.text).toContain('<div id="root"></div>');
 
     const teamHtml = await request(app).get('/team').expect(200);
     expect(teamHtml.text).toContain('<div id="root"></div>');
+
+    const storyboardHtml = await request(app).get('/storyboard').expect(200);
+    expect(storyboardHtml.text).toContain('<div id="root"></div>');
   });
 
   it('returns clean zeroed Master Analytics on an empty database and rejects spoofed team events', async () => {

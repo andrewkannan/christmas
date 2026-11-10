@@ -36,6 +36,15 @@ import { ClaimForm } from './components/ClaimForm.tsx';
 import { WinnerPass } from './components/WinnerPass.tsx';
 import { TeamLogin } from './team/TeamLogin.tsx';
 import { TeamDashboard } from './team/TeamDashboard.tsx';
+import { PromoStoryboard } from './storyboard/PromoStoryboard.tsx';
+
+type RouteMode = 'player' | 'team' | 'storyboard';
+
+function resolveRouteMode(pathname: string): RouteMode {
+  if (pathname.startsWith('/team')) return 'team';
+  if (pathname.startsWith('/storyboard')) return 'storyboard';
+  return 'player';
+}
 
 const PLAYFIELDS: Record<ActiveGameId, ComponentType<PlayfieldProps>> = {
   'ice-hockey': StarlightAirHockey,
@@ -75,8 +84,8 @@ type PlayerStep =
   | { kind: 'winner'; claim: PublicClaimResult; justUnlocked?: boolean };
 
 export function App() {
-  const [routeMode, setRouteMode] = useState<'player' | 'team'>(() =>
-    window.location.pathname.startsWith('/team') ? 'team' : 'player'
+  const [routeMode, setRouteMode] = useState<RouteMode>(() =>
+    resolveRouteMode(window.location.pathname)
   );
   const [teamAuthed, setTeamAuthed] = useState<boolean | null>(null);
   const [teamUser, setTeamUser] = useState<TeamSessionUser | null>(null);
@@ -116,7 +125,12 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (window.location.pathname.startsWith('/team')) return;
+    if (
+      window.location.pathname.startsWith('/team') ||
+      window.location.pathname.startsWith('/storyboard')
+    ) {
+      return;
+    }
 
     const existingLocal = loadSavedPass();
     const tokenToSync = urlPassToken || existingLocal?.claimToken || '';
@@ -172,7 +186,7 @@ export function App() {
 
   useEffect(() => {
     const onPopState = () => {
-      setRouteMode(window.location.pathname.startsWith('/team') ? 'team' : 'player');
+      setRouteMode(resolveRouteMode(window.location.pathname));
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
@@ -181,6 +195,10 @@ export function App() {
   useEffect(() => {
     if (routeMode === 'team') {
       document.title = `Master Console | ${settings.churchName}`;
+      return;
+    }
+    if (routeMode === 'storyboard') {
+      document.title = `Promo Video Storyboard | ${settings.churchName}`;
       return;
     }
     switch (step.kind) {
@@ -201,7 +219,7 @@ export function App() {
 
   // Background Christmas music on Lobby, Claim & VIP Invitation (GameShell manages per-game & victory scenes)
   useEffect(() => {
-    if (routeMode === 'team') {
+    if (routeMode === 'team' || routeMode === 'storyboard') {
       setMusicScene('none');
       return;
     }
@@ -214,8 +232,13 @@ export function App() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [routeMode, step.kind]);
 
-  const navigateMode = (nextMode: 'player' | 'team') => {
-    const targetPath = nextMode === 'team' ? '/team' : `/${window.location.search}`;
+  const navigateMode = (nextMode: RouteMode) => {
+    const targetPath =
+      nextMode === 'team'
+        ? '/team'
+        : nextMode === 'storyboard'
+          ? '/storyboard'
+          : `/${window.location.search}`;
     window.history.pushState({}, '', targetPath);
     setRouteMode(nextMode);
   };
@@ -282,7 +305,11 @@ export function App() {
     step.kind === 'playing' ? ACTIVE_ARCADE_GAMES.find((g) => g.id === step.game) : undefined;
 
   return (
-    <div className={`app-shell ${routeMode === 'team' ? 'app-shell--wide' : ''}`}>
+    <div
+      className={`app-shell ${
+        routeMode === 'team' || routeMode === 'storyboard' ? 'app-shell--wide' : ''
+      }`}
+    >
       <a href="#main-content" className="skip-link visually-hidden">
         Skip to main content
       </a>
@@ -302,7 +329,9 @@ export function App() {
           </span>
           <span className="brand-copy">
             <span className="brand-copy__name">{settings.churchName}</span>
-            <span className="brand-copy__sub">Christmas Arcade</span>
+            <span className="brand-copy__sub">
+              {routeMode === 'storyboard' ? 'Promo Storyboard' : 'Christmas Arcade'}
+            </span>
           </span>
         </a>
 
@@ -328,6 +357,24 @@ export function App() {
               {soundMuted ? <VolumeOffIcon size={18} /> : <VolumeOnIcon size={18} />}
             </button>
           )}
+          {routeMode === 'storyboard' && (
+            <>
+              <button
+                type="button"
+                className="btn btn--subtle btn--sm"
+                onClick={() => navigateMode('team')}
+              >
+                Team Console
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                onClick={() => navigateMode('player')}
+              >
+                Live Arcade
+              </button>
+            </>
+          )}
           {routeMode === 'team' && (
             <button type="button" className="btn btn--ghost btn--sm" onClick={() => navigateMode('player')}>
               Arcade
@@ -341,7 +388,16 @@ export function App() {
         tabIndex={-1}
         className="app-main"
       >
-        {routeMode === 'team' ? (
+        {routeMode === 'storyboard' ? (
+          <PromoStoryboard
+            settings={settings}
+            onOpenArcade={() => {
+              navigateMode('player');
+              setStep({ kind: 'lobby' });
+            }}
+            onOpenTeamQr={() => navigateMode('team')}
+          />
+        ) : routeMode === 'team' ? (
           teamAuthed === null ? (
             <div className="card-panel">Checking session…</div>
           ) : teamAuthed ? (

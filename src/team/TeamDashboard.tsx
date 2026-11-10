@@ -368,6 +368,9 @@ export function TeamDashboard({
           >
             {autoSync ? 'Pause Auto-Sync' : 'Resume Auto-Sync'}
           </button>
+          <a href="/storyboard" className="btn btn--ghost btn--sm">
+            <span>Promo Storyboard</span>
+          </a>
           <a href="/api/team/leads/export.csv" className="btn btn--ghost btn--sm">
             <DownloadPassIcon size={15} />
             <span>Export CSV</span>

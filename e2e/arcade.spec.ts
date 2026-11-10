@@ -441,3 +441,59 @@ test('/team Command Center displays 6 official campaign targets (1500/500/500/50
   expect(consoleErrors).toEqual([]);
 });
 
+test('/storyboard renders Vintage Car → Mirror Smile → JESUS "Yes Appa!" promo script, 3 story continuations, and live JESUS Calling phone prop', async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  page.on('pageerror', (err) => consoleErrors.push(err.message));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
+
+  await page.goto('/storyboard');
+  await expect(
+    page.getByRole('heading', { name: /“Yes Appa!” — Street Christmas Arcade Storyboard/ })
+  ).toBeVisible();
+
+  // Verify the 3 opening frames + street QR + 2-phone hockey beats
+  const shotGrid = page.locator('.sb-shot-grid');
+  await expect(shotGrid.getByRole('heading', { name: 'Vintage Classic Entrance' })).toBeVisible();
+  await expect(
+    shotGrid.getByRole('heading', { name: 'Centre Mirror Eye-Lock & Smile' })
+  ).toBeVisible();
+  await expect(
+    shotGrid.getByRole('heading', { name: /Incoming Call: JESUS — “Yes Appa!”/ })
+  ).toBeVisible();
+  await expect(
+    shotGrid.getByRole('heading', { name: /2-Phone Live Starlight Hockey Duel/ })
+  ).toBeVisible();
+
+  // Switch between the 3 creative story continuation tabs
+  await page.getByRole('button', { name: /Cut B: “One Classic Car, Whole Evangelism Squad”/ }).click();
+  await expect(shotGrid.getByRole('heading', { name: 'Rapid Curbside Squad Pickups!' })).toBeVisible();
+
+  await page.getByRole('button', { name: /Cut C: “From Grey Scroll to Christmas Gold”/ }).click();
+  await expect(
+    shotGrid.getByRole('heading', { name: 'One QR Scan Bursts the Frame Into Color!' })
+  ).toBeVisible();
+
+  // Mark Shot 1 as filmed and verify Shoot Progress updates
+  await page.getByRole('button', { name: /Mark Shot 1 \(Vintage Classic Entrance\) as filmed/ }).click();
+  await expect(page.getByText('1 / 8 Shots')).toBeVisible();
+
+  // Launch the built-in On-Set "JESUS Calling" Screen Prop modal and answer the call
+  await page.getByRole('button', { name: /Launch “JESUS Calling” Screen Prop/ }).click();
+  const propModal = page.locator('dialog.sb-prop-dialog[open]');
+  await expect(propModal).toBeVisible();
+  await expect(propModal.locator('.sb-call-name')).toHaveText('JESUS');
+
+  await propModal.getByRole('button', { name: 'Answer incoming call from Jesus' }).click();
+  await expect(propModal.getByText(/“Yes Appa! Ready to bring Christmas joy!”/)).toBeVisible();
+
+  await propModal.getByRole('button', { name: 'Close Prop' }).click();
+  await expect(propModal).toHaveCount(0);
+
+  expect(consoleErrors).toEqual([]);
+});
+
+
