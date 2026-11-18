@@ -121,6 +121,9 @@ const SettingsSchema = z.object({
   whatsappTemplate: z.string().trim().min(10).max(1000),
   reminderTemplate: z.string().trim().max(1000).optional(),
   campaignTargets: CampaignTargetsSchema.optional(),
+  crownTargetSouls: z.number().int().min(1).max(100000).optional(),
+  crownCountArcadeLeads: z.boolean().optional(),
+  churchZones: z.array(z.string().trim().min(1).max(80)).min(1).max(40).optional(),
 });
 
 const LeadPatchSchema = z.object({
@@ -129,6 +132,7 @@ const LeadPatchSchema = z.object({
   notes: z.string().max(1000).optional(),
   followUpStatus: z.enum(['new', 'contacted', 'replied', 'confirmed', 'not_free']).optional(),
   volunteerName: z.string().trim().max(40).optional(),
+  attended: z.boolean().optional(),
 });
 
 const CreateTeamUserSchema = z.object({
@@ -210,6 +214,134 @@ const VersusLeaveSchema = z.object({
 });
 
 const ClaimTokenQuerySchema = z.string().trim().min(10).max(80).optional();
+
+const BoothGameIdEnum = z.enum([
+  'star-plinko',
+  'wise-gifts',
+  'blessing-basket',
+  'tree-light',
+]);
+
+const BoothRelationshipEnum = z
+  .string()
+  .trim()
+  .transform((val): 'Friend' | 'Family' | 'Colleague' | 'Neighbor' => {
+    const lower = val.toLowerCase();
+    if (lower === 'family') return 'Family';
+    if (lower === 'colleague') return 'Colleague';
+    if (lower === 'neighbor' || lower === 'neighbour') return 'Neighbor';
+    return 'Friend';
+  });
+
+const BoothWinnerSubmissionSchema = z.object({
+  memberName: z
+    .string()
+    .trim()
+    .min(2, 'Please enter your name (at least 2 characters).')
+    .max(80, 'Name must be 80 characters or fewer.'),
+  memberPhone: z.string().trim().min(5, 'Please enter your mobile number.').max(30),
+  countryCode: z
+    .string()
+    .trim()
+    .regex(/^\+?\d{1,4}$/, 'Invalid country code.')
+    .default('60'),
+  friendName: z
+    .string()
+    .trim()
+    .min(2, "Please enter the friend or family member's name you are inviting.")
+    .max(80, 'Friend name must be 80 characters or fewer.'),
+  relationship: BoothRelationshipEnum.default('Friend'),
+  seatsReserved: z.number().int().min(1).max(10).default(1),
+  friendPhone: z.string().trim().max(30).optional().default(''),
+  gamePlayed: BoothGameIdEnum,
+  score: z.number().int().min(0).max(99999),
+  clientRequestId: z
+    .string()
+    .trim()
+    .min(6)
+    .max(80)
+    .optional()
+    .default(() => `booth-${Math.random().toString(36).slice(2, 12)}-${Date.now()}`),
+});
+
+const BoothPublicPatchSchema = z.object({
+  tokenHandedOut: z.boolean().optional(),
+  tokenCollected: z.boolean().optional(),
+  whatsappSent: z.boolean().optional(),
+  inviteSent: z.boolean().optional(),
+  friendOpened: z.boolean().optional(),
+});
+
+const BoothTeamPatchSchema = z.object({
+  tokenHandedOut: z.boolean().optional(),
+  whatsappSent: z.boolean().optional(),
+  friendOpened: z.boolean().optional(),
+  notes: z.string().max(1000).optional(),
+  seatsReserved: z.number().int().min(1).max(10).optional(),
+});
+
+const SoulRegistrationSchema = z.object({
+  memberName: z
+    .string()
+    .trim()
+    .min(2, 'Please enter the church member name.')
+    .max(80, 'Church member name must be 80 characters or fewer.'),
+  memberPhone: z
+    .string()
+    .trim()
+    .min(5, 'Please enter the church member phone number.')
+    .max(30),
+  churchZone: z
+    .string()
+    .trim()
+    .min(1, 'Please select your Home Church Zone.')
+    .max(80),
+  soulName: z
+    .string()
+    .trim()
+    .min(2, "Please enter the New Soul's name.")
+    .max(80, 'New Soul name must be 80 characters or fewer.'),
+  memberCount: z
+    .number()
+    .int()
+    .min(1, 'Number of members must be at least 1.')
+    .max(50, 'Number of members must be 50 or fewer.')
+    .default(1),
+  soulPhone: z
+    .string()
+    .trim()
+    .min(5, "Please enter the New Soul's phone number.")
+    .max(30),
+  address: z.string().trim().max(400).optional().default(''),
+  countryCode: z
+    .string()
+    .trim()
+    .regex(/^\+?\d{1,4}$/, 'Invalid country code.')
+    .optional()
+    .default('60'),
+  clientRequestId: z
+    .string()
+    .trim()
+    .min(6)
+    .max(80)
+    .optional()
+    .default(() => `soul-${Math.random().toString(36).slice(2, 12)}-${Date.now()}`),
+});
+
+const SoulRegistrationPatchSchema = z.object({
+  attended: z.boolean().optional(),
+  whatsappSent: z.boolean().optional(),
+  notes: z.string().max(1000).optional(),
+  memberCount: z.number().int().min(1).max(50).optional(),
+  churchZone: z.string().trim().min(1).max(80).optional(),
+  address: z.string().trim().max(400).optional(),
+});
+
+const CrownSettingsPatchSchema = z.object({
+  crownTargetSouls: z.number().int().min(1).max(100000).optional(),
+  crownCountArcadeLeads: z.boolean().optional(),
+  churchZones: z.array(z.string().trim().min(1).max(80)).min(1).max(40).optional(),
+});
 
 function getClientIp(req: Request): string {
   const forwarded = req.headers['x-forwarded-for'];
@@ -394,6 +526,138 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
     }
     res.json({ claim: pass });
   });
+
+  // --- Church Member Booth (/winners) Public Endpoints ---
+
+  router.get('/public/booth-summary', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(db.getBoothPublicSummary());
+  });
+
+  router.get('/public/booth-winners/:voucherCode', (req, res) => {
+    const voucherCode = String(req.params.voucherCode || '').trim();
+    if (voucherCode.length < 4 || voucherCode.length > 24) {
+      res.status(400).json({ error: 'Invalid booth voucher code.' });
+      return;
+    }
+    const winner = db.getBoothWinnerByVoucher(voucherCode, getPublicBaseUrl(req));
+    if (!winner) {
+      res.status(404).json({ error: 'Booth voucher not found.' });
+      return;
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ winner });
+  });
+
+  router.post(
+    '/public/booth-winners',
+    asyncHandler(async (req, res) => {
+      const ip = getClientIp(req);
+      if (!leadLimiter.isAllowed(ip)) {
+        res.status(429).json({
+          error: 'Too many submissions right now. Please wait a moment and try again.',
+        });
+        return;
+      }
+
+      const parsed = BoothWinnerSubmissionSchema.safeParse(req.body);
+      if (!parsed.success) {
+        const firstIssue = parsed.error.issues[0]?.message || 'Please check your details.';
+        res.status(400).json({ error: firstIssue });
+        return;
+      }
+
+      const outcome = db.createBoothWinner(parsed.data, getPublicBaseUrl(req));
+      if (!outcome.ok) {
+        res.status(outcome.status).json({ error: outcome.error });
+        return;
+      }
+
+      await db.flushPersistence();
+      res.status(outcome.created ? 201 : 200).json({ winner: outcome.winner });
+    })
+  );
+
+  router.patch(
+    '/public/booth-winners/:voucherCode',
+    asyncHandler(async (req, res) => {
+      const ip = getClientIp(req);
+      if (!telemetryLimiter.isAllowed(ip)) {
+        res.status(429).json({ error: 'Rate limit exceeded.' });
+        return;
+      }
+
+      const voucherCode = String(req.params.voucherCode || '').trim();
+      const parsed = BoothPublicPatchSchema.safeParse(req.body ?? {});
+      if (voucherCode.length < 4 || voucherCode.length > 24 || !parsed.success) {
+        res.status(400).json({ error: 'Invalid booth update payload.' });
+        return;
+      }
+
+      const updated = db.patchBoothWinnerByVoucher(
+        voucherCode,
+        {
+          tokenHandedOut: parsed.data.tokenHandedOut ?? parsed.data.tokenCollected,
+          whatsappSent: parsed.data.whatsappSent ?? parsed.data.inviteSent,
+          friendOpened: parsed.data.friendOpened,
+        },
+        getPublicBaseUrl(req)
+      );
+      if (!updated) {
+        res.status(404).json({ error: 'Booth voucher not found.' });
+        return;
+      }
+
+      await db.flushPersistence();
+      res.json({ winner: updated });
+    })
+  );
+
+  // --- /register (Church Member Soul Registration) & /present (King of Glory Crown) Public Endpoints ---
+
+  router.get('/public/crown-status', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(db.getCrownStatus());
+  });
+
+  router.post(
+    '/public/register-soul',
+    asyncHandler(async (req, res) => {
+      const ip = getClientIp(req);
+      if (!leadLimiter.isAllowed(ip)) {
+        res.status(429).json({
+          error: 'Too many submissions right now. Please wait a moment and try again.',
+        });
+        return;
+      }
+
+      const rawBody = req.body ?? {};
+      const normalizedBody = {
+        ...rawBody,
+        memberCount:
+          rawBody.memberCount !== undefined ? Number(rawBody.memberCount) : 1,
+      };
+
+      const parsed = SoulRegistrationSchema.safeParse(normalizedBody);
+      if (!parsed.success) {
+        const firstIssue = parsed.error.issues[0]?.message || 'Please check your registration details.';
+        res.status(400).json({ error: firstIssue });
+        return;
+      }
+
+      const outcome = db.createSoulRegistration(parsed.data, getPublicBaseUrl(req));
+      if (!outcome.ok) {
+        res.status(outcome.status).json({ error: outcome.error });
+        return;
+      }
+
+      await db.flushPersistence();
+      res.status(outcome.created ? 201 : 200).json({
+        registration: outcome.registration,
+        crownStatus: outcome.crownStatus,
+      });
+    })
+  );
 
   router.post(
     '/leads',
@@ -768,6 +1032,108 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
     const csv = `\uFEFF${headers.join(',')}\r\n${rows.join('\r\n')}\r\n`;
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="christmas-outreach-contacts.csv"');
+    res.send(csv);
+  });
+
+  // --- Church Member Booth (/winners) Team Management ---
+
+  router.get('/team/booth-winners', requireActiveTeamAuth, (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(db.listBoothWinners(getPublicBaseUrl(req)));
+  });
+
+  router.patch(
+    '/team/booth-winners/:id',
+    requireActiveTeamAuth,
+    asyncHandler(async (req, res) => {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid booth winner ID.' });
+        return;
+      }
+
+      const parsed = BoothTeamPatchSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        const msg = parsed.error.issues[0]?.message || 'Invalid booth winner update payload.';
+        res.status(400).json({ error: msg });
+        return;
+      }
+
+      const updated = db.patchBoothWinnerById(id, parsed.data, getPublicBaseUrl(req));
+      if (!updated) {
+        res.status(404).json({ error: 'Booth winner record not found.' });
+        return;
+      }
+
+      await db.flushPersistence();
+      res.json({ winner: updated });
+    })
+  );
+
+  // --- /admin Unified Registration, Attendance & Crown Goal Console Endpoints ---
+
+  router.get('/team/admin-overview', requireActiveTeamAuth, (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(db.getAdminOverview(getPublicBaseUrl(req)));
+  });
+
+  router.patch(
+    '/team/soul-registrations/:id',
+    requireActiveTeamAuth,
+    asyncHandler(async (req, res) => {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: 'Invalid soul registration ID.' });
+        return;
+      }
+
+      const parsed = SoulRegistrationPatchSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Invalid soul registration update payload.' });
+        return;
+      }
+
+      const updated = db.patchSoulRegistrationById(id, parsed.data, getPublicBaseUrl(req));
+      if (!updated) {
+        res.status(404).json({ error: 'Soul registration record not found.' });
+        return;
+      }
+
+      await db.flushPersistence();
+      res.json({
+        registration: updated,
+        crownStatus: db.getCrownStatus(),
+      });
+    })
+  );
+
+  router.patch(
+    '/team/crown-settings',
+    requireActiveTeamAuth,
+    asyncHandler(async (req, res) => {
+      const parsed = CrownSettingsPatchSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        const msg = parsed.error.issues[0]?.message || 'Invalid crown target settings.';
+        res.status(400).json({ error: msg });
+        return;
+      }
+
+      const updatedSettings = db.patchCrownSettings(parsed.data);
+      await db.flushPersistence();
+      res.json({
+        settings: updatedSettings,
+        crownStatus: db.getCrownStatus(),
+      });
+    })
+  );
+
+  router.get('/team/admin-export.csv', requireActiveTeamAuth, (req, res) => {
+    const csv = db.exportAdminUnifiedCsv(getPublicBaseUrl(req));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="christmas-unified-souls-attendance.csv"'
+    );
     res.send(csv);
   });
 

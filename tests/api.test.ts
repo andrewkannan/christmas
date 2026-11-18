@@ -969,5 +969,217 @@ describe('Christmas Pocket Arcade API & Security', () => {
     expect(afterDelete.body.users).toHaveLength(1);
     expect(afterDelete.body.users[0].name).toBe('Andrew Kannan');
   });
+
+  it('supports Church Member Booth (/winners) VIP Seat claims, voucher lookup, public summary ticker, and /team Booth Winners CRM', async () => {
+    // 1. Validate required inputs on /api/public/booth-winners
+    await request(app)
+      .post('/api/public/booth-winners')
+      .send({
+        memberName: 'A',
+        memberPhone: '0123456789',
+        friendName: 'Mr. Tan',
+        relationship: 'friend',
+        seatsReserved: 1,
+        gamePlayed: 'star-plinko',
+        score: 120,
+      })
+      .expect(400);
+
+    // 2. Church member Auntie Mary wins Star Plinko and reserves 2 VIP seats for her neighbor Mrs. Chong
+    const claimRes = await request(app)
+      .post('/api/public/booth-winners')
+      .send({
+        memberName: 'Auntie Mary Lim',
+        memberPhone: '012-776 5544',
+        countryCode: '60',
+        friendName: 'Mrs. Chong',
+        relationship: 'neighbor',
+        seatsReserved: 2,
+        gamePlayed: 'star-plinko',
+        score: 210,
+      })
+      .expect(201);
+
+    const winner = claimRes.body.winner;
+    expect(winner).toMatchObject({
+      memberName: 'Auntie Mary Lim',
+      normalizedPhone: '60127765544',
+      friendName: 'Mrs. Chong',
+      relationship: 'Neighbor',
+      seatsReserved: 2,
+      gamePlayed: 'star-plinko',
+      score: 210,
+      tokenHandedOut: false,
+      whatsappSent: false,
+      friendOpened: false,
+    });
+    expect(winner.voucherCode).toMatch(/^VIP-[A-Z0-9]{4}$/);
+
+    // 3. Kiosk-to-phone handoff lookup by voucherCode
+    const lookupRes = await request(app)
+      .get(`/api/public/booth-winners/${winner.voucherCode}`)
+      .expect(200);
+    expect(lookupRes.body.winner.friendName).toBe('Mrs. Chong');
+
+    // 4. Member collects physical gift token & sends WhatsApp invite; friend opens VIP link
+    const patchedPublic = await request(app)
+      .patch(`/api/public/booth-winners/${winner.voucherCode}`)
+      .send({ tokenCollected: true, inviteSent: true, friendOpened: true })
+      .expect(200);
+    expect(patchedPublic.body.winner).toMatchObject({
+      tokenHandedOut: true,
+      whatsappSent: true,
+      friendOpened: true,
+    });
+
+    // 5. Public summary masks member full surname and reports aggregate impact
+    const summaryRes = await request(app).get('/api/public/booth-summary').expect(200);
+    expect(summaryRes.body).toMatchObject({
+      totalMembersPlayed: 1,
+      totalNewSoulSeats: 2,
+      tokensHandedOut: 1,
+    });
+    expect(summaryRes.body.recentWinners[0]).toMatchObject({
+      voucherCode: winner.voucherCode,
+      memberName: 'Auntie L.',
+      friendName: 'Mrs. Chong',
+      relationship: 'Neighbor',
+      seatsReserved: 2,
+      gamePlayed: 'star-plinko',
+    });
+
+    // 6. Team Command Center inspects & updates Booth Winners CRM
+    const agent = request.agent(app);
+    await agent
+      .post('/api/team/login')
+      .set('X-Forwarded-For', '203.0.113.55')
+      .send({ pin: '7788' })
+      .expect(200);
+
+    const teamList = await agent.get('/api/team/booth-winners').expect(200);
+    expect(teamList.body.winners).toHaveLength(1);
+    expect(teamList.body.winners[0].memberName).toBe('Auntie Mary Lim');
+
+    const teamPatched = await agent
+      .patch(`/api/team/booth-winners/${winner.id}`)
+      .send({ notes: 'Gave Auntie Mary 2 gold star invitation boxes at Booth Table 1.' })
+      .expect(200);
+    expect(teamPatched.body.winner.notes).toBe(
+      'Gave Auntie Mary 2 gold star invitation boxes at Booth Table 1.'
+    );
+  });
+
+  it('supports /register church member soul registrations, /present King of Glory Crown progress, and /admin unified attendance & WhatsApp console', async () => {
+    // 1. Seed 1 street arcade guest
+    await request(app)
+      .post('/api/leads')
+      .send({
+        name: 'Kevin Tan',
+        phone: '012-334 5566',
+        countryCode: '60',
+        gamePlayed: 'santa-dash',
+        score: 25,
+        targetScore: 18,
+        volunteerName: 'Andrew',
+        clientRequestId: 'req-kevin-admin-01',
+        visitorId: 'vis-kevin-admin-01',
+      })
+      .expect(201);
+
+    // 2. Church member Andrew Kannan registers a family of 4 new souls on /register
+    const regRes = await request(app)
+      .post('/api/public/register-soul')
+      .send({
+        memberName: 'Andrew Kannan',
+        memberPhone: '012-778 2708',
+        churchZone: 'Zone 2 · Mount Austin & Tebrau',
+        soulName: 'Mr. & Mrs. Rajan',
+        memberCount: 4,
+        soulPhone: '016-889 4455',
+        address: '28 Jalan Austin Heights, JB',
+      })
+      .expect(201);
+
+    expect(regRes.body.registration).toMatchObject({
+      memberName: 'Andrew Kannan',
+      memberNormalizedPhone: '60127782708',
+      churchZone: 'Zone 2 · Mount Austin & Tebrau',
+      soulName: 'Mr. & Mrs. Rajan',
+      memberCount: 4,
+      soulNormalizedPhone: '60168894455',
+      address: '28 Jalan Austin Heights, JB',
+      attended: false,
+      whatsappSent: false,
+    });
+    expect(regRes.body.registration.confirmationCode).toMatch(/^CROWN-[A-Z0-9]{4}$/);
+    expect(regRes.body.registration.soulWhatsappUrl).toContain('https://wa.me/60168894455');
+    expect(regRes.body.registration.memberWhatsappUrl).toContain('https://wa.me/60127782708');
+
+    // 3. /present polls /api/public/crown-status and sees 4 member souls + 1 arcade soul = 5 total
+    const crownRes = await request(app).get('/api/public/crown-status').expect(200);
+    expect(crownRes.body).toMatchObject({
+      targetSouls: 500,
+      countArcadeLeads: true,
+      totalProgressSouls: 5,
+      registeredSoulsHeadcount: 4,
+      registeredGroupsCount: 1,
+      arcadeLeadsCount: 1,
+      attendedSoulsCount: 0,
+      fillPercentage: 1,
+    });
+
+    // 4. Admin logs into /admin, updates Final Full Crown number to 20, and checks in both records as Attended on Christmas
+    const agent = request.agent(app);
+    await agent
+      .post('/api/team/login')
+      .set('X-Forwarded-For', '203.0.113.88')
+      .send({ pin: '7788' })
+      .expect(200);
+
+    const crownSettingsRes = await agent
+      .patch('/api/team/crown-settings')
+      .send({ crownTargetSouls: 20, crownCountArcadeLeads: true })
+      .expect(200);
+    expect(crownSettingsRes.body.crownStatus).toMatchObject({
+      targetSouls: 20,
+      totalProgressSouls: 5,
+      fillPercentage: 25,
+    });
+
+    await agent
+      .patch(`/api/team/soul-registrations/${regRes.body.registration.id}`)
+      .send({ attended: true, whatsappSent: true, notes: 'Arrived at 7:15pm with all 4 family members!' })
+      .expect(200);
+
+    await agent
+      .patch('/api/team/leads/1')
+      .send({ attended: true, whatsappSent: true })
+      .expect(200);
+
+    const overviewRes = await agent.get('/api/team/admin-overview').expect(200);
+    expect(overviewRes.body.stats).toEqual({
+      crownTargetSouls: 20,
+      crownCountArcadeLeads: true,
+      crownProgressSouls: 5,
+      crownFillPercentage: 25,
+      totalUnifiedRecords: 2,
+      totalCombinedHeadcount: 5,
+      registerRecordsCount: 1,
+      registerHeadcount: 4,
+      arcadeRecordsCount: 1,
+      attendedRecordsCount: 2,
+      attendedHeadcount: 5,
+      whatsappSentCount: 2,
+    });
+    expect(overviewRes.body.records).toHaveLength(2);
+
+    // 5. Export unified CSV from /admin
+    const csvRes = await agent.get('/api/team/admin-export.csv').expect(200);
+    expect(csvRes.text).toContain('Mr. & Mrs. Rajan');
+    expect(csvRes.text).toContain('Kevin Tan');
+    expect(csvRes.text).toContain('Zone 2 · Mount Austin & Tebrau');
+  });
 });
+
+
 

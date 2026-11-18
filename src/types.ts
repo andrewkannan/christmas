@@ -138,6 +138,19 @@ export const DEFAULT_CAMPAIGN_TARGETS: CampaignTargets = {
   viralActions: 100,
 };
 
+export const DEFAULT_CHURCH_ZONES: readonly string[] = [
+  'Zone 1 · JB Central & City',
+  'Zone 2 · Mount Austin & Tebrau',
+  'Zone 3 · Skudai & Tampoi',
+  'Zone 4 · Bukit Indah & Iskandar Puteri',
+  'Zone 5 · Permas Jaya & Masai',
+  'Zone 6 · Kulai & Senai',
+  'Zone 7 · Youth & Young Adults',
+  'Zone 8 · Mandarin & Bilingual Fellowship',
+  'Zone 9 · Kids & Family Ministry',
+  'Other / New Member',
+] as const;
+
 export interface EventSettings {
   churchName: string;
   eventTitle: string;
@@ -154,6 +167,9 @@ export interface EventSettings {
   whatsappTemplate: string;
   reminderTemplate?: string;
   campaignTargets?: CampaignTargets;
+  crownTargetSouls?: number;
+  crownCountArcadeLeads?: boolean;
+  churchZones?: string[];
 }
 
 export interface LeadSubmissionInput {
@@ -199,6 +215,7 @@ export interface LeadPatchInput {
   notes?: string;
   followUpStatus?: FollowUpStatus;
   volunteerName?: string;
+  attended?: boolean;
 }
 
 export interface TeamLeadRecord {
@@ -220,6 +237,8 @@ export interface TeamLeadRecord {
   notes: string;
   notesUpdatedAt: string;
   createdAt: string;
+  attended?: boolean;
+  attendedAt?: string;
   totalGamesPlayed: number;
   gamesAfterInteraction: number;
   inviteShares: number;
@@ -512,4 +531,285 @@ export interface TeamUsersResponse {
   users: TeamMemberRecord[];
 }
 
+export type BoothGameId =
+  | 'star-plinko'
+  | 'wise-gifts'
+  | 'blessing-basket'
+  | 'tree-light';
+
+export type BoothRelationship = 'Friend' | 'Family' | 'Colleague' | 'Neighbor';
+
+export interface BoothGameMeta {
+  id: BoothGameId;
+  title: string;
+  subtitle: string;
+  generationTag: string;
+  durationLabel: string;
+  controlHint: string;
+  emoji: string;
+  accentBg: string;
+  accentFg: string;
+}
+
+export const BOOTH_ARCADE_GAMES: readonly BoothGameMeta[] = [
+  {
+    id: 'star-plinko',
+    title: 'Star of Bethlehem Drop',
+    subtitle: 'Drop 3 glowing Christmas stars through musical pegs into Golden Seat buckets!',
+    generationTag: 'Seniors, Kids & All Ages · 1-Tap',
+    durationLabel: '3 Star Drops',
+    controlHint: '1-Tap Drop · Zero Stress · 100% Win',
+    emoji: '🌟',
+    accentBg: 'linear-gradient(135deg, #d97706, #92400e)',
+    accentFg: '#ffffff',
+  },
+  {
+    id: 'wise-gifts',
+    title: '3 Wise Gifts Shuffle',
+    subtitle: 'Follow the Nativity Star hidden inside 3 shuffling golden gift boxes!',
+    generationTag: 'Aunties, Uncles & Families · 3 Speeds',
+    durationLabel: '3 Rounds',
+    controlHint: 'Gentle, Festive or Turbo Speed',
+    emoji: '🎁',
+    accentBg: 'linear-gradient(135deg, #d70015, #99000f)',
+    accentFg: '#ffffff',
+  },
+  {
+    id: 'blessing-basket',
+    title: 'Overflowing Blessing Basket',
+    subtitle: 'Slide the wide Christmas basket to catch Joy, Peace, Hope & Love for your friend!',
+    generationTag: 'Kids, Parents & Seniors · Forgiving Catch',
+    durationLabel: '20 Seconds',
+    controlHint: 'Slide or Tap Left / Right · No Bombs',
+    emoji: '🧺',
+    accentBg: 'linear-gradient(135deg, #15803d, #0f5132)',
+    accentFg: '#ffffff',
+  },
+  {
+    id: 'tree-light',
+    title: 'Light Up the Christmas Tree',
+    subtitle: 'Ring the dual Christmas bells & answer the Star Bonus to ignite the giant tree!',
+    generationTag: 'Youth, Young Adults & Duos · High Energy',
+    durationLabel: '20 Seconds',
+    controlHint: 'Rapid Bell Tap + Bonus Trivia Star',
+    emoji: '🎄',
+    accentBg: 'linear-gradient(135deg, #0284c7, #0369a1)',
+    accentFg: '#ffffff',
+  },
+] as const;
+
+export const BOOTH_GAME_LABELS_MAP: Record<BoothGameId, string> = {
+  'star-plinko': '🌟 Star of Bethlehem Drop',
+  'wise-gifts': '🎁 3 Wise Gifts Shuffle',
+  'blessing-basket': '🧺 Overflowing Blessing Basket',
+  'tree-light': '🎄 Light Up the Christmas Tree',
+};
+
+export interface BoothWinnerSubmissionInput {
+  memberName: string;
+  memberPhone: string;
+  countryCode: string;
+  friendName: string;
+  relationship: BoothRelationship;
+  seatsReserved: number;
+  friendPhone?: string;
+  gamePlayed: BoothGameId;
+  score: number;
+  clientRequestId: string;
+}
+
+export interface BoothWinnerPatchInput {
+  tokenHandedOut?: boolean;
+  whatsappSent?: boolean;
+  friendOpened?: boolean;
+  notes?: string;
+  seatsReserved?: number;
+}
+
+export interface BoothWinnerRecord {
+  id: number;
+  voucherCode: string;
+  memberName: string;
+  memberPhone: string;
+  normalizedPhone: string;
+  friendName: string;
+  relationship: BoothRelationship;
+  seatsReserved: number;
+  friendPhone: string;
+  gamePlayed: BoothGameId;
+  score: number;
+  tokenHandedOut: boolean;
+  whatsappSent: boolean;
+  friendOpened: boolean;
+  notes: string;
+  createdAt: string;
+  friendInviteUrl: string;
+  friendWhatsappUrl: string;
+  memberFollowupWhatsappUrl: string;
+}
+
+export interface BoothWinnersStats {
+  totalMembersPlayed: number;
+  totalNewSoulSeats: number;
+  tokensHandedOut: number;
+  whatsappSentCount: number;
+  friendsOpenedCount: number;
+  byGame: Record<BoothGameId, number>;
+  byRelationship: Record<string, number>;
+}
+
+export interface BoothWinnersResponse {
+  winners: BoothWinnerRecord[];
+  stats: BoothWinnersStats;
+}
+
+export interface BoothPublicTickerItem {
+  voucherCode: string;
+  memberName: string;
+  friendName: string;
+  relationship: BoothRelationship;
+  seatsReserved: number;
+  gamePlayed: BoothGameId;
+  score: number;
+  createdAt: string;
+}
+
+export interface BoothPublicSummaryResponse {
+  totalMembersPlayed: number;
+  totalNewSoulSeats: number;
+  tokensHandedOut: number;
+  recentWinners: BoothPublicTickerItem[];
+}
+
+/* ==========================================================================
+   /register (Church Member Soul Registration), /present (King of Glory Crown),
+   and /admin (Unified Christmas Registration & Attendance Console)
+   ========================================================================== */
+
+export interface SoulRegistrationInput {
+  memberName: string;
+  memberPhone: string;
+  churchZone: string;
+  soulName: string;
+  memberCount: number;
+  soulPhone: string;
+  address?: string;
+  countryCode?: string;
+  clientRequestId?: string;
+}
+
+export interface SoulRegistrationPatchInput {
+  attended?: boolean;
+  whatsappSent?: boolean;
+  notes?: string;
+  memberCount?: number;
+  churchZone?: string;
+  address?: string;
+}
+
+export interface SoulRegistrationRecord {
+  id: number;
+  confirmationCode: string;
+  memberName: string;
+  memberPhone: string;
+  memberNormalizedPhone: string;
+  churchZone: string;
+  soulName: string;
+  memberCount: number;
+  soulPhone: string;
+  soulNormalizedPhone: string;
+  address: string;
+  attended: boolean;
+  attendedAt: string;
+  whatsappSent: boolean;
+  notes: string;
+  createdAt: string;
+  soulWhatsappUrl: string;
+  memberWhatsappUrl: string;
+}
+
+export interface CrownZoneStat {
+  zone: string;
+  registrationsCount: number;
+  soulsCount: number;
+  attendedSoulsCount: number;
+}
+
+export interface CrownFeedItem {
+  id: string;
+  source: 'register' | 'arcade';
+  confirmationCode: string;
+  memberName: string;
+  churchZone: string;
+  soulName: string;
+  memberCount: number;
+  createdAt: string;
+}
+
+export interface CrownStatusResponse {
+  targetSouls: number;
+  countArcadeLeads: boolean;
+  totalProgressSouls: number;
+  registeredSoulsHeadcount: number;
+  registeredGroupsCount: number;
+  arcadeLeadsCount: number;
+  attendedSoulsCount: number;
+  fillPercentage: number;
+  churchZones: string[];
+  zoneLeaderboard: CrownZoneStat[];
+  recentRegistrations: CrownFeedItem[];
+}
+
+export interface CrownSettingsPatchInput {
+  crownTargetSouls?: number;
+  crownCountArcadeLeads?: boolean;
+  churchZones?: string[];
+}
+
+export interface AdminUnifiedRecord {
+  uid: string;
+  source: 'register' | 'arcade';
+  recordId: number;
+  code: string;
+  soulName: string;
+  soulPhone: string;
+  soulNormalizedPhone: string;
+  memberCount: number;
+  address: string;
+  memberName: string;
+  memberPhone: string;
+  memberNormalizedPhone: string;
+  churchZone: string;
+  gamePlayed: string;
+  score: number;
+  attended: boolean;
+  attendedAt: string;
+  whatsappSent: boolean;
+  giftClaimed: boolean;
+  notes: string;
+  createdAt: string;
+  soulWhatsappUrl: string;
+  memberWhatsappUrl: string;
+}
+
+export interface AdminOverviewStats {
+  crownTargetSouls: number;
+  crownCountArcadeLeads: boolean;
+  crownProgressSouls: number;
+  crownFillPercentage: number;
+  totalUnifiedRecords: number;
+  totalCombinedHeadcount: number;
+  registerRecordsCount: number;
+  registerHeadcount: number;
+  arcadeRecordsCount: number;
+  attendedRecordsCount: number;
+  attendedHeadcount: number;
+  whatsappSentCount: number;
+}
+
+export interface AdminOverviewResponse {
+  stats: AdminOverviewStats;
+  crownStatus: CrownStatusResponse;
+  records: AdminUnifiedRecord[];
+}
 

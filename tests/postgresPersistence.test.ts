@@ -6,9 +6,11 @@ import {
   resolvePostgresConnectionUrl,
   type HydratedSnapshot,
   type PersistedAnalyticsEventRow,
+  type PersistedBoothWinnerRow,
   type PersistedGameRunRow,
   type PersistedLeadRow,
   type PersistedSettingsRow,
+  type PersistedSoulRegistrationRow,
   type PersistedTeamUserRow,
   type QueryablePool,
   type RemotePersistenceAdapter,
@@ -21,6 +23,8 @@ class SharedMemoryPostgresStore implements RemotePersistenceAdapter {
   events = new Map<number, PersistedAnalyticsEventRow>();
   runs = new Map<string, PersistedGameRunRow>();
   teamUsers = new Map<number, PersistedTeamUserRow>();
+  boothWinners = new Map<number, PersistedBoothWinnerRow>();
+  soulRegistrations = new Map<number, PersistedSoulRegistrationRow>();
   closedCount = 0;
 
   async loadSnapshot(): Promise<HydratedSnapshot> {
@@ -32,6 +36,12 @@ class SharedMemoryPostgresStore implements RemotePersistenceAdapter {
         .sort((a, b) => a.started_ms - b.started_ms)
         .map((r) => ({ ...r })),
       teamUsers: [...this.teamUsers.values()]
+        .sort((a, b) => a.id - b.id)
+        .map((r) => ({ ...r })),
+      boothWinners: [...this.boothWinners.values()]
+        .sort((a, b) => a.id - b.id)
+        .map((r) => ({ ...r })),
+      soulRegistrations: [...this.soulRegistrations.values()]
         .sort((a, b) => a.id - b.id)
         .map((r) => ({ ...r })),
     };
@@ -59,6 +69,14 @@ class SharedMemoryPostgresStore implements RemotePersistenceAdapter {
 
   async deleteTeamUser(id: number): Promise<void> {
     this.teamUsers.delete(id);
+  }
+
+  async upsertBoothWinner(row: PersistedBoothWinnerRow): Promise<void> {
+    this.boothWinners.set(row.id, { ...row });
+  }
+
+  async upsertSoulRegistration(row: PersistedSoulRegistrationRow): Promise<void> {
+    this.soulRegistrations.set(row.id, { ...row });
   }
 
   async linkVisitorToLead(leadId: number, visitorId: string): Promise<void> {
@@ -343,6 +361,50 @@ describe('Simulated Railway git push container wipe & PostgreSQL hydration', () 
       })
       .expect(200);
 
+    // Church member plays /winners booth game and claims a VIP seat for a friend
+    const boothRes = await request(c1.app)
+      .post('/api/public/booth-winners')
+      .send({
+        memberName: 'Uncle David',
+        memberPhone: '012-889 1122',
+        countryCode: '60',
+        friendName: 'Mr. Bala',
+        relationship: 'neighbor',
+        seatsReserved: 2,
+        gamePlayed: 'star-plinko',
+        score: 210,
+      })
+      .expect(201);
+
+    await request(c1.app)
+      .patch(`/api/public/booth-winners/${boothRes.body.winner.voucherCode}`)
+      .send({ tokenCollected: true, inviteSent: true })
+      .expect(200);
+
+    // Church member registers 3 souls on /register and admin checks them in as Attended
+    const soulRegRes = await request(c1.app)
+      .post('/api/public/register-soul')
+      .send({
+        memberName: 'Andrew Kannan',
+        memberPhone: '012-778 2708',
+        churchZone: 'Zone 1 · JB Central & City',
+        soulName: 'Rajan & Family',
+        memberCount: 3,
+        soulPhone: '016-998 3344',
+        address: '12 Jalan Tebrau, Johor Bahru',
+      })
+      .expect(201);
+
+    await agent1
+      .patch(`/api/team/soul-registrations/${soulRegRes.body.registration.id}`)
+      .send({ attended: true, whatsappSent: true, notes: 'Checked in at Main Sanctuary Door' })
+      .expect(200);
+
+    await agent1
+      .patch('/api/team/crown-settings')
+      .send({ crownTargetSouls: 300 })
+      .expect(200);
+
     // 2. Simulate git push: destroy Container #1 completely!
     await c1.db.closeAsync();
 
@@ -354,11 +416,14 @@ describe('Simulated Railway git push container wipe & PostgreSQL hydration', () 
     expect(hydration.hydratedRuns).toBe(1);
     expect(hydration.hydratedEvents).toBeGreaterThanOrEqual(2);
     expect(hydration.hydratedTeamUsers).toBe(2);
+    expect(hydration.hydratedBoothWinners).toBe(1);
+    expect(hydration.hydratedSoulRegistrations).toBe(1);
 
     // Public config & custom targets survived the container wipe
     const cfgAfter = await request(c2.app).get('/api/public/config').expect(200);
     expect(cfgAfter.body.settings.venueName).toBe('JB Grand Ballroom, Level 5');
     expect(cfgAfter.body.settings.campaignTargets.leads).toBe(650);
+    expect(cfgAfter.body.settings.crownTargetSouls).toBe(300);
 
     // Public leaderboard rank #1 survived the container wipe
     const boardAfter = await request(c2.app).get('/api/leaderboard').expect(200);
@@ -400,6 +465,30 @@ describe('Simulated Railway git push container wipe & PostgreSQL hydration', () 
       followUpStatus: 'confirmed',
       notes: 'Met at JB City Square; coming with her sister on Dec 24!',
       inviteShares: 1,
+    });
+
+    const boothAfter = await agent2.get('/api/team/booth-winners').expect(200);
+    expect(boothAfter.body.winners).toHaveLength(1);
+    expect(boothAfter.body.winners[0]).toMatchObject({
+      id: 1,
+      memberName: 'Uncle David',
+      friendName: 'Mr. Bala',
+      relationship: 'Neighbor',
+      seatsReserved: 2,
+      gamePlayed: 'star-plinko',
+      score: 210,
+      tokenHandedOut: true,
+      whatsappSent: true,
+    });
+
+    const adminAfter = await agent2.get('/api/team/admin-overview').expect(200);
+    expect(adminAfter.body.stats).toMatchObject({
+      crownTargetSouls: 300,
+      registerRecordsCount: 1,
+      registerHeadcount: 3,
+      arcadeRecordsCount: 1,
+      attendedRecordsCount: 1,
+      attendedHeadcount: 3,
     });
 
     const masterAfter = await agent2.get('/api/team/master-stats').expect(200);

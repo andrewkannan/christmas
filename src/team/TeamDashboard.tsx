@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import {
   GAME_LABELS_MAP,
+  type BoothWinnerPatchInput,
+  type BoothWinnerRecord,
+  type BoothWinnersStats,
   type EventSettings,
   type LeadPatchInput,
   type MasterAnalyticsResponse,
@@ -11,9 +14,11 @@ import {
 } from '../types.ts';
 import {
   fetchMasterAnalytics,
+  fetchTeamBoothWinners,
   fetchTeamLeads,
   fetchTeamUsers,
   logoutTeam,
+  patchTeamBoothWinner,
   patchTeamLead,
 } from '../lib/api.ts';
 import {
@@ -39,6 +44,7 @@ import { MasterAnalytics } from './MasterAnalytics.tsx';
 import { QrBoardMaker } from './QrBoardMaker.tsx';
 import { EventSettingsForm } from './EventSettingsForm.tsx';
 import { TeamMembersPanel } from './TeamMembersPanel.tsx';
+import { BoothWinnersPanel } from './BoothWinnersPanel.tsx';
 import { ContactCrmDialog } from './ContactCrmDialog.tsx';
 import {
   ActivityLogDialog,
@@ -67,12 +73,27 @@ export function TeamDashboard({
   onLoggedOut,
 }: TeamDashboardProps) {
   const uid = useId();
-  const [activeTab, setActiveTab] = useState<'master' | 'leads' | 'members' | 'qr' | 'settings'>(
-    'master'
-  );
+  const [activeTab, setActiveTab] = useState<
+    'master' | 'leads' | 'booth' | 'members' | 'qr' | 'settings'
+  >('master');
   const [masterData, setMasterData] = useState<MasterAnalyticsResponse | null>(null);
   const [leads, setLeads] = useState<TeamLeadRecord[]>([]);
   const [teamUsers, setTeamUsers] = useState<TeamMemberRecord[]>([]);
+  const [boothWinners, setBoothWinners] = useState<BoothWinnerRecord[]>([]);
+  const [boothStats, setBoothStats] = useState<BoothWinnersStats>({
+    totalMembersPlayed: 0,
+    totalNewSoulSeats: 0,
+    tokensHandedOut: 0,
+    whatsappSentCount: 0,
+    friendsOpenedCount: 0,
+    byGame: {
+      'star-plinko': 0,
+      'wise-gifts': 0,
+      'blessing-basket': 0,
+      'tree-light': 0,
+    },
+    byRelationship: {},
+  });
   const [qrPrefillName, setQrPrefillName] = useState<string | undefined>(() =>
     currentUser?.authMethod === 'passcode' ? currentUser.name : undefined
   );
@@ -110,15 +131,18 @@ export function TeamDashboard({
 
   const loadData = useCallback(async () => {
     try {
-      const [leadsRes, masterRes, usersRes] = await Promise.all([
+      const [leadsRes, masterRes, usersRes, boothRes] = await Promise.all([
         fetchTeamLeads(),
         fetchMasterAnalytics(),
         fetchTeamUsers(),
+        fetchTeamBoothWinners(),
       ]);
       setLeads(leadsRes.leads);
       setStats(leadsRes.stats);
       setMasterData(masterRes);
       setTeamUsers(usersRes.users);
+      setBoothWinners(boothRes.winners);
+      setBoothStats(boothRes.stats);
       setLastSyncedAt(
         new Date().toLocaleTimeString([], {
           hour: '2-digit',
@@ -143,7 +167,12 @@ export function TeamDashboard({
     void loadData();
     if (!autoSync) return;
     const interval = setInterval(() => {
-      if (activeTab === 'master' || activeTab === 'leads' || activeTab === 'members') {
+      if (
+        activeTab === 'master' ||
+        activeTab === 'leads' ||
+        activeTab === 'booth' ||
+        activeTab === 'members'
+      ) {
         void loadData();
       }
     }, 5000);
@@ -237,6 +266,34 @@ export function TeamDashboard({
           })
           .catch(() => {});
         return res.lead;
+      } catch (err) {
+        void loadData();
+        throw err;
+      }
+    },
+    [loadData]
+  );
+
+  const handlePatchBoothWinner = useCallback(
+    async (
+      winnerId: number,
+      patch: BoothWinnerPatchInput
+    ): Promise<BoothWinnerRecord | null> => {
+      setBoothWinners((prev) =>
+        prev.map((item) => (item.id === winnerId ? { ...item, ...patch } : item))
+      );
+      try {
+        const res = await patchTeamBoothWinner(winnerId, patch);
+        setBoothWinners((prev) =>
+          prev.map((item) => (item.id === winnerId ? res.winner : item))
+        );
+        void fetchTeamBoothWinners()
+          .then((boothRes) => {
+            setBoothWinners(boothRes.winners);
+            setBoothStats(boothRes.stats);
+          })
+          .catch(() => {});
+        return res.winner;
       } catch (err) {
         void loadData();
         throw err;
@@ -368,6 +425,9 @@ export function TeamDashboard({
           >
             {autoSync ? 'Pause Auto-Sync' : 'Resume Auto-Sync'}
           </button>
+          <a href="/winners" className="btn btn--ghost btn--sm">
+            <span>Church Booth (/winners)</span>
+          </a>
           <a href="/storyboard" className="btn btn--ghost btn--sm">
             <span>Promo Storyboard</span>
           </a>
@@ -435,6 +495,15 @@ export function TeamDashboard({
         </button>
         <button
           type="button"
+          className={`btn btn--sm ${activeTab === 'booth' ? 'btn--gold' : 'btn--ghost'}`}
+          aria-pressed={activeTab === 'booth'}
+          onClick={() => setActiveTab('booth')}
+        >
+          <GiftBoxIcon size={16} />
+          <span>Booth Winners ({boothStats.totalNewSoulSeats} Seats)</span>
+        </button>
+        <button
+          type="button"
           className={`btn btn--sm ${activeTab === 'members' ? 'btn--gold' : 'btn--ghost'}`}
           aria-pressed={activeTab === 'members'}
           onClick={() => setActiveTab('members')}
@@ -484,7 +553,17 @@ export function TeamDashboard({
           />
         ) : null)}
 
-      {/* View 2: Team Members & Passcode Management */}
+      {/* View 2: Church Booth (/winners) Member Invites */}
+      {activeTab === 'booth' && (
+        <BoothWinnersPanel
+          winners={boothWinners}
+          stats={boothStats}
+          settings={settings}
+          onPatchWinner={handlePatchBoothWinner}
+        />
+      )}
+
+      {/* View 3: Team Members & Passcode Management */}
       {activeTab === 'members' && (
         <TeamMembersPanel
           currentUser={currentUser}
@@ -498,7 +577,7 @@ export function TeamDashboard({
         />
       )}
 
-      {/* View 3: QR Board Maker */}
+      {/* View 4: QR Board Maker */}
       {activeTab === 'qr' && (
         <QrBoardMaker
           settings={settings}

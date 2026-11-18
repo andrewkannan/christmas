@@ -2,7 +2,15 @@ import type {
   ActiveGameId,
   ActivityLogCategory,
   ActivityLogResponse,
+  AdminOverviewResponse,
+  BoothPublicSummaryResponse,
+  BoothWinnerPatchInput,
+  BoothWinnerRecord,
+  BoothWinnersResponse,
+  BoothWinnerSubmissionInput,
   CreateHockeyRoomResponse,
+  CrownSettingsPatchInput,
+  CrownStatusResponse,
   EventSettings,
   FullGameLeaderboard,
   HockeyRoomSnapshot,
@@ -12,6 +20,9 @@ import type {
   MasterAnalyticsResponse,
   PublicClaimResult,
   RunFinishResult,
+  SoulRegistrationInput,
+  SoulRegistrationPatchInput,
+  SoulRegistrationRecord,
   TeamLeadRecord,
   TeamLeadsResponse,
   TeamMemberRecord,
@@ -300,3 +311,104 @@ export async function saveTeamEventSettings(settings: EventSettings): Promise<{
   });
   return parseJsonOrThrow(res);
 }
+
+export async function fetchBoothPublicSummary(): Promise<BoothPublicSummaryResponse> {
+  const res = await fetch('/api/public/booth-summary');
+  return parseJsonOrThrow(res);
+}
+
+export async function fetchBoothWinnerByVoucher(
+  voucherCode: string
+): Promise<{ winner: BoothWinnerRecord }> {
+  const res = await fetch(`/api/public/booth-winners/${encodeURIComponent(voucherCode)}`);
+  return parseJsonOrThrow(res);
+}
+
+export async function submitBoothWinner(
+  payload: BoothWinnerSubmissionInput
+): Promise<{ winner: BoothWinnerRecord }> {
+  const res = await fetch('/api/public/booth-winners', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function patchBoothWinnerPublic(
+  voucherCode: string,
+  patch: { tokenHandedOut?: boolean; whatsappSent?: boolean; friendOpened?: boolean }
+): Promise<{ winner: BoothWinnerRecord }> {
+  const res = await fetch(`/api/public/booth-winners/${encodeURIComponent(voucherCode)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function fetchTeamBoothWinners(): Promise<BoothWinnersResponse> {
+  const res = await fetch('/api/team/booth-winners', { credentials: 'include' });
+  return parseJsonOrThrow(res);
+}
+
+export async function patchTeamBoothWinner(
+  id: number,
+  patch: BoothWinnerPatchInput
+): Promise<{ winner: BoothWinnerRecord }> {
+  const res = await fetch(`/api/team/booth-winners/${id}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function fetchCrownStatus(): Promise<CrownStatusResponse> {
+  const res = await fetch('/api/public/crown-status');
+  return parseJsonOrThrow(res);
+}
+
+export async function submitSoulRegistration(
+  payload: SoulRegistrationInput
+): Promise<{ registration: SoulRegistrationRecord; crownStatus: CrownStatusResponse }> {
+  const res = await fetch('/api/public/register-soul', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function fetchAdminOverview(): Promise<AdminOverviewResponse> {
+  const res = await fetch('/api/team/admin-overview', { credentials: 'include' });
+  return parseJsonOrThrow(res);
+}
+
+export async function patchSoulRegistration(
+  id: number,
+  patch: SoulRegistrationPatchInput
+): Promise<{ registration: SoulRegistrationRecord; crownStatus: CrownStatusResponse }> {
+  const res = await fetch(`/api/team/soul-registrations/${id}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function patchCrownSettings(
+  patch: CrownSettingsPatchInput
+): Promise<{ settings: EventSettings; crownStatus: CrownStatusResponse }> {
+  const res = await fetch('/api/team/crown-settings', {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  return parseJsonOrThrow(res);
+}
+
+

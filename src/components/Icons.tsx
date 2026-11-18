@@ -812,5 +812,34 @@ export function KeyPasscodeIcon({ size = 16, className }: IconProps) {
   );
 }
 
+export function DownloadIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <path
+        d="M12 3.5V15.5M12 15.5L7.5 11M12 15.5L16.5 11M4.5 19.5H19.5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function RefreshIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" fill="none">
+      <path
+        d="M20 11A8 8 0 0 0 5.6 6.3L3.5 8.5M3.5 4V8.5H8M4 13A8 8 0 0 0 18.4 17.7L20.5 15.5M20.5 20V15.5H16"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+
 
 

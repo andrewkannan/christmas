@@ -4,12 +4,28 @@ import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import {
   DEFAULT_CAMPAIGN_TARGETS,
+  DEFAULT_CHURCH_ZONES,
+  GAME_LABELS_MAP,
   type ActiveGameId,
   type ActivityLogCategory,
   type ActivityLogEntry,
   type ActivityLogResponse,
+  type AdminOverviewResponse,
+  type AdminUnifiedRecord,
   type AnalyticsEventType,
+  type BoothGameId,
+  type BoothPublicSummaryResponse,
+  type BoothRelationship,
+  type BoothWinnerPatchInput,
+  type BoothWinnerRecord,
+  type BoothWinnersResponse,
+  type BoothWinnerSubmissionInput,
+  type BoothWinnersStats,
   type CampaignTargets,
+  type CrownFeedItem,
+  type CrownSettingsPatchInput,
+  type CrownStatusResponse,
+  type CrownZoneStat,
   type EventSettings,
   type FollowUpStatus,
   type FullGameLeaderboard,
@@ -21,6 +37,9 @@ import {
   type PublicClaimResult,
   type RecentActivityItem,
   type RunFinishResult,
+  type SoulRegistrationInput,
+  type SoulRegistrationPatchInput,
+  type SoulRegistrationRecord,
   type StorageStatusInfo,
   type TeamDashboardStats,
   type TeamLeadRecord,
@@ -45,11 +64,16 @@ import {
   buildPersonalPassUrl,
   buildPersonalWhatsAppUrl,
   buildReminderWhatsAppUrl,
+  formatReadableEventDate,
+  normalizePhoneForWhatsApp,
+  sanitizeCsvCell,
 } from './phone.ts';
 import type {
   PersistedAnalyticsEventRow,
+  PersistedBoothWinnerRow,
   PersistedGameRunRow,
   PersistedLeadRow,
+  PersistedSoulRegistrationRow,
   PersistedTeamUserRow,
   RemotePersistenceAdapter,
 } from './postgres.ts';
@@ -80,6 +104,9 @@ export const DEFAULT_EVENT_SETTINGS: EventSettings = {
     'Hey {name}! 🎄 So fun playing the Christmas Arcade with you earlier ({volunteer} here!).\n\nHere is your personal invite to *{eventTitle}*:\n📅 {eventDate}\n📍 {venueName} ({venueAddress})\n\n🎟 Open your E-Ticket & play more games anytime: {inviteUrl}\n\nBring a friend along—we would love to host you! ✨',
   reminderTemplate: DEFAULT_REMINDER_TEMPLATE,
   campaignTargets: { ...DEFAULT_CAMPAIGN_TARGETS },
+  crownTargetSouls: 500,
+  crownCountArcadeLeads: true,
+  churchZones: [...DEFAULT_CHURCH_ZONES],
 };
 
 interface RawLeadRow {
@@ -101,6 +128,8 @@ interface RawLeadRow {
   notes: string;
   notes_updated_at: string;
   created_at: string;
+  attended?: number;
+  attended_at?: string;
 }
 
 interface LeadEventAggRow {
@@ -197,15 +226,21 @@ export class ArcadeDatabase {
     hydratedEvents: number;
     hydratedRuns: number;
     hydratedTeamUsers: number;
+    hydratedBoothWinners: number;
+    hydratedSoulRegistrations: number;
   }> {
     const snap = await adapter.loadSnapshot();
     const snapTeamUsers = snap.teamUsers ?? [];
+    const snapBoothWinners = snap.boothWinners ?? [];
+    const snapSoulRegistrations = snap.soulRegistrations ?? [];
     const remoteHasData = Boolean(
       snap.settings ||
         snap.leads.length > 0 ||
         snap.events.length > 0 ||
         snap.runs.length > 0 ||
-        snapTeamUsers.length > 0
+        snapTeamUsers.length > 0 ||
+        snapBoothWinners.length > 0 ||
+        snapSoulRegistrations.length > 0
     );
 
     if (remoteHasData) {
@@ -216,8 +251,10 @@ export class ArcadeDatabase {
           DELETE FROM analytics_events;
           DELETE FROM leads;
           DELETE FROM team_users;
+          DELETE FROM booth_winners;
+          DELETE FROM soul_registrations;
           DELETE FROM settings;
-          DELETE FROM sqlite_sequence WHERE name IN ('leads', 'analytics_events', 'team_users');
+          DELETE FROM sqlite_sequence WHERE name IN ('leads', 'analytics_events', 'team_users', 'booth_winners', 'soul_registrations');
         `);
 
         if (snap.settings) {
@@ -235,8 +272,8 @@ export class ArcadeDatabase {
             id, client_request_id, visitor_id, redemption_code, claim_token,
             name, raw_phone, normalized_phone, game_played, score, target_score,
             volunteer_name, gift_claimed, whatsapp_sent, followup_status,
-            notes, notes_updated_at, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            notes, notes_updated_at, created_at, attended, attended_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         for (const l of snap.leads) {
           insertLead.run(
@@ -257,7 +294,9 @@ export class ArcadeDatabase {
             l.followup_status || 'new',
             l.notes,
             l.notes_updated_at,
-            l.created_at
+            l.created_at,
+            l.attended ? 1 : 0,
+            l.attended_at || ''
           );
         }
 
@@ -322,6 +361,66 @@ export class ArcadeDatabase {
           );
         }
 
+        const insertBoothWinner = this.db.prepare(`
+          INSERT INTO booth_winners (
+            id, client_request_id, voucher_code, member_name, member_phone,
+            normalized_phone, friend_name, relationship, seats_reserved,
+            friend_phone, game_played, score, token_handed_out,
+            whatsapp_sent, friend_opened, notes, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        for (const bw of snapBoothWinners) {
+          insertBoothWinner.run(
+            bw.id,
+            bw.client_request_id,
+            bw.voucher_code,
+            bw.member_name,
+            bw.member_phone,
+            bw.normalized_phone,
+            bw.friend_name,
+            bw.relationship || 'Friend',
+            bw.seats_reserved || 1,
+            bw.friend_phone || '',
+            bw.game_played,
+            bw.score || 0,
+            bw.token_handed_out ? 1 : 0,
+            bw.whatsapp_sent ? 1 : 0,
+            bw.friend_opened ? 1 : 0,
+            bw.notes || '',
+            bw.created_at
+          );
+        }
+
+        const insertSoulReg = this.db.prepare(`
+          INSERT INTO soul_registrations (
+            id, client_request_id, confirmation_code, member_name, member_phone,
+            member_normalized_phone, church_zone, soul_name, member_count,
+            soul_phone, soul_normalized_phone, address, attended,
+            attended_at, whatsapp_sent, notes, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        for (const sr of snapSoulRegistrations) {
+          insertSoulReg.run(
+            sr.id,
+            sr.client_request_id,
+            sr.confirmation_code,
+            sr.member_name,
+            sr.member_phone,
+            sr.member_normalized_phone,
+            sr.church_zone,
+            sr.soul_name,
+            Math.max(1, sr.member_count || 1),
+            sr.soul_phone,
+            sr.soul_normalized_phone,
+            sr.address || '',
+            sr.attended ? 1 : 0,
+            sr.attended_at || '',
+            sr.whatsapp_sent ? 1 : 0,
+            sr.notes || '',
+            sr.created_at
+          );
+        }
+
         this.db.exec('COMMIT');
       } catch (err) {
         this.db.exec('ROLLBACK');
@@ -359,6 +458,22 @@ export class ArcadeDatabase {
       for (const u of localTeamUsers) {
         await adapter.upsertTeamUser(u);
       }
+      if (adapter.upsertBoothWinner) {
+        const localBoothWinners = this.db
+          .prepare('SELECT * FROM booth_winners ORDER BY id ASC')
+          .all() as unknown as PersistedBoothWinnerRow[];
+        for (const bw of localBoothWinners) {
+          await adapter.upsertBoothWinner(bw);
+        }
+      }
+      if (adapter.upsertSoulRegistration) {
+        const localSoulRegs = this.db
+          .prepare('SELECT * FROM soul_registrations ORDER BY id ASC')
+          .all() as unknown as PersistedSoulRegistrationRow[];
+        for (const sr of localSoulRegs) {
+          await adapter.upsertSoulRegistration(sr);
+        }
+      }
     }
 
     this.remote = adapter;
@@ -369,6 +484,8 @@ export class ArcadeDatabase {
       hydratedEvents: snap.events.length,
       hydratedRuns: snap.runs.length,
       hydratedTeamUsers: snapTeamUsers.length,
+      hydratedBoothWinners: snapBoothWinners.length,
+      hydratedSoulRegistrations: snapSoulRegistrations.length,
     };
   }
 
@@ -437,6 +554,34 @@ export class ArcadeDatabase {
     this.enqueueRemote((remote) => remote.deleteTeamUser(userId));
   }
 
+  private syncBoothWinnerById(winnerId: number): void {
+    if (!this.remote) return;
+    const row = this.db
+      .prepare('SELECT * FROM booth_winners WHERE id = ?')
+      .get(winnerId) as unknown as PersistedBoothWinnerRow | undefined;
+    if (row) {
+      this.enqueueRemote(async (remote) => {
+        if (remote.upsertBoothWinner) {
+          await remote.upsertBoothWinner(row);
+        }
+      });
+    }
+  }
+
+  private syncSoulRegistrationById(regId: number): void {
+    if (!this.remote) return;
+    const row = this.db
+      .prepare('SELECT * FROM soul_registrations WHERE id = ?')
+      .get(regId) as unknown as PersistedSoulRegistrationRow | undefined;
+    if (row) {
+      this.enqueueRemote(async (remote) => {
+        if (remote.upsertSoulRegistration) {
+          await remote.upsertSoulRegistration(row);
+        }
+      });
+    }
+  }
+
   async flushPersistence(): Promise<void> {
     await this.syncChain;
   }
@@ -470,7 +615,9 @@ export class ArcadeDatabase {
         followup_status TEXT NOT NULL DEFAULT 'new',
         notes TEXT NOT NULL DEFAULT '',
         notes_updated_at TEXT NOT NULL DEFAULT '',
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        attended INTEGER NOT NULL DEFAULT 0,
+        attended_at TEXT NOT NULL DEFAULT ''
       );
 
       CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads(created_at DESC);
@@ -524,6 +671,52 @@ export class ArcadeDatabase {
       );
 
       CREATE INDEX IF NOT EXISTS idx_team_users_digest ON team_users(passcode_digest);
+
+      CREATE TABLE IF NOT EXISTS booth_winners (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_request_id TEXT NOT NULL UNIQUE,
+        voucher_code TEXT NOT NULL UNIQUE,
+        member_name TEXT NOT NULL,
+        member_phone TEXT NOT NULL,
+        normalized_phone TEXT NOT NULL,
+        friend_name TEXT NOT NULL,
+        relationship TEXT NOT NULL DEFAULT 'Friend',
+        seats_reserved INTEGER NOT NULL DEFAULT 1,
+        friend_phone TEXT NOT NULL DEFAULT '',
+        game_played TEXT NOT NULL,
+        score INTEGER NOT NULL DEFAULT 0,
+        token_handed_out INTEGER NOT NULL DEFAULT 0,
+        whatsapp_sent INTEGER NOT NULL DEFAULT 0,
+        friend_opened INTEGER NOT NULL DEFAULT 0,
+        notes TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_booth_winners_created_at ON booth_winners(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_booth_winners_voucher ON booth_winners(voucher_code);
+
+      CREATE TABLE IF NOT EXISTS soul_registrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_request_id TEXT NOT NULL UNIQUE,
+        confirmation_code TEXT NOT NULL UNIQUE,
+        member_name TEXT NOT NULL,
+        member_phone TEXT NOT NULL,
+        member_normalized_phone TEXT NOT NULL,
+        church_zone TEXT NOT NULL,
+        soul_name TEXT NOT NULL,
+        member_count INTEGER NOT NULL DEFAULT 1,
+        soul_phone TEXT NOT NULL,
+        soul_normalized_phone TEXT NOT NULL,
+        address TEXT NOT NULL DEFAULT '',
+        attended INTEGER NOT NULL DEFAULT 0,
+        attended_at TEXT NOT NULL DEFAULT '',
+        whatsapp_sent INTEGER NOT NULL DEFAULT 0,
+        notes TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_soul_registrations_created_at ON soul_registrations(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_soul_registrations_zone ON soul_registrations(church_zone);
     `);
 
     // Safe backwards-compatible migrations for pre-existing leads tables
@@ -539,6 +732,12 @@ export class ArcadeDatabase {
     }
     if (!cols.some((c) => c.name === 'notes_updated_at')) {
       this.db.exec("ALTER TABLE leads ADD COLUMN notes_updated_at TEXT NOT NULL DEFAULT ''");
+    }
+    if (!cols.some((c) => c.name === 'attended')) {
+      this.db.exec('ALTER TABLE leads ADD COLUMN attended INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!cols.some((c) => c.name === 'attended_at')) {
+      this.db.exec("ALTER TABLE leads ADD COLUMN attended_at TEXT NOT NULL DEFAULT ''");
     }
 
     const existing = this.db.prepare('SELECT json FROM settings WHERE id = 1').get() as
@@ -583,6 +782,7 @@ export class ArcadeDatabase {
       return {
         ...DEFAULT_EVENT_SETTINGS,
         campaignTargets: { ...DEFAULT_CAMPAIGN_TARGETS },
+        churchZones: [...DEFAULT_CHURCH_ZONES],
       };
     }
     try {
@@ -591,15 +791,27 @@ export class ArcadeDatabase {
         ...DEFAULT_CAMPAIGN_TARGETS,
         ...(parsed.campaignTargets ?? {}),
       };
+      const mergedZones =
+        Array.isArray(parsed.churchZones) && parsed.churchZones.length > 0
+          ? parsed.churchZones
+          : [...DEFAULT_CHURCH_ZONES];
       return {
         ...DEFAULT_EVENT_SETTINGS,
         ...parsed,
         campaignTargets: mergedTargets,
+        crownTargetSouls:
+          typeof parsed.crownTargetSouls === 'number' && parsed.crownTargetSouls >= 1
+            ? Math.round(parsed.crownTargetSouls)
+            : 500,
+        crownCountArcadeLeads:
+          typeof parsed.crownCountArcadeLeads === 'boolean' ? parsed.crownCountArcadeLeads : true,
+        churchZones: mergedZones,
       };
     } catch {
       return {
         ...DEFAULT_EVENT_SETTINGS,
         campaignTargets: { ...DEFAULT_CAMPAIGN_TARGETS },
+        churchZones: [...DEFAULT_CHURCH_ZONES],
       };
     }
   }
@@ -615,6 +827,18 @@ export class ArcadeDatabase {
         ...(current.campaignTargets ?? {}),
         ...(nextSettings.campaignTargets ?? {}),
       },
+      crownTargetSouls:
+        typeof nextSettings.crownTargetSouls === 'number' && nextSettings.crownTargetSouls >= 1
+          ? Math.round(nextSettings.crownTargetSouls)
+          : current.crownTargetSouls ?? 500,
+      crownCountArcadeLeads:
+        typeof nextSettings.crownCountArcadeLeads === 'boolean'
+          ? nextSettings.crownCountArcadeLeads
+          : current.crownCountArcadeLeads ?? true,
+      churchZones:
+        Array.isArray(nextSettings.churchZones) && nextSettings.churchZones.length > 0
+          ? nextSettings.churchZones.map((z) => z.trim()).filter(Boolean)
+          : current.churchZones ?? [...DEFAULT_CHURCH_ZONES],
     };
     const updatedAt = new Date().toISOString();
     const json = JSON.stringify(merged);
@@ -936,6 +1160,8 @@ export class ArcadeDatabase {
         notes: row.notes,
         notesUpdatedAt: row.notes_updated_at || '',
         createdAt: row.created_at,
+        attended: Boolean(row.attended),
+        attendedAt: row.attended_at || '',
         totalGamesPlayed: Math.max(1, agg?.total_games ?? 1),
         gamesAfterInteraction: afterGames,
         inviteShares: shares,
@@ -1014,6 +1240,14 @@ export class ArcadeDatabase {
       patch.volunteerName !== undefined
         ? patch.volunteerName.trim().slice(0, 40)
         : existing.volunteer_name;
+    const nextAttended =
+      patch.attended !== undefined ? (patch.attended ? 1 : 0) : (existing.attended ?? 0);
+    const nextAttendedAt =
+      patch.attended !== undefined
+        ? patch.attended
+          ? existing.attended_at || new Date(this.now()).toISOString()
+          : ''
+        : existing.attended_at || '';
 
     this.db
       .prepare(
@@ -1023,7 +1257,9 @@ export class ArcadeDatabase {
              followup_status = ?,
              notes = ?,
              notes_updated_at = ?,
-             volunteer_name = ?
+             volunteer_name = ?,
+             attended = ?,
+             attended_at = ?
          WHERE id = ?`
       )
       .run(
@@ -1033,6 +1269,8 @@ export class ArcadeDatabase {
         nextNotes,
         nextNotesUpdatedAt,
         nextVolunteer,
+        nextAttended,
+        nextAttendedAt,
         id
       );
     this.syncLeadById(id);
@@ -2138,6 +2376,949 @@ export class ArcadeDatabase {
       createdAt: row.created_at,
       lastLoginAt: row.last_login_at || '',
     };
+  }
+
+  private generateUniqueBoothVoucherCode(): string {
+    const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    for (let attempt = 0; attempt < 25; attempt += 1) {
+      let suffix = '';
+      const bytes = crypto.randomBytes(4);
+      for (let i = 0; i < 4; i += 1) {
+        suffix += alphabet[bytes[i]! % alphabet.length];
+      }
+      const candidate = `VIP-${suffix}`;
+      const exists = this.db
+        .prepare('SELECT id FROM booth_winners WHERE voucher_code = ?')
+        .get(candidate);
+      if (!exists) return candidate;
+    }
+    return `VIP-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+  }
+
+  private toBoothWinnerRecord(
+    row: PersistedBoothWinnerRow,
+    settings: EventSettings,
+    publicBaseUrl: string
+  ): BoothWinnerRecord {
+    const cleanBase = publicBaseUrl.replace(/\/+$/, '');
+    const friendInviteUrl = `${cleanBase}/?invitedBy=${encodeURIComponent(
+      row.member_name
+    )}&vip=${encodeURIComponent(row.friend_name)}&booth=${encodeURIComponent(row.voucher_code)}`;
+    const formattedDate = formatReadableEventDate(settings.eventDateIso);
+    const seatLabel =
+      row.seats_reserved <= 1
+        ? '1 Reserved VIP Seat'
+        : `${row.seats_reserved} Reserved VIP Seats`;
+
+    const friendMessage = [
+      `Hey ${row.friend_name}! 🎄`,
+      `I just played the Christmas Booth game at *${settings.churchName}* and won *${seatLabel} + a ${settings.giftDescription}* specially for you for our *${settings.eventTitle}*!`,
+      '',
+      `📅 ${formattedDate}`,
+      `📍 ${settings.venueName} (${settings.venueAddress})`,
+      '',
+      `🎟 Open your personal VIP Invitation & play our Christmas Arcade anytime:`,
+      friendInviteUrl,
+      '',
+      `I also have your physical gift token & invitation card for you—would love to host you! ✨`,
+    ].join('\n');
+
+    let friendWhatsappUrl = `https://wa.me/?text=${encodeURIComponent(friendMessage)}`;
+    if (row.friend_phone.trim()) {
+      const friendPhoneCheck = normalizePhoneForWhatsApp(
+        row.friend_phone,
+        settings.defaultCountryCode || '60'
+      );
+      if (friendPhoneCheck.valid && friendPhoneCheck.normalizedPhone) {
+        friendWhatsappUrl = `https://wa.me/${friendPhoneCheck.normalizedPhone}?text=${encodeURIComponent(
+          friendMessage
+        )}`;
+      }
+    }
+
+    const memberFollowupMessage = [
+      `Hi ${row.member_name}! 🙌`,
+      `Thank you for playing at our *${settings.churchName}* Christmas Booth and winning *${seatLabel}* (Voucher *${row.voucher_code}*) for your ${row.relationship.toLowerCase()} *${row.friend_name}*!`,
+      '',
+      `Here is ${row.friend_name}'s personal VIP invitation link you can forward anytime:`,
+      friendInviteUrl,
+      '',
+      `Praying with you as you bring ${row.friend_name} to *${settings.eventTitle}* (${formattedDate})! 🎄✨`,
+    ].join('\n');
+
+    const memberFollowupWhatsappUrl = `https://wa.me/${row.normalized_phone}?text=${encodeURIComponent(
+      memberFollowupMessage
+    )}`;
+
+    return {
+      id: row.id,
+      voucherCode: row.voucher_code,
+      memberName: row.member_name,
+      memberPhone: row.member_phone,
+      normalizedPhone: row.normalized_phone,
+      friendName: row.friend_name,
+      relationship: (['Friend', 'Family', 'Colleague', 'Neighbor'].includes(row.relationship)
+        ? row.relationship
+        : 'Friend') as BoothRelationship,
+      seatsReserved: Math.max(1, Number(row.seats_reserved) || 1),
+      friendPhone: row.friend_phone || '',
+      gamePlayed: row.game_played as BoothGameId,
+      score: Number(row.score) || 0,
+      tokenHandedOut: Boolean(row.token_handed_out),
+      whatsappSent: Boolean(row.whatsapp_sent),
+      friendOpened: Boolean(row.friend_opened),
+      notes: row.notes || '',
+      createdAt: row.created_at,
+      friendInviteUrl,
+      friendWhatsappUrl,
+      memberFollowupWhatsappUrl,
+    };
+  }
+
+  createBoothWinner(
+    input: BoothWinnerSubmissionInput,
+    publicBaseUrl: string
+  ):
+    | { ok: true; winner: BoothWinnerRecord; created: boolean }
+    | { ok: false; status: number; error: string } {
+    const memberName = input.memberName.trim();
+    if (!memberName || memberName.length > 80) {
+      return {
+        ok: false,
+        status: 400,
+        error: 'Please enter your name (1–80 characters).',
+      };
+    }
+
+    const friendName = input.friendName.trim();
+    if (!friendName || friendName.length > 80) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Please enter the friend or family member's name you are winning this seat for.",
+      };
+    }
+
+    const phoneResult = normalizePhoneForWhatsApp(input.memberPhone, input.countryCode || '60');
+    if (!phoneResult.valid) {
+      return {
+        ok: false,
+        status: 400,
+        error: phoneResult.error || 'Please enter a valid mobile number.',
+      };
+    }
+
+    const settings = this.getSettings();
+    const existingByClientReq = this.db
+      .prepare('SELECT * FROM booth_winners WHERE client_request_id = ?')
+      .get(input.clientRequestId) as unknown as PersistedBoothWinnerRow | undefined;
+
+    if (existingByClientReq) {
+      return {
+        ok: true,
+        winner: this.toBoothWinnerRecord(existingByClientReq, settings, publicBaseUrl),
+        created: false,
+      };
+    }
+
+    const voucherCode = this.generateUniqueBoothVoucherCode();
+    const seatsReserved = Math.min(10, Math.max(1, Math.round(Number(input.seatsReserved) || 1)));
+    const relationship: BoothRelationship = ['Friend', 'Family', 'Colleague', 'Neighbor'].includes(
+      input.relationship
+    )
+      ? input.relationship
+      : 'Friend';
+    const friendPhone = (input.friendPhone || '').trim().slice(0, 30);
+    const createdAt = new Date(this.now()).toISOString();
+
+    const info = this.db
+      .prepare(
+        `INSERT INTO booth_winners (
+           client_request_id, voucher_code, member_name, member_phone,
+           normalized_phone, friend_name, relationship, seats_reserved,
+           friend_phone, game_played, score, token_handed_out,
+           whatsapp_sent, friend_opened, notes, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, '', ?)`
+      )
+      .run(
+        input.clientRequestId,
+        voucherCode,
+        memberName,
+        input.memberPhone.trim(),
+        phoneResult.normalizedPhone,
+        friendName,
+        relationship,
+        seatsReserved,
+        friendPhone,
+        input.gamePlayed,
+        Math.max(0, Math.round(input.score || 0)),
+        createdAt
+      );
+
+    const newId = Number(info.lastInsertRowid);
+    this.syncBoothWinnerById(newId);
+
+    const createdRow = this.db
+      .prepare('SELECT * FROM booth_winners WHERE id = ?')
+      .get(newId) as unknown as PersistedBoothWinnerRow;
+
+    return {
+      ok: true,
+      winner: this.toBoothWinnerRecord(createdRow, settings, publicBaseUrl),
+      created: true,
+    };
+  }
+
+  getBoothWinnerByVoucher(voucherCode: string, publicBaseUrl: string): BoothWinnerRecord | null {
+    const cleanCode = voucherCode.trim().toUpperCase();
+    if (!cleanCode) return null;
+    const row = this.db
+      .prepare('SELECT * FROM booth_winners WHERE UPPER(voucher_code) = ?')
+      .get(cleanCode) as unknown as PersistedBoothWinnerRow | undefined;
+    if (!row) return null;
+    return this.toBoothWinnerRecord(row, this.getSettings(), publicBaseUrl);
+  }
+
+  patchBoothWinnerByVoucher(
+    voucherCode: string,
+    patch: { tokenHandedOut?: boolean; whatsappSent?: boolean; friendOpened?: boolean },
+    publicBaseUrl: string
+  ): BoothWinnerRecord | null {
+    const cleanCode = voucherCode.trim().toUpperCase();
+    if (!cleanCode) return null;
+    const row = this.db
+      .prepare('SELECT * FROM booth_winners WHERE UPPER(voucher_code) = ?')
+      .get(cleanCode) as unknown as PersistedBoothWinnerRow | undefined;
+    if (!row) return null;
+
+    const nextToken =
+      patch.tokenHandedOut !== undefined
+        ? patch.tokenHandedOut
+          ? 1
+          : 0
+        : row.token_handed_out;
+    const nextWa =
+      patch.whatsappSent !== undefined ? (patch.whatsappSent ? 1 : 0) : row.whatsapp_sent;
+    const nextOpened =
+      patch.friendOpened !== undefined ? (patch.friendOpened ? 1 : 0) : row.friend_opened;
+
+    this.db
+      .prepare(
+        `UPDATE booth_winners
+         SET token_handed_out = ?, whatsapp_sent = ?, friend_opened = ?
+         WHERE id = ?`
+      )
+      .run(nextToken, nextWa, nextOpened, row.id);
+
+    this.syncBoothWinnerById(row.id);
+
+    const updated = this.db
+      .prepare('SELECT * FROM booth_winners WHERE id = ?')
+      .get(row.id) as unknown as PersistedBoothWinnerRow;
+    return this.toBoothWinnerRecord(updated, this.getSettings(), publicBaseUrl);
+  }
+
+  getBoothPublicSummary(): BoothPublicSummaryResponse {
+    const agg = this.db
+      .prepare(
+        `SELECT
+           COUNT(*) AS total_members,
+           COALESCE(SUM(seats_reserved), 0) AS total_seats,
+           COALESCE(SUM(token_handed_out), 0) AS tokens_handed
+         FROM booth_winners`
+      )
+      .get() as {
+      total_members: number;
+      total_seats: number;
+      tokens_handed: number;
+    };
+
+    const recentRows = this.db
+      .prepare('SELECT * FROM booth_winners ORDER BY id DESC LIMIT 12')
+      .all() as unknown as PersistedBoothWinnerRow[];
+
+    return {
+      totalMembersPlayed: Number(agg.total_members) || 0,
+      totalNewSoulSeats: Number(agg.total_seats) || 0,
+      tokensHandedOut: Number(agg.tokens_handed) || 0,
+      recentWinners: recentRows.map((r) => ({
+        voucherCode: r.voucher_code,
+        memberName: formatBoardName(r.member_name),
+        friendName: r.friend_name,
+        relationship: (['Friend', 'Family', 'Colleague', 'Neighbor'].includes(r.relationship)
+          ? r.relationship
+          : 'Friend') as BoothRelationship,
+        seatsReserved: Math.max(1, Number(r.seats_reserved) || 1),
+        gamePlayed: r.game_played as BoothGameId,
+        score: Number(r.score) || 0,
+        createdAt: r.created_at,
+      })),
+    };
+  }
+
+  listBoothWinners(publicBaseUrl: string): BoothWinnersResponse {
+    const settings = this.getSettings();
+    const rows = this.db
+      .prepare('SELECT * FROM booth_winners ORDER BY id DESC')
+      .all() as unknown as PersistedBoothWinnerRow[];
+
+    const byGame: Record<BoothGameId, number> = {
+      'star-plinko': 0,
+      'wise-gifts': 0,
+      'blessing-basket': 0,
+      'tree-light': 0,
+    };
+    const byRelationship: Record<string, number> = {};
+    let totalNewSoulSeats = 0;
+    let tokensHandedOut = 0;
+    let whatsappSentCount = 0;
+    let friendsOpenedCount = 0;
+
+    const winners = rows.map((row) => {
+      const record = this.toBoothWinnerRecord(row, settings, publicBaseUrl);
+      totalNewSoulSeats += record.seatsReserved;
+      if (record.tokenHandedOut) tokensHandedOut += 1;
+      if (record.whatsappSent) whatsappSentCount += 1;
+      if (record.friendOpened) friendsOpenedCount += 1;
+      if (byGame[record.gamePlayed] !== undefined) {
+        byGame[record.gamePlayed] += 1;
+      }
+      byRelationship[record.relationship] = (byRelationship[record.relationship] || 0) + 1;
+      return record;
+    });
+
+    const stats: BoothWinnersStats = {
+      totalMembersPlayed: winners.length,
+      totalNewSoulSeats,
+      tokensHandedOut,
+      whatsappSentCount,
+      friendsOpenedCount,
+      byGame,
+      byRelationship,
+    };
+
+    return { winners, stats };
+  }
+
+  patchBoothWinnerById(
+    id: number,
+    patch: BoothWinnerPatchInput,
+    publicBaseUrl: string
+  ): BoothWinnerRecord | null {
+    const existing = this.db
+      .prepare('SELECT * FROM booth_winners WHERE id = ?')
+      .get(id) as unknown as PersistedBoothWinnerRow | undefined;
+    if (!existing) return null;
+
+    const nextToken =
+      patch.tokenHandedOut !== undefined
+        ? patch.tokenHandedOut
+          ? 1
+          : 0
+        : existing.token_handed_out;
+    const nextWa =
+      patch.whatsappSent !== undefined
+        ? patch.whatsappSent
+          ? 1
+          : 0
+        : existing.whatsapp_sent;
+    const nextOpened =
+      patch.friendOpened !== undefined
+        ? patch.friendOpened
+          ? 1
+          : 0
+        : existing.friend_opened;
+    const nextNotes =
+      patch.notes !== undefined ? patch.notes.trim().slice(0, 1000) : existing.notes;
+    const nextSeats =
+      patch.seatsReserved !== undefined
+        ? Math.min(10, Math.max(1, Math.round(patch.seatsReserved)))
+        : existing.seats_reserved;
+
+    this.db
+      .prepare(
+        `UPDATE booth_winners
+         SET token_handed_out = ?, whatsapp_sent = ?, friend_opened = ?, notes = ?, seats_reserved = ?
+         WHERE id = ?`
+      )
+      .run(nextToken, nextWa, nextOpened, nextNotes, nextSeats, id);
+
+    this.syncBoothWinnerById(id);
+
+    const updated = this.db
+      .prepare('SELECT * FROM booth_winners WHERE id = ?')
+      .get(id) as unknown as PersistedBoothWinnerRow;
+    return this.toBoothWinnerRecord(updated, this.getSettings(), publicBaseUrl);
+  }
+
+  /* ==========================================================================
+     /register, /present (King of Glory Crown), and /admin Unified Console
+     ========================================================================== */
+
+  private generateUniqueSoulConfirmationCode(): string {
+    const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    for (let attempt = 0; attempt < 12; attempt++) {
+      let suffix = '';
+      for (let i = 0; i < 4; i++) {
+        suffix += alphabet[crypto.randomInt(0, alphabet.length)];
+      }
+      const candidate = `CROWN-${suffix}`;
+      const clash = this.db
+        .prepare('SELECT 1 FROM soul_registrations WHERE confirmation_code = ?')
+        .get(candidate);
+      if (!clash) return candidate;
+    }
+    return `CROWN-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+  }
+
+  private toSoulRegistrationRecord(
+    row: PersistedSoulRegistrationRow,
+    settings: EventSettings,
+    publicBaseUrl: string
+  ): SoulRegistrationRecord {
+    const readableDate = formatReadableEventDate(settings.eventDateIso);
+    const cleanBase = publicBaseUrl.replace(/\/+$/, '');
+    const guestInviteLink = `${cleanBase}/?invitedBy=${encodeURIComponent(row.member_name)}&vip=${encodeURIComponent(row.soul_name)}`;
+    const seatsLabel =
+      row.member_count > 1 ? `${row.member_count} reserved VIP seats` : '1 reserved VIP seat';
+
+    const soulMessage =
+      `Hi ${row.soul_name}! 🎄✨\n\n` +
+      `${row.member_name} from *${settings.churchName}* (${row.church_zone}) has registered *${seatsLabel}* for you at *${settings.eventTitle}*!\n\n` +
+      `👑 *Reservation Code:* ${row.confirmation_code}\n` +
+      `📅 *Date & Time:* ${readableDate}\n` +
+      `📍 *Venue:* ${settings.venueName} (${settings.venueAddress})\n\n` +
+      `🕹️ Preview the Christmas Arcade & E-Invitation here:\n${guestInviteLink}\n\n` +
+      `We cannot wait to welcome you this Christmas!`;
+
+    const memberMessage =
+      `Hi ${row.member_name}! 👑🎄\n\n` +
+      `Thank you for registering *${row.soul_name}* (${row.member_count} pax · ${row.church_zone}) for *${settings.eventTitle}* at *${settings.churchName}*!\n\n` +
+      `Reservation Code: *${row.confirmation_code}*\n` +
+      `📅 ${readableDate} · 📍 ${settings.venueName}\n\n` +
+      `Every soul adds a jewel to the King of Glory Crown! See you this Christmas! ✨`;
+
+    return {
+      id: row.id,
+      confirmationCode: row.confirmation_code,
+      memberName: row.member_name,
+      memberPhone: row.member_phone,
+      memberNormalizedPhone: row.member_normalized_phone,
+      churchZone: row.church_zone,
+      soulName: row.soul_name,
+      memberCount: Math.max(1, Number(row.member_count) || 1),
+      soulPhone: row.soul_phone,
+      soulNormalizedPhone: row.soul_normalized_phone,
+      address: row.address || '',
+      attended: Boolean(row.attended),
+      attendedAt: row.attended_at || '',
+      whatsappSent: Boolean(row.whatsapp_sent),
+      notes: row.notes || '',
+      createdAt: row.created_at,
+      soulWhatsappUrl: `https://wa.me/${row.soul_normalized_phone}?text=${encodeURIComponent(soulMessage)}`,
+      memberWhatsappUrl: `https://wa.me/${row.member_normalized_phone}?text=${encodeURIComponent(memberMessage)}`,
+    };
+  }
+
+  createSoulRegistration(
+    input: SoulRegistrationInput,
+    publicBaseUrl: string
+  ):
+    | {
+        ok: true;
+        registration: SoulRegistrationRecord;
+        crownStatus: CrownStatusResponse;
+        created: boolean;
+      }
+    | { ok: false; status: number; error: string } {
+    const memberName = (input.memberName || '').trim().slice(0, 80);
+    if (memberName.length < 2) {
+      return {
+        ok: false,
+        status: 400,
+        error: 'Please enter the church member name (at least 2 characters).',
+      };
+    }
+
+    const soulName = (input.soulName || '').trim().slice(0, 80);
+    if (soulName.length < 2) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Please enter the New Soul's name (at least 2 characters).",
+      };
+    }
+
+    const churchZone = (input.churchZone || '').trim().slice(0, 80);
+    if (!churchZone) {
+      return {
+        ok: false,
+        status: 400,
+        error: 'Please select your Home Church Zone.',
+      };
+    }
+
+    const settings = this.getSettings();
+    const defaultCc = input.countryCode || settings.defaultCountryCode || '60';
+
+    const memberPhoneRes = normalizePhoneForWhatsApp(input.memberPhone || '', defaultCc);
+    if (!memberPhoneRes.valid) {
+      return {
+        ok: false,
+        status: 400,
+        error: memberPhoneRes.error || 'Please enter a valid church member phone number.',
+      };
+    }
+
+    const soulPhoneRes = normalizePhoneForWhatsApp(input.soulPhone || '', defaultCc);
+    if (!soulPhoneRes.valid) {
+      return {
+        ok: false,
+        status: 400,
+        error: soulPhoneRes.error || "Please enter a valid phone number for the New Soul.",
+      };
+    }
+
+    const clientRequestId =
+      (input.clientRequestId || '').trim().slice(0, 80) || `soul-${crypto.randomUUID()}`;
+
+    const existing = this.db
+      .prepare('SELECT * FROM soul_registrations WHERE client_request_id = ?')
+      .get(clientRequestId) as unknown as PersistedSoulRegistrationRow | undefined;
+
+    if (existing) {
+      return {
+        ok: true,
+        registration: this.toSoulRegistrationRecord(existing, settings, publicBaseUrl),
+        crownStatus: this.getCrownStatus(),
+        created: false,
+      };
+    }
+
+    const confirmationCode = this.generateUniqueSoulConfirmationCode();
+    const memberCount = Math.min(50, Math.max(1, Math.round(Number(input.memberCount) || 1)));
+    const address = (input.address || '').trim().slice(0, 400);
+    const createdAt = new Date(this.now()).toISOString();
+
+    const info = this.db
+      .prepare(
+        `INSERT INTO soul_registrations (
+           client_request_id, confirmation_code, member_name, member_phone,
+           member_normalized_phone, church_zone, soul_name, member_count,
+           soul_phone, soul_normalized_phone, address, attended,
+           attended_at, whatsapp_sent, notes, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '', 0, '', ?)`
+      )
+      .run(
+        clientRequestId,
+        confirmationCode,
+        memberName,
+        input.memberPhone.trim(),
+        memberPhoneRes.normalizedPhone,
+        churchZone,
+        soulName,
+        memberCount,
+        input.soulPhone.trim(),
+        soulPhoneRes.normalizedPhone,
+        address,
+        createdAt
+      );
+
+    const newId = Number(info.lastInsertRowid);
+    this.syncSoulRegistrationById(newId);
+
+    const createdRow = this.db
+      .prepare('SELECT * FROM soul_registrations WHERE id = ?')
+      .get(newId) as unknown as PersistedSoulRegistrationRow;
+
+    return {
+      ok: true,
+      registration: this.toSoulRegistrationRecord(createdRow, settings, publicBaseUrl),
+      crownStatus: this.getCrownStatus(),
+      created: true,
+    };
+  }
+
+  patchSoulRegistrationById(
+    id: number,
+    patch: SoulRegistrationPatchInput,
+    publicBaseUrl: string
+  ): SoulRegistrationRecord | null {
+    const existing = this.db
+      .prepare('SELECT * FROM soul_registrations WHERE id = ?')
+      .get(id) as unknown as PersistedSoulRegistrationRow | undefined;
+    if (!existing) return null;
+
+    const nextAttended =
+      patch.attended !== undefined ? (patch.attended ? 1 : 0) : existing.attended;
+    const nextAttendedAt =
+      patch.attended !== undefined
+        ? patch.attended
+          ? existing.attended_at || new Date(this.now()).toISOString()
+          : ''
+        : existing.attended_at;
+    const nextWa =
+      patch.whatsappSent !== undefined ? (patch.whatsappSent ? 1 : 0) : existing.whatsapp_sent;
+    const nextNotes =
+      patch.notes !== undefined ? patch.notes.trim().slice(0, 1000) : existing.notes;
+    const nextCount =
+      patch.memberCount !== undefined
+        ? Math.min(50, Math.max(1, Math.round(patch.memberCount)))
+        : existing.member_count;
+    const nextZone =
+      patch.churchZone !== undefined && patch.churchZone.trim().length > 0
+        ? patch.churchZone.trim().slice(0, 80)
+        : existing.church_zone;
+    const nextAddress =
+      patch.address !== undefined ? patch.address.trim().slice(0, 400) : existing.address;
+
+    this.db
+      .prepare(
+        `UPDATE soul_registrations
+         SET attended = ?, attended_at = ?, whatsapp_sent = ?, notes = ?,
+             member_count = ?, church_zone = ?, address = ?
+         WHERE id = ?`
+      )
+      .run(nextAttended, nextAttendedAt, nextWa, nextNotes, nextCount, nextZone, nextAddress, id);
+
+    this.syncSoulRegistrationById(id);
+
+    const updated = this.db
+      .prepare('SELECT * FROM soul_registrations WHERE id = ?')
+      .get(id) as unknown as PersistedSoulRegistrationRow;
+    return this.toSoulRegistrationRecord(updated, this.getSettings(), publicBaseUrl);
+  }
+
+  getCrownStatus(): CrownStatusResponse {
+    const settings = this.getSettings();
+    const targetSouls = Math.max(1, Math.round(settings.crownTargetSouls ?? 500));
+    const countArcadeLeads = settings.crownCountArcadeLeads !== false;
+    const churchZones =
+      Array.isArray(settings.churchZones) && settings.churchZones.length > 0
+        ? settings.churchZones
+        : [...DEFAULT_CHURCH_ZONES];
+
+    const soulAgg = this.db
+      .prepare(
+        `SELECT
+           COUNT(*) AS groups_cnt,
+           COALESCE(SUM(member_count), 0) AS souls_sum,
+           COALESCE(SUM(CASE WHEN attended = 1 THEN member_count ELSE 0 END), 0) AS attended_sum
+         FROM soul_registrations`
+      )
+      .get() as {
+      groups_cnt: number;
+      souls_sum: number;
+      attended_sum: number;
+    };
+
+    const leadAgg = this.db
+      .prepare(
+        `SELECT
+           COUNT(*) AS leads_cnt,
+           COALESCE(SUM(CASE WHEN attended = 1 THEN 1 ELSE 0 END), 0) AS attended_leads
+         FROM leads`
+      )
+      .get() as {
+      leads_cnt: number;
+      attended_leads: number;
+    };
+
+    const registeredGroupsCount = Number(soulAgg.groups_cnt) || 0;
+    const registeredSoulsHeadcount = Number(soulAgg.souls_sum) || 0;
+    const arcadeLeadsCount = Number(leadAgg.leads_cnt) || 0;
+    const attendedSoulsCount =
+      (Number(soulAgg.attended_sum) || 0) + (Number(leadAgg.attended_leads) || 0);
+
+    const totalProgressSouls =
+      registeredSoulsHeadcount + (countArcadeLeads ? arcadeLeadsCount : 0);
+    const fillPercentage = Math.min(
+      100,
+      Math.max(0, Math.round((totalProgressSouls / targetSouls) * 1000) / 10)
+    );
+
+    const zoneRows = this.db
+      .prepare(
+        `SELECT
+           church_zone,
+           COUNT(*) AS reg_cnt,
+           COALESCE(SUM(member_count), 0) AS souls_cnt,
+           COALESCE(SUM(CASE WHEN attended = 1 THEN member_count ELSE 0 END), 0) AS attended_cnt
+         FROM soul_registrations
+         GROUP BY church_zone`
+      )
+      .all() as Array<{
+      church_zone: string;
+      reg_cnt: number;
+      souls_cnt: number;
+      attended_cnt: number;
+    }>;
+
+    const zoneMap = new Map<string, CrownZoneStat>();
+    for (const z of churchZones) {
+      zoneMap.set(z, {
+        zone: z,
+        registrationsCount: 0,
+        soulsCount: 0,
+        attendedSoulsCount: 0,
+      });
+    }
+    for (const r of zoneRows) {
+      zoneMap.set(r.church_zone, {
+        zone: r.church_zone,
+        registrationsCount: Number(r.reg_cnt) || 0,
+        soulsCount: Number(r.souls_cnt) || 0,
+        attendedSoulsCount: Number(r.attended_cnt) || 0,
+      });
+    }
+
+    const zoneLeaderboard = Array.from(zoneMap.values()).sort(
+      (a, b) => b.soulsCount - a.soulsCount || b.registrationsCount - a.registrationsCount
+    );
+
+    const recentSoulRows = this.db
+      .prepare('SELECT * FROM soul_registrations ORDER BY id DESC LIMIT 15')
+      .all() as unknown as PersistedSoulRegistrationRow[];
+
+    const feedItems: CrownFeedItem[] = recentSoulRows.map((r) => ({
+      id: `reg-${r.id}`,
+      source: 'register',
+      confirmationCode: r.confirmation_code,
+      memberName: r.member_name,
+      churchZone: r.church_zone,
+      soulName: r.soul_name,
+      memberCount: Math.max(1, Number(r.member_count) || 1),
+      createdAt: r.created_at,
+    }));
+
+    if (countArcadeLeads) {
+      const recentLeadRows = this.db
+        .prepare('SELECT * FROM leads ORDER BY id DESC LIMIT 12')
+        .all() as unknown as RawLeadRow[];
+      for (const l of recentLeadRows) {
+        feedItems.push({
+          id: `arcade-${l.id}`,
+          source: 'arcade',
+          confirmationCode: l.redemption_code,
+          memberName: l.volunteer_name || 'Street Arcade',
+          churchZone: 'Christmas Arcade',
+          soulName: l.name,
+          memberCount: 1,
+          createdAt: l.created_at,
+        });
+      }
+    }
+
+    feedItems.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+    return {
+      targetSouls,
+      countArcadeLeads,
+      totalProgressSouls,
+      registeredSoulsHeadcount,
+      registeredGroupsCount,
+      arcadeLeadsCount,
+      attendedSoulsCount,
+      fillPercentage,
+      churchZones,
+      zoneLeaderboard,
+      recentRegistrations: feedItems.slice(0, 15),
+    };
+  }
+
+  patchCrownSettings(patch: CrownSettingsPatchInput): EventSettings {
+    const current = this.getSettings();
+    const nextTarget =
+      typeof patch.crownTargetSouls === 'number' && Number.isFinite(patch.crownTargetSouls)
+        ? Math.min(100000, Math.max(1, Math.round(patch.crownTargetSouls)))
+        : current.crownTargetSouls ?? 500;
+    const nextCountArcade =
+      typeof patch.crownCountArcadeLeads === 'boolean'
+        ? patch.crownCountArcadeLeads
+        : current.crownCountArcadeLeads ?? true;
+    const nextZones =
+      Array.isArray(patch.churchZones) && patch.churchZones.length > 0
+        ? patch.churchZones
+            .map((z) => String(z).trim().slice(0, 80))
+            .filter((z) => z.length > 0)
+        : current.churchZones ?? [...DEFAULT_CHURCH_ZONES];
+
+    return this.updateSettings({
+      ...current,
+      crownTargetSouls: nextTarget,
+      crownCountArcadeLeads: nextCountArcade,
+      churchZones: nextZones,
+    });
+  }
+
+  getAdminOverview(publicBaseUrl: string): AdminOverviewResponse {
+    const settings = this.getSettings();
+    const crownStatus = this.getCrownStatus();
+
+    const soulRows = this.db
+      .prepare('SELECT * FROM soul_registrations ORDER BY id DESC')
+      .all() as unknown as PersistedSoulRegistrationRow[];
+    const leadRows = this.db
+      .prepare('SELECT * FROM leads ORDER BY id DESC')
+      .all() as unknown as RawLeadRow[];
+
+    const unified: AdminUnifiedRecord[] = [];
+    let registerHeadcount = 0;
+    let attendedRecordsCount = 0;
+    let attendedHeadcount = 0;
+    let whatsappSentCount = 0;
+
+    for (const sr of soulRows) {
+      const rec = this.toSoulRegistrationRecord(sr, settings, publicBaseUrl);
+      registerHeadcount += rec.memberCount;
+      if (rec.attended) {
+        attendedRecordsCount += 1;
+        attendedHeadcount += rec.memberCount;
+      }
+      if (rec.whatsappSent) {
+        whatsappSentCount += 1;
+      }
+      unified.push({
+        uid: `register-${rec.id}`,
+        source: 'register',
+        recordId: rec.id,
+        code: rec.confirmationCode,
+        soulName: rec.soulName,
+        soulPhone: rec.soulPhone,
+        soulNormalizedPhone: rec.soulNormalizedPhone,
+        memberCount: rec.memberCount,
+        address: rec.address,
+        memberName: rec.memberName,
+        memberPhone: rec.memberPhone,
+        memberNormalizedPhone: rec.memberNormalizedPhone,
+        churchZone: rec.churchZone,
+        gamePlayed: '',
+        score: 0,
+        attended: rec.attended,
+        attendedAt: rec.attendedAt,
+        whatsappSent: rec.whatsappSent,
+        giftClaimed: false,
+        notes: rec.notes,
+        createdAt: rec.createdAt,
+        soulWhatsappUrl: rec.soulWhatsappUrl,
+        memberWhatsappUrl: rec.memberWhatsappUrl,
+      });
+    }
+
+    for (const l of leadRows) {
+      const isAttended = Boolean(l.attended);
+      const isWaSent = Boolean(l.whatsapp_sent);
+      if (isAttended) {
+        attendedRecordsCount += 1;
+        attendedHeadcount += 1;
+      }
+      if (isWaSent) {
+        whatsappSentCount += 1;
+      }
+      const waParams = {
+        normalizedPhone: l.normalized_phone,
+        guestName: l.name,
+        volunteerName: l.volunteer_name,
+        claimToken: l.claim_token,
+        settings,
+        publicBaseUrl,
+      };
+      unified.push({
+        uid: `arcade-${l.id}`,
+        source: 'arcade',
+        recordId: l.id,
+        code: l.redemption_code,
+        soulName: l.name,
+        soulPhone: l.raw_phone,
+        soulNormalizedPhone: l.normalized_phone,
+        memberCount: 1,
+        address: '',
+        memberName: l.volunteer_name || 'Direct Arcade Scan',
+        memberPhone: '',
+        memberNormalizedPhone: '',
+        churchZone: 'Arcade Outreach',
+        gamePlayed: l.game_played,
+        score: l.score,
+        attended: isAttended,
+        attendedAt: l.attended_at || '',
+        whatsappSent: isWaSent,
+        giftClaimed: Boolean(l.gift_claimed),
+        notes: l.notes || '',
+        createdAt: l.created_at,
+        soulWhatsappUrl: buildPersonalWhatsAppUrl(waParams),
+        memberWhatsappUrl: '',
+      });
+    }
+
+    unified.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+    return {
+      stats: {
+        crownTargetSouls: crownStatus.targetSouls,
+        crownCountArcadeLeads: crownStatus.countArcadeLeads,
+        crownProgressSouls: crownStatus.totalProgressSouls,
+        crownFillPercentage: crownStatus.fillPercentage,
+        totalUnifiedRecords: unified.length,
+        totalCombinedHeadcount: registerHeadcount + leadRows.length,
+        registerRecordsCount: soulRows.length,
+        registerHeadcount,
+        arcadeRecordsCount: leadRows.length,
+        attendedRecordsCount,
+        attendedHeadcount,
+        whatsappSentCount,
+      },
+      crownStatus,
+      records: unified,
+    };
+  }
+
+  exportAdminUnifiedCsv(publicBaseUrl: string): string {
+    const overview = this.getAdminOverview(publicBaseUrl);
+    const headers = [
+      'Source',
+      'Code',
+      'New Soul / Guest Name',
+      'No of Members',
+      'New Soul Phone',
+      'Address',
+      'Church Member / Evangelist',
+      'Church Member Phone',
+      'Home Church Zone',
+      'Attended Christmas',
+      'Attended Timestamp',
+      'WhatsApp Sent',
+      'Gift Claimed',
+      'Game Played',
+      'Score',
+      'Notes',
+      'Registered At',
+    ];
+
+    const lines = [headers.join(',')];
+    for (const r of overview.records) {
+      const cols = [
+        r.source === 'register' ? 'Church Member (/register)' : 'Arcade Game (/)',
+        r.code,
+        r.soulName,
+        String(r.memberCount),
+        r.soulNormalizedPhone || r.soulPhone,
+        r.address,
+        r.memberName,
+        r.memberNormalizedPhone || r.memberPhone,
+        r.churchZone,
+        r.attended ? 'YES' : 'NO',
+        r.attendedAt,
+        r.whatsappSent ? 'YES' : 'NO',
+        r.giftClaimed ? 'YES' : 'NO',
+        r.gamePlayed ? GAME_LABELS_MAP[r.gamePlayed] || r.gamePlayed : '',
+        r.source === 'arcade' ? String(r.score) : '',
+        r.notes,
+        r.createdAt,
+      ].map((val) => `"${sanitizeCsvCell(String(val ?? '')).replace(/"/g, '""')}"`);
+      lines.push(cols.join(','));
+    }
+
+    return lines.join('\r\n');
   }
 
   close(): void {

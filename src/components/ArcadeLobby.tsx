@@ -21,6 +21,9 @@ interface ArcadeLobbyProps {
   settings: EventSettings;
   savedPass: PublicClaimResult | null;
   boards: GameLeaderboard[] | null;
+  invitedByMember?: string;
+  vipFriendName?: string;
+  boothVoucherCode?: string;
   onOpenSavedPass: () => void;
   onSelectGame: (game: ActiveGameId) => void;
 }
@@ -31,6 +34,9 @@ export function ArcadeLobby({
   settings,
   savedPass,
   boards,
+  invitedByMember,
+  vipFriendName,
+  boothVoucherCode,
   onOpenSavedPass,
   onSelectGame,
 }: ArcadeLobbyProps) {
@@ -47,6 +53,14 @@ export function ArcadeLobby({
             <span className="marquee-pill marquee-pill--gold">
               <CheckCircleIcon size={14} />
               <span>VIP Invitation Unlocked</span>
+            </span>
+          ) : vipFriendName || invitedByMember ? (
+            <span className="marquee-pill marquee-pill--gold">
+              <GiftBoxIcon size={14} />
+              <span>
+                VIP Seat Won by {invitedByMember || settings.churchName}
+                {boothVoucherCode ? ` · ${boothVoucherCode}` : ''}
+              </span>
             </span>
           ) : volunteerName ? (
             <span className="marquee-pill marquee-pill--gold">
@@ -74,7 +88,13 @@ export function ArcadeLobby({
         <p className="hero-marquee__subtitle">
           {savedPass
             ? `Welcome back, ${savedPass.name}. Defend your Top 3 trophies or conquer a new cabinet!`
-            : 'Pick any cabinet, chase the #1 trophy & unlock your gift in 45 seconds.'}
+            : vipFriendName
+              ? `Welcome, ${vipFriendName}! ${
+                  invitedByMember || 'Your friend'
+                } won a Reserved VIP Seat & ${
+                  settings.giftDescription
+                } for you at our church booth. Play any game below to claim your pass!`
+              : 'Pick any cabinet, chase the #1 trophy & unlock your gift in 45 seconds.'}
         </p>
 
         {savedPass ? (

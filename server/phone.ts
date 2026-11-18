@@ -145,3 +145,15 @@ export function buildReminderWhatsAppUrl(params: {
   const message = renderWhatsAppTemplate(tpl, params);
   return `https://wa.me/${params.normalizedPhone}?text=${encodeURIComponent(message)}`;
 }
+
+/**
+ * Neutralizes spreadsheet formula injection characters (=, +, -, @, tab, CR) at the start of a CSV cell.
+ */
+export function sanitizeCsvCell(value: string): string {
+  const str = String(value ?? '');
+  if (/^[=+\-@\t\r]/.test(str)) {
+    return `'${str}`;
+  }
+  return str;
+}
+

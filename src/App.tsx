@@ -9,7 +9,13 @@ import {
   type TeamSessionUser,
 } from './types.ts';
 import type { PlayfieldProps } from './games/playfield.ts';
-import { checkTeamSession, fetchLeaderboards, fetchPublicConfig, fetchSavedPass } from './lib/api.ts';
+import {
+  checkTeamSession,
+  fetchLeaderboards,
+  fetchPublicConfig,
+  fetchSavedPass,
+  patchBoothWinnerPublic,
+} from './lib/api.ts';
 import {
   clearLocalBests,
   clearSavedPassLocally,
@@ -37,12 +43,27 @@ import { WinnerPass } from './components/WinnerPass.tsx';
 import { TeamLogin } from './team/TeamLogin.tsx';
 import { TeamDashboard } from './team/TeamDashboard.tsx';
 import { PromoStoryboard } from './storyboard/PromoStoryboard.tsx';
+import { ChurchBoothPage } from './winners/ChurchBoothPage.tsx';
+import { SoulRegisterPage } from './register/SoulRegisterPage.tsx';
+import { PresentCrownPage } from './present/PresentCrownPage.tsx';
+import { AdminConsolePage } from './admin/AdminConsolePage.tsx';
 
-type RouteMode = 'player' | 'team' | 'storyboard';
+type RouteMode =
+  | 'player'
+  | 'team'
+  | 'storyboard'
+  | 'winners'
+  | 'register'
+  | 'present'
+  | 'admin';
 
 function resolveRouteMode(pathname: string): RouteMode {
   if (pathname.startsWith('/team')) return 'team';
   if (pathname.startsWith('/storyboard')) return 'storyboard';
+  if (pathname.startsWith('/winners')) return 'winners';
+  if (pathname.startsWith('/register')) return 'register';
+  if (pathname.startsWith('/present')) return 'present';
+  if (pathname.startsWith('/admin')) return 'admin';
   return 'player';
 }
 
@@ -99,19 +120,33 @@ export function App() {
   const [boards, setBoards] = useState<GameLeaderboard[] | null>(null);
   const initialViewLoggedRef = useRef(false);
 
-  const { volunteerName, challengerName, targetScore, urlPassToken } = useMemo(() => {
+  const {
+    volunteerName,
+    challengerName,
+    targetScore,
+    urlPassToken,
+    invitedByMember,
+    vipFriendName,
+    boothVoucherCode,
+  } = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
     const vs = (params.get('vs') || params.get('challenger') || '').trim().slice(0, 40);
     const friend = (params.get('friend') || '').trim().slice(0, 40);
+    const invitedBy = (params.get('invitedBy') || '').trim().slice(0, 60);
+    const vip = (params.get('vip') || '').trim().slice(0, 60);
+    const booth = (params.get('booth') || '').trim().slice(0, 24);
     const rawTarget = Number(params.get('target'));
     const validTarget =
       Number.isFinite(rawTarget) && rawTarget >= 5 && rawTarget <= 999 ? Math.round(rawTarget) : 18;
     const passToken = (params.get('pass') || '').trim();
     return {
-      volunteerName: vs,
-      challengerName: vs || friend,
+      volunteerName: vs || invitedBy,
+      challengerName: vs || friend || invitedBy,
       targetScore: validTarget,
       urlPassToken: passToken,
+      invitedByMember: invitedBy,
+      vipFriendName: vip,
+      boothVoucherCode: booth,
     };
   }, []);
 
@@ -127,9 +162,17 @@ export function App() {
   useEffect(() => {
     if (
       window.location.pathname.startsWith('/team') ||
-      window.location.pathname.startsWith('/storyboard')
+      window.location.pathname.startsWith('/storyboard') ||
+      window.location.pathname.startsWith('/winners') ||
+      window.location.pathname.startsWith('/register') ||
+      window.location.pathname.startsWith('/present') ||
+      window.location.pathname.startsWith('/admin')
     ) {
       return;
+    }
+
+    if (boothVoucherCode) {
+      void patchBoothWinnerPublic(boothVoucherCode, { friendOpened: true }).catch(() => {});
     }
 
     const existingLocal = loadSavedPass();
@@ -168,10 +211,10 @@ export function App() {
           }
         });
     }
-  }, [urlPassToken, volunteerName]);
+  }, [urlPassToken, volunteerName, boothVoucherCode]);
 
   useEffect(() => {
-    if (routeMode === 'team') {
+    if (routeMode === 'team' || routeMode === 'admin') {
       checkTeamSession()
         .then((res) => {
           setTeamAuthed(res.authenticated);
@@ -197,8 +240,24 @@ export function App() {
       document.title = `Master Console | ${settings.churchName}`;
       return;
     }
+    if (routeMode === 'admin') {
+      document.title = `Unified Soul & Attendance Admin | ${settings.churchName}`;
+      return;
+    }
+    if (routeMode === 'register') {
+      document.title = `Register Your New Soul | ${settings.churchName}`;
+      return;
+    }
+    if (routeMode === 'present') {
+      document.title = `King of Glory Christmas Crown | ${settings.churchName}`;
+      return;
+    }
     if (routeMode === 'storyboard') {
       document.title = `Promo Video Storyboard | ${settings.churchName}`;
+      return;
+    }
+    if (routeMode === 'winners') {
+      document.title = `Church Member Booth — Win a VIP Seat | ${settings.churchName}`;
       return;
     }
     switch (step.kind) {
@@ -217,10 +276,14 @@ export function App() {
     }
   }, [routeMode, step, settings.churchName, settings.eventTitle]);
 
-  // Background Christmas music on Lobby, Claim & VIP Invitation (GameShell manages per-game & victory scenes)
+  // Background Christmas music on Lobby, Claim, VIP Invitation & Church Booth
   useEffect(() => {
-    if (routeMode === 'team' || routeMode === 'storyboard') {
+    if (routeMode === 'team' || routeMode === 'admin' || routeMode === 'storyboard') {
       setMusicScene('none');
+      return;
+    }
+    if (routeMode === 'winners' || routeMode === 'register' || routeMode === 'present') {
+      setMusicScene('christmas-bg');
       return;
     }
     if (step.kind !== 'playing') {
@@ -236,9 +299,17 @@ export function App() {
     const targetPath =
       nextMode === 'team'
         ? '/team'
-        : nextMode === 'storyboard'
-          ? '/storyboard'
-          : `/${window.location.search}`;
+        : nextMode === 'admin'
+          ? '/admin'
+          : nextMode === 'register'
+            ? '/register'
+            : nextMode === 'present'
+              ? '/present'
+              : nextMode === 'storyboard'
+                ? '/storyboard'
+                : nextMode === 'winners'
+                  ? '/winners'
+                  : `/${window.location.search}`;
     window.history.pushState({}, '', targetPath);
     setRouteMode(nextMode);
   };
@@ -304,10 +375,18 @@ export function App() {
   const playingGame =
     step.kind === 'playing' ? ACTIVE_ARCADE_GAMES.find((g) => g.id === step.game) : undefined;
 
+  const isWideRoute =
+    routeMode === 'team' ||
+    routeMode === 'admin' ||
+    routeMode === 'storyboard' ||
+    routeMode === 'winners' ||
+    routeMode === 'register' ||
+    routeMode === 'present';
+
   return (
     <div
-      className={`app-shell ${
-        routeMode === 'team' || routeMode === 'storyboard' ? 'app-shell--wide' : ''
+      className={`app-shell ${isWideRoute ? 'app-shell--wide' : ''} ${
+        routeMode === 'present' ? 'app-shell--present' : ''
       }`}
     >
       <a href="#main-content" className="skip-link visually-hidden">
@@ -330,7 +409,17 @@ export function App() {
           <span className="brand-copy">
             <span className="brand-copy__name">{settings.churchName}</span>
             <span className="brand-copy__sub">
-              {routeMode === 'storyboard' ? 'Promo Storyboard' : 'Christmas Arcade'}
+              {routeMode === 'storyboard'
+                ? 'Promo Storyboard'
+                : routeMode === 'winners'
+                  ? 'Church Booth · Win a Seat'
+                  : routeMode === 'register'
+                    ? 'Register New Soul'
+                    : routeMode === 'present'
+                      ? 'King of Glory Crown'
+                      : routeMode === 'admin'
+                        ? 'Unified Soul & Attendance Admin'
+                        : 'Christmas Arcade'}
             </span>
           </span>
         </a>
@@ -346,7 +435,10 @@ export function App() {
               <span>VIP Invite</span>
             </button>
           )}
-          {routeMode === 'player' && (
+          {(routeMode === 'player' ||
+            routeMode === 'winners' ||
+            routeMode === 'register' ||
+            routeMode === 'present') && (
             <button
               type="button"
               className={`icon-round-btn${soundMuted ? '' : ' icon-round-btn--music-on'}`}
@@ -375,10 +467,30 @@ export function App() {
               </button>
             </>
           )}
-          {routeMode === 'team' && (
-            <button type="button" className="btn btn--ghost btn--sm" onClick={() => navigateMode('player')}>
-              Arcade
-            </button>
+          {(routeMode === 'team' || routeMode === 'admin') && (
+            <>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                onClick={() => navigateMode('present')}
+              >
+                /present
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                onClick={() => navigateMode('register')}
+              >
+                /register
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                onClick={() => navigateMode('player')}
+              >
+                Arcade
+              </button>
+            </>
           )}
         </nav>
       </header>
@@ -397,6 +509,55 @@ export function App() {
             }}
             onOpenTeamQr={() => navigateMode('team')}
           />
+        ) : routeMode === 'winners' ? (
+          <ChurchBoothPage
+            settings={settings}
+            onOpenGuestArcade={() => {
+              navigateMode('player');
+              setStep({ kind: 'lobby' });
+            }}
+          />
+        ) : routeMode === 'register' ? (
+          <SoulRegisterPage
+            settings={settings}
+            onOpenPresentScreen={() => navigateMode('present')}
+            onOpenArcade={() => {
+              navigateMode('player');
+              setStep({ kind: 'lobby' });
+            }}
+          />
+        ) : routeMode === 'present' ? (
+          <PresentCrownPage
+            settings={settings}
+            onOpenRegister={() => navigateMode('register')}
+            onOpenAdmin={() => navigateMode('admin')}
+          />
+        ) : routeMode === 'admin' ? (
+          teamAuthed === null ? (
+            <div className="card-panel">Checking session…</div>
+          ) : teamAuthed ? (
+            <AdminConsolePage
+              currentUser={teamUser}
+              settings={settings}
+              onSettingsUpdated={(next) => {
+                setSettings(next);
+              }}
+              onOpenPresent={() => navigateMode('present')}
+              onOpenRegister={() => navigateMode('register')}
+              onOpenTeamConsole={() => navigateMode('team')}
+              onLoggedOut={() => {
+                setTeamUser(null);
+                setTeamAuthed(false);
+              }}
+            />
+          ) : (
+            <TeamLogin
+              onAuthenticated={(user) => {
+                setTeamUser(user);
+                setTeamAuthed(true);
+              }}
+            />
+          )
         ) : routeMode === 'team' ? (
           teamAuthed === null ? (
             <div className="card-panel">Checking session…</div>
@@ -432,6 +593,9 @@ export function App() {
                 settings={settings}
                 savedPass={savedPass}
                 boards={boards}
+                invitedByMember={invitedByMember}
+                vipFriendName={vipFriendName}
+                boothVoucherCode={boothVoucherCode}
                 onOpenSavedPass={handleOpenSavedInvite}
                 onSelectGame={handleSelectGame}
               />

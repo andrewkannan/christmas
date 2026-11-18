@@ -28,6 +28,8 @@ export interface PersistedLeadRow {
   notes: string;
   notes_updated_at: string;
   created_at: string;
+  attended?: number;
+  attended_at?: string;
 }
 
 export interface PersistedAnalyticsEventRow {
@@ -67,12 +69,54 @@ export interface PersistedTeamUserRow {
   last_login_at: string;
 }
 
+export interface PersistedBoothWinnerRow {
+  id: number;
+  client_request_id: string;
+  voucher_code: string;
+  member_name: string;
+  member_phone: string;
+  normalized_phone: string;
+  friend_name: string;
+  relationship: string;
+  seats_reserved: number;
+  friend_phone: string;
+  game_played: string;
+  score: number;
+  token_handed_out: number;
+  whatsapp_sent: number;
+  friend_opened: number;
+  notes: string;
+  created_at: string;
+}
+
+export interface PersistedSoulRegistrationRow {
+  id: number;
+  client_request_id: string;
+  confirmation_code: string;
+  member_name: string;
+  member_phone: string;
+  member_normalized_phone: string;
+  church_zone: string;
+  soul_name: string;
+  member_count: number;
+  soul_phone: string;
+  soul_normalized_phone: string;
+  address: string;
+  attended: number;
+  attended_at: string;
+  whatsapp_sent: number;
+  notes: string;
+  created_at: string;
+}
+
 export interface HydratedSnapshot {
   settings: PersistedSettingsRow | null;
   leads: PersistedLeadRow[];
   events: PersistedAnalyticsEventRow[];
   runs: PersistedGameRunRow[];
   teamUsers: PersistedTeamUserRow[];
+  boothWinners?: PersistedBoothWinnerRow[];
+  soulRegistrations?: PersistedSoulRegistrationRow[];
 }
 
 export interface RemotePersistenceAdapter {
@@ -84,6 +128,8 @@ export interface RemotePersistenceAdapter {
   upsertGameRun(row: PersistedGameRunRow): Promise<void>;
   upsertTeamUser(row: PersistedTeamUserRow): Promise<void>;
   deleteTeamUser(id: number): Promise<void>;
+  upsertBoothWinner?(row: PersistedBoothWinnerRow): Promise<void>;
+  upsertSoulRegistration?(row: PersistedSoulRegistrationRow): Promise<void>;
   linkVisitorToLead(leadId: number, visitorId: string): Promise<void>;
   close(): Promise<void>;
 }
@@ -121,8 +167,13 @@ export const POSTGRES_SCHEMA_SQL = `
     followup_status TEXT NOT NULL DEFAULT 'new',
     notes TEXT NOT NULL DEFAULT '',
     notes_updated_at TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    attended INTEGER NOT NULL DEFAULT 0,
+    attended_at TEXT NOT NULL DEFAULT ''
   );
+
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS attended INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS attended_at TEXT NOT NULL DEFAULT '';
 
   CREATE INDEX IF NOT EXISTS idx_pg_leads_created_at ON leads(created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_pg_leads_volunteer ON leads(volunteer_name);
@@ -173,6 +224,51 @@ export const POSTGRES_SCHEMA_SQL = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_pg_team_users_digest ON team_users(passcode_digest);
+
+  CREATE TABLE IF NOT EXISTS booth_winners (
+    id INTEGER PRIMARY KEY,
+    client_request_id TEXT NOT NULL UNIQUE,
+    voucher_code TEXT NOT NULL UNIQUE,
+    member_name TEXT NOT NULL,
+    member_phone TEXT NOT NULL,
+    normalized_phone TEXT NOT NULL,
+    friend_name TEXT NOT NULL,
+    relationship TEXT NOT NULL DEFAULT 'Friend',
+    seats_reserved INTEGER NOT NULL DEFAULT 1,
+    friend_phone TEXT NOT NULL DEFAULT '',
+    game_played TEXT NOT NULL,
+    score INTEGER NOT NULL DEFAULT 0,
+    token_handed_out INTEGER NOT NULL DEFAULT 0,
+    whatsapp_sent INTEGER NOT NULL DEFAULT 0,
+    friend_opened INTEGER NOT NULL DEFAULT 0,
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_pg_booth_winners_created_at ON booth_winners(created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS soul_registrations (
+    id INTEGER PRIMARY KEY,
+    client_request_id TEXT NOT NULL UNIQUE,
+    confirmation_code TEXT NOT NULL UNIQUE,
+    member_name TEXT NOT NULL,
+    member_phone TEXT NOT NULL,
+    member_normalized_phone TEXT NOT NULL,
+    church_zone TEXT NOT NULL,
+    soul_name TEXT NOT NULL,
+    member_count INTEGER NOT NULL DEFAULT 1,
+    soul_phone TEXT NOT NULL,
+    soul_normalized_phone TEXT NOT NULL,
+    address TEXT NOT NULL DEFAULT '',
+    attended INTEGER NOT NULL DEFAULT 0,
+    attended_at TEXT NOT NULL DEFAULT '',
+    whatsapp_sent INTEGER NOT NULL DEFAULT 0,
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_pg_soul_registrations_created_at ON soul_registrations(created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_pg_soul_registrations_zone ON soul_registrations(church_zone);
 `;
 
 /**
@@ -245,7 +341,15 @@ export class PostgresPersistenceAdapter implements RemotePersistenceAdapter {
   }
 
   async loadSnapshot(): Promise<HydratedSnapshot> {
-    const [settingsRes, leadsRes, eventsRes, runsRes, teamUsersRes] = await Promise.all([
+    const [
+      settingsRes,
+      leadsRes,
+      eventsRes,
+      runsRes,
+      teamUsersRes,
+      boothWinnersRes,
+      soulRegistrationsRes,
+    ] = await Promise.all([
       this.pool.query<{ id: number; json: string | Record<string, unknown>; updated_at: string }>(
         'SELECT id, json, updated_at FROM settings WHERE id = 1'
       ),
@@ -253,6 +357,8 @@ export class PostgresPersistenceAdapter implements RemotePersistenceAdapter {
       this.pool.query<Record<string, unknown>>('SELECT * FROM analytics_events ORDER BY id ASC'),
       this.pool.query<Record<string, unknown>>('SELECT * FROM game_runs ORDER BY started_ms ASC'),
       this.pool.query<Record<string, unknown>>('SELECT * FROM team_users ORDER BY id ASC'),
+      this.pool.query<Record<string, unknown>>('SELECT * FROM booth_winners ORDER BY id ASC'),
+      this.pool.query<Record<string, unknown>>('SELECT * FROM soul_registrations ORDER BY id ASC'),
     ]);
 
     const rawSetting = settingsRes.rows[0];
@@ -286,6 +392,8 @@ export class PostgresPersistenceAdapter implements RemotePersistenceAdapter {
       notes: String(r.notes ?? ''),
       notes_updated_at: String(r.notes_updated_at ?? ''),
       created_at: String(r.created_at),
+      attended: r.attended ? 1 : 0,
+      attended_at: String(r.attended_at ?? ''),
     }));
 
     const events: PersistedAnalyticsEventRow[] = eventsRes.rows.map((r) => ({
@@ -326,7 +434,57 @@ export class PostgresPersistenceAdapter implements RemotePersistenceAdapter {
       last_login_at: String(r.last_login_at ?? ''),
     }));
 
-    return { settings, leads, events, runs, teamUsers };
+    const boothWinners: PersistedBoothWinnerRow[] = (boothWinnersRes?.rows ?? []).map((r) => ({
+      id: Number(r.id),
+      client_request_id: String(r.client_request_id),
+      voucher_code: String(r.voucher_code),
+      member_name: String(r.member_name),
+      member_phone: String(r.member_phone),
+      normalized_phone: String(r.normalized_phone),
+      friend_name: String(r.friend_name),
+      relationship: String(r.relationship || 'Friend'),
+      seats_reserved: Number(r.seats_reserved ?? 1),
+      friend_phone: String(r.friend_phone ?? ''),
+      game_played: String(r.game_played),
+      score: Number(r.score ?? 0),
+      token_handed_out: r.token_handed_out ? 1 : 0,
+      whatsapp_sent: r.whatsapp_sent ? 1 : 0,
+      friend_opened: r.friend_opened ? 1 : 0,
+      notes: String(r.notes ?? ''),
+      created_at: String(r.created_at),
+    }));
+
+    const soulRegistrations: PersistedSoulRegistrationRow[] = (
+      soulRegistrationsRes?.rows ?? []
+    ).map((r) => ({
+      id: Number(r.id),
+      client_request_id: String(r.client_request_id),
+      confirmation_code: String(r.confirmation_code),
+      member_name: String(r.member_name),
+      member_phone: String(r.member_phone),
+      member_normalized_phone: String(r.member_normalized_phone),
+      church_zone: String(r.church_zone),
+      soul_name: String(r.soul_name),
+      member_count: Math.max(1, Number(r.member_count ?? 1)),
+      soul_phone: String(r.soul_phone),
+      soul_normalized_phone: String(r.soul_normalized_phone),
+      address: String(r.address ?? ''),
+      attended: r.attended ? 1 : 0,
+      attended_at: String(r.attended_at ?? ''),
+      whatsapp_sent: r.whatsapp_sent ? 1 : 0,
+      notes: String(r.notes ?? ''),
+      created_at: String(r.created_at),
+    }));
+
+    return {
+      settings,
+      leads,
+      events,
+      runs,
+      teamUsers,
+      boothWinners,
+      soulRegistrations,
+    };
   }
 
   async upsertSettings(row: PersistedSettingsRow): Promise<void> {
@@ -346,12 +504,12 @@ export class PostgresPersistenceAdapter implements RemotePersistenceAdapter {
          id, client_request_id, visitor_id, redemption_code, claim_token,
          name, raw_phone, normalized_phone, game_played, score, target_score,
          volunteer_name, gift_claimed, whatsapp_sent, followup_status,
-         notes, notes_updated_at, created_at
+         notes, notes_updated_at, created_at, attended, attended_at
        ) VALUES (
          $1, $2, $3, $4, $5,
          $6, $7, $8, $9, $10, $11,
          $12, $13, $14, $15,
-         $16, $17, $18
+         $16, $17, $18, $19, $20
        )
        ON CONFLICT (id) DO UPDATE SET
          visitor_id = EXCLUDED.visitor_id,
@@ -366,7 +524,9 @@ export class PostgresPersistenceAdapter implements RemotePersistenceAdapter {
          whatsapp_sent = EXCLUDED.whatsapp_sent,
          followup_status = EXCLUDED.followup_status,
          notes = EXCLUDED.notes,
-         notes_updated_at = EXCLUDED.notes_updated_at`,
+         notes_updated_at = EXCLUDED.notes_updated_at,
+         attended = EXCLUDED.attended,
+         attended_at = EXCLUDED.attended_at`,
       [
         row.id,
         row.client_request_id,
@@ -386,6 +546,8 @@ export class PostgresPersistenceAdapter implements RemotePersistenceAdapter {
         row.notes,
         row.notes_updated_at,
         row.created_at,
+        row.attended ? 1 : 0,
+        row.attended_at ?? '',
       ]
     );
   }
@@ -467,6 +629,104 @@ export class PostgresPersistenceAdapter implements RemotePersistenceAdapter {
 
   async deleteTeamUser(id: number): Promise<void> {
     await this.pool.query('DELETE FROM team_users WHERE id = $1', [id]);
+  }
+
+  async upsertBoothWinner(row: PersistedBoothWinnerRow): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO booth_winners (
+         id, client_request_id, voucher_code, member_name, member_phone,
+         normalized_phone, friend_name, relationship, seats_reserved,
+         friend_phone, game_played, score, token_handed_out,
+         whatsapp_sent, friend_opened, notes, created_at
+       ) VALUES (
+         $1, $2, $3, $4, $5,
+         $6, $7, $8, $9,
+         $10, $11, $12, $13,
+         $14, $15, $16, $17
+       )
+       ON CONFLICT (id) DO UPDATE SET
+         member_name = EXCLUDED.member_name,
+         member_phone = EXCLUDED.member_phone,
+         normalized_phone = EXCLUDED.normalized_phone,
+         friend_name = EXCLUDED.friend_name,
+         relationship = EXCLUDED.relationship,
+         seats_reserved = EXCLUDED.seats_reserved,
+         friend_phone = EXCLUDED.friend_phone,
+         game_played = EXCLUDED.game_played,
+         score = EXCLUDED.score,
+         token_handed_out = EXCLUDED.token_handed_out,
+         whatsapp_sent = EXCLUDED.whatsapp_sent,
+         friend_opened = EXCLUDED.friend_opened,
+         notes = EXCLUDED.notes`,
+      [
+        row.id,
+        row.client_request_id,
+        row.voucher_code,
+        row.member_name,
+        row.member_phone,
+        row.normalized_phone,
+        row.friend_name,
+        row.relationship,
+        row.seats_reserved,
+        row.friend_phone,
+        row.game_played,
+        row.score,
+        row.token_handed_out,
+        row.whatsapp_sent,
+        row.friend_opened,
+        row.notes,
+        row.created_at,
+      ]
+    );
+  }
+
+  async upsertSoulRegistration(row: PersistedSoulRegistrationRow): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO soul_registrations (
+         id, client_request_id, confirmation_code, member_name, member_phone,
+         member_normalized_phone, church_zone, soul_name, member_count,
+         soul_phone, soul_normalized_phone, address, attended,
+         attended_at, whatsapp_sent, notes, created_at
+       ) VALUES (
+         $1, $2, $3, $4, $5,
+         $6, $7, $8, $9,
+         $10, $11, $12, $13,
+         $14, $15, $16, $17
+       )
+       ON CONFLICT (id) DO UPDATE SET
+         member_name = EXCLUDED.member_name,
+         member_phone = EXCLUDED.member_phone,
+         member_normalized_phone = EXCLUDED.member_normalized_phone,
+         church_zone = EXCLUDED.church_zone,
+         soul_name = EXCLUDED.soul_name,
+         member_count = EXCLUDED.member_count,
+         soul_phone = EXCLUDED.soul_phone,
+         soul_normalized_phone = EXCLUDED.soul_normalized_phone,
+         address = EXCLUDED.address,
+         attended = EXCLUDED.attended,
+         attended_at = EXCLUDED.attended_at,
+         whatsapp_sent = EXCLUDED.whatsapp_sent,
+         notes = EXCLUDED.notes`,
+      [
+        row.id,
+        row.client_request_id,
+        row.confirmation_code,
+        row.member_name,
+        row.member_phone,
+        row.member_normalized_phone,
+        row.church_zone,
+        row.soul_name,
+        row.member_count,
+        row.soul_phone,
+        row.soul_normalized_phone,
+        row.address,
+        row.attended,
+        row.attended_at,
+        row.whatsapp_sent,
+        row.notes,
+        row.created_at,
+      ]
+    );
   }
 
   async linkVisitorToLead(leadId: number, visitorId: string): Promise<void> {
