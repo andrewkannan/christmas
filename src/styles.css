@@ -7942,9 +7942,9 @@ dialog::backdrop {
   margin-inline: auto;
   padding: 0.55rem 0.65rem 0.7rem;
   border-radius: var(--radius-lg);
-  background: radial-gradient(circle at 50% 42%, #065f46 0%, #022c22 58%, #070b12 100%);
-  border: 2px solid rgba(253, 224, 71, 0.55);
-  box-shadow: 0 22px 48px rgba(2, 44, 34, 0.45), inset 0 0 34px rgba(253, 224, 71, 0.18);
+  background: radial-gradient(circle at 50% 44%, #452107 0%, #1d1106 54%, #090b10 100%);
+  border: 2px solid rgba(253, 224, 71, 0.62);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.5), inset 0 0 38px rgba(250, 204, 21, 0.2);
   display: grid;
   gap: 0.45rem;
 }
@@ -7958,7 +7958,7 @@ dialog::backdrop {
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 620 / 540;
+  aspect-ratio: 640 / 520;
   cursor: grab;
   touch-action: pan-y;
 }
