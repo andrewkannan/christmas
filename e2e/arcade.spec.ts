@@ -554,7 +554,7 @@ test('/register, /present, and /admin flow: church member registers souls, King 
   if (isPixel) {
     await page.setViewportSize({ width: 1366, height: 900 });
     await page.getByRole('button', { name: /Demo Crown Fill/i }).click();
-    await page.waitForTimeout(1250);
+    await page.waitForTimeout(850);
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({
       path: `${artifactDir}/v180-2-present-crown-desktop.png`,

@@ -7934,17 +7934,19 @@ dialog::backdrop {
 }
 
 /* ==========================================================================
-   King of Glory Christmas Crown SVG Visualizer (ChristmasCrownArt)
+   3D Rotating King of Glory Christmas Crown & Wavy Water Visualizer
    ========================================================================== */
 .crown-art-wrap {
   width: 100%;
-  max-inline-size: 36rem;
+  max-inline-size: 38rem;
   margin-inline: auto;
-  padding: 0.5rem;
+  padding: 0.55rem 0.65rem 0.7rem;
   border-radius: var(--radius-lg);
-  background: radial-gradient(circle at 50% 42%, #064e3b 0%, #022c22 62%, #090d16 100%);
-  border: 2px solid rgba(253, 224, 71, 0.48);
-  box-shadow: 0 18px 42px rgba(2, 44, 34, 0.35), inset 0 0 28px rgba(253, 224, 71, 0.14);
+  background: radial-gradient(circle at 50% 42%, #065f46 0%, #022c22 58%, #070b12 100%);
+  border: 2px solid rgba(253, 224, 71, 0.55);
+  box-shadow: 0 22px 48px rgba(2, 44, 34, 0.45), inset 0 0 34px rgba(253, 224, 71, 0.18);
+  display: grid;
+  gap: 0.45rem;
 }
 
 .crown-art-wrap--compact {
@@ -7952,14 +7954,48 @@ dialog::backdrop {
   padding: 0.35rem;
 }
 
-.crown-art-svg {
+.crown-art-canvas {
   display: block;
   width: 100%;
   height: auto;
+  aspect-ratio: 620 / 540;
+  cursor: grab;
+  touch-action: pan-y;
 }
 
-.crown-art-clip-rect {
-  transition: y 650ms cubic-bezier(0.22, 1, 0.36, 1), height 650ms cubic-bezier(0.22, 1, 0.36, 1);
+.crown-art-canvas:active {
+  cursor: grabbing;
+}
+
+.crown-art-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding-inline: 0.35rem;
+}
+
+.crown-art-controls__hint {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #a7f3d0;
+}
+
+.crown-art-controls__btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.crown-art-ctrl-btn {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fef08a;
+  border: 1px solid rgba(253, 224, 71, 0.42);
+}
+
+.crown-art-ctrl-btn:hover {
+  background: rgba(254, 240, 138, 0.22);
 }
 
 /* ==========================================================================
