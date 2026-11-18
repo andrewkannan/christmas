@@ -40,16 +40,16 @@ interface GloryMote {
 
 // 5-Peak Classic Royal Coronet (3 peaks in front, 2 peaks visible in the back valleys — matching reference)
 const NUM_PEAKS = 5;
-const BASE_Y = 118; // Bottom torus ring center Y (y+ is down, y- is up)
-const VALLEY_Y = 14; // Bottom of the smooth U-shaped valley between peaks
-const PEAK_Y = -114; // Tip of the sharp peak cusp (center of sphere finial)
+const BASE_Y = 114; // Bottom torus ring center Y (y+ is down, y- is up)
+const VALLEY_Y = 16; // Bottom of the smooth U-shaped valley between peaks
+const PEAK_Y = -116; // Tip of the sharp peak cusp (center of sphere finial)
 const SPHERE_RADIUS_3D = 22;
-const MIN_FILL_Y = BASE_Y + 14;
-const MAX_FILL_Y = PEAK_Y - SPHERE_RADIUS_3D - 10;
+const MIN_FILL_Y = BASE_Y - 4;
+const MAX_FILL_Y = PEAK_Y - SPHERE_RADIUS_3D - 8;
 
 const BASE_RADIUS = 138;
-const VALLEY_RADIUS = 154;
-const PEAK_RADIUS = 188;
+const VALLEY_RADIUS = 156;
+const PEAK_RADIUS = 190;
 
 function projectPoint(
   pt: Vec3,
@@ -64,15 +64,23 @@ function projectPoint(
   const x1 = pt.x * cosY + pt.z * sinY;
   const z1 = -pt.x * sinY + pt.z * cosY;
 
-  const cosX = Math.cos(tiltX);
-  const sinX = Math.sin(tiltX);
+  // Attenuate vertical tilt smoothly from 1.0 at the peaks down to 0.04 at the base ring
+  // so the bottom rim stays flat and never protrudes below the horizontal base torus lip
+  const heightFrac = Math.max(0, Math.min(1, (BASE_Y - pt.y) / (BASE_Y - PEAK_Y)));
+  const effectiveTiltX = tiltX * (0.04 + 0.96 * heightFrac);
+
+  const cosX = Math.cos(effectiveTiltX);
+  const sinX = Math.sin(effectiveTiltX);
   const y2 = pt.y * cosX - z1 * sinX;
   const z2 = pt.y * sinX + z1 * cosX;
 
-  const scale = fov / Math.max(140, fov + z2 + 40);
+  const scale = fov / Math.max(400, fov + z2);
+  // Lock vertical baseline at BASE_Y so front base strips never droop below the torus ring
+  const sy = cy + pt.y + (y2 - pt.y) + (scale - 1) * pt.y * heightFrac * 0.45;
+
   return {
     sx: cx + x1 * scale,
-    sy: cy + y2 * scale,
+    sy,
     z: z2,
     scale,
   };
@@ -80,7 +88,7 @@ function projectPoint(
 
 /**
  * Evaluates the exact 3D upper rim profile of the 5-peak Royal Coronet at local angle phi in [0, 2*PI).
- * Uses a smooth catenary U-valley (d^1.88) that meets at sharp pointed cusps at each of the 5 peaks.
+ * Uses a smooth catenary U-valley (d^1.85) that meets at sharp pointed cusps at each of the 5 peaks.
  */
 function sampleCrownRim3D(phi: number): {
   yRim: number;
@@ -91,7 +99,7 @@ function sampleCrownRim3D(phi: number): {
   const wrapped = ((phi % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
   const u = (wrapped % sectorAngle) / sectorAngle; // 0 at peak k, 0.5 at valley, 1 at peak k+1
   const d = Math.abs(2 * u - 1); // 0 at valley bottom, 1 at peak tip
-  const peakRaise = Math.pow(d, 1.88); // Smooth rounded U-valley, sharp pointed peak cusp
+  const peakRaise = Math.pow(d, 1.85); // Smooth rounded U-valley, sharp pointed peak cusp
 
   const yRim = VALLEY_Y + (PEAK_Y - VALLEY_Y) * peakRaise;
   const rRim = VALLEY_RADIUS + (PEAK_RADIUS - VALLEY_RADIUS) * peakRaise;
@@ -240,8 +248,8 @@ export function ChristmasCrownArt({
   const targetFillRef = useRef<number>(Math.min(100, Math.max(0, fillPercentage)));
   const animatedFillRef = useRef<number>(Math.min(100, Math.max(0, fillPercentage)));
   const surgeAmpRef = useRef<number>(0);
-  // Start at -PI/2 so Peak 0 is dead-center in front, 2 peaks on the sides, 2 peaks in the back valleys!
-  const rotYRef = useRef<number>(-Math.PI * 0.5);
+  // Start at +PI/2 so Peak 0 is dead-center in front (z < 0), 2 peaks on the sides, and 2 peaks in the back valleys!
+  const rotYRef = useRef<number>(Math.PI * 0.5);
   const isDraggingRef = useRef<boolean>(false);
   const dragLastXRef = useRef<number>(0);
   const dragVelocityRef = useRef<number>(0);
@@ -312,10 +320,10 @@ export function ChristmasCrownArt({
 
       const fillPct = Math.min(100, Math.max(0, animatedFillRef.current));
       const rotY = rotYRef.current;
-      const tiltX = 0.13; // Subtle 7.5° royal elevation tilt matching reference perspective
+      const tiltX = -0.095; // Studio camera angle so center front peak is tallest & back peaks sit lower inside valleys
       const cx = logicalW * 0.5;
       const cy = logicalH * 0.54;
-      const fov = 620;
+      const fov = 1450;
 
       const waterLevelY = MIN_FILL_Y - ((MIN_FILL_Y - MAX_FILL_Y) * fillPct) / 100;
 
@@ -807,47 +815,53 @@ export function ChristmasCrownArt({
         ctx.stroke();
       }
 
-      // 4B. 3D Rounded Metallic Gold Base Torus Ring (the double-lipped base ring in the reference)
-      // Underside dark bronze elliptical opening of the crown base
+      // 4B. 3D Rounded Metallic Gold Base Torus Rim (sleek horizontal double-lipped base from the reference crown)
       const baseLeft = projectPoint({ x: -BASE_RADIUS, y: BASE_Y, z: 0 }, 0, tiltX, cx, cy, fov);
       const baseRight = projectPoint({ x: BASE_RADIUS, y: BASE_Y, z: 0 }, 0, tiltX, cx, cy, fov);
       const baseCenter = projectPoint({ x: 0, y: BASE_Y, z: 0 }, 0, tiltX, cx, cy, fov);
-      const baseRx = (baseRight.sx - baseLeft.sx) * 0.505;
-      const baseRy = 13;
+      const baseRx = (baseRight.sx - baseLeft.sx) * 0.512;
+      const baseRy = 6.5;
 
       ctx.save();
-      // Outer torus ring body
+      // Anisotropic 24K gold horizontal gradient across the base torus rim
       const torusGrad = ctx.createLinearGradient(baseLeft.sx, baseCenter.sy, baseRight.sx, baseCenter.sy);
-      torusGrad.addColorStop(0, '#854d0e');
-      torusGrad.addColorStop(0.22, '#d99b36');
-      torusGrad.addColorStop(0.45, '#78450d');
-      torusGrad.addColorStop(0.72, '#fef08a');
-      torusGrad.addColorStop(0.86, '#eab308');
-      torusGrad.addColorStop(1, '#713f12');
+      torusGrad.addColorStop(0, '#9a6b24');
+      torusGrad.addColorStop(0.18, '#dfb15b');
+      torusGrad.addColorStop(0.46, '#785018');
+      torusGrad.addColorStop(0.72, '#fff9c2');
+      torusGrad.addColorStop(0.86, '#dfb15b');
+      torusGrad.addColorStop(1, '#7c531a');
 
-      // Upper torus roll
+      // Upper shadow crease where the crown wall meets the rolled base torus lip
       ctx.beginPath();
-      ctx.ellipse(cx, baseCenter.sy - 2, baseRx, baseRy, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, baseCenter.sy - 3.5, baseRx * 0.99, baseRy * 0.55, 0, 0, Math.PI);
+      ctx.strokeStyle = 'rgba(72, 42, 8, 0.72)';
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+
+      // Main 3D rolled metallic gold base rim
+      ctx.beginPath();
+      ctx.ellipse(cx, baseCenter.sy, baseRx, baseRy, 0, 0, Math.PI * 2);
       ctx.fillStyle = torusGrad;
       ctx.fill();
-      ctx.strokeStyle = '#452304';
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#6b4411';
+      ctx.lineWidth = 1.2;
       ctx.stroke();
 
-      // Bright specular horizontal ridge across the base torus
+      // Bright white-gold specular ridge running horizontally across the rolled base lip
       ctx.beginPath();
-      ctx.ellipse(cx, baseCenter.sy - 5, baseRx * 0.98, baseRy * 0.62, 0, 0.08 * Math.PI, 0.92 * Math.PI);
-      ctx.strokeStyle = '#fffbeb';
-      ctx.lineWidth = 3;
+      ctx.ellipse(cx, baseCenter.sy - 1.8, baseRx * 0.98, baseRy * 0.52, 0, 0.05 * Math.PI, 0.95 * Math.PI);
+      ctx.strokeStyle = '#fffef0';
+      ctx.lineWidth = 2.5;
       ctx.stroke();
 
-      // Inner dark bronze recess under the crown base
+      // Subtle warm gold recessed underside lip (matching the shallow double-lip in the reference crown)
       ctx.beginPath();
-      ctx.ellipse(cx, baseCenter.sy + 3, baseRx * 0.93, baseRy * 0.55, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#5c3409';
+      ctx.ellipse(cx, baseCenter.sy + 2.2, baseRx * 0.94, baseRy * 0.44, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#85581a';
       ctx.fill();
-      ctx.strokeStyle = '#fde68a';
-      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 1.2;
       ctx.stroke();
       ctx.restore();
 
