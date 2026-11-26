@@ -496,7 +496,7 @@ test('/storyboard renders Vintage Car → Mirror Smile → JESUS "Yes Appa!" pro
   expect(consoleErrors).toEqual([]);
 });
 
-test('/register, /present, and /admin flow: church member registers souls, King of Glory Crown fills from bottom to top, and admin sets Crown goal & checks in Christmas attendance', async ({
+test('/register, /present, and /admin flow: guest signs up from the invitation card, sees time/location/route to Menara Zurich, King of Glory Crown fills, and admin checks in Christmas attendance', async ({
   page,
 }, testInfo) => {
   const consoleErrors: string[] = [];
@@ -508,61 +508,84 @@ test('/register, /present, and /admin flow: church member registers souls, King 
     'C:/Users/andrewkannan/.gemini/antigravity/brain/51b63e48-b75f-463f-b008-5ea1870cf2ef';
   const isPixel = testInfo.project.name === 'pixel-7';
 
-  // 1. Church member opens /register and registers a family of 3 new souls
+  // 1. Guest scans the physical invitation card and opens /register
   await page.goto('/register');
   await expect(
-    page.getByRole('heading', { name: 'Register Your New Soul for Christmas' })
+    page.getByRole('heading', { level: 1, name: 'Jesus, the King of Glory' })
   ).toBeVisible();
+  await expect(page.getByText('Menara Zurich Level 8')).toBeVisible();
+  // Standalone guest page: no arcade header / crown
+  await expect(page.locator('.top-bar')).toHaveCount(0);
+  await expect(page.locator('.crown-art-canvas')).toHaveCount(0);
 
-  await page.getByLabel(/Church Member Name/i).fill('Andrew Kannan');
-  await page.getByLabel(/Church Member Phone Number/i).fill('012-778 2708');
-  await page
-    .getByLabel(/Home Church Zone/i)
-    .selectOption('Zone 2 · Mount Austin & Tebrau');
+  // Submitting empty shows a clear error and moves focus to the first invalid field
+  await page.getByRole('button', { name: /Reserve my seat/i }).click();
+  await expect(page.getByText('Please enter your name (at least 2 characters).')).toBeVisible();
+  await expect(page.getByLabel('Your name')).toBeFocused();
+  await expect(page.getByLabel('Your name')).toHaveAttribute('aria-invalid', 'true');
 
-  await page.getByLabel(/New Soul Name/i).fill('Mr. & Mrs. Rajan');
-  await page.getByLabel(/New Soul Phone Number/i).fill('016-889 4455');
-  await page.getByRole('button', { name: '3 Souls' }).click();
-  await page.getByLabel(/Address/i).fill('28 Jalan Austin Heights 8/2, JB');
+  await page.getByLabel('Your name').fill('Mr. & Mrs. Rajan');
+  await page.getByLabel(/Mobile \/ WhatsApp number/i).fill('016-889 4455');
+  await page.getByRole('button', { name: '3', exact: true }).click();
+  await expect(page.getByRole('spinbutton', { name: 'Number of seats' })).toHaveValue('3');
+  await page.getByLabel(/Who invited you/i).fill('Andrew Kannan');
 
   if (isPixel) {
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.screenshot({
-      path: `${artifactDir}/v180-1-register-form.png`,
-      fullPage: true,
-    });
+    await page.screenshot({ path: `${artifactDir}/v190-1-register-form-mobile.png`, fullPage: true });
   }
 
-  await page
-    .getByRole('button', { name: /Register Soul \(\+3 to King of Glory Crown\)/i })
-    .click();
+  await page.getByRole('button', { name: /Reserve my 3 seats/i }).click();
 
+  // 2. Confirmation shows seats, code, time, location, directions and the arrival guide
   await expect(
-    page.getByRole('heading', { name: /👑 \+3 Souls Added to the King of Glory Crown!/i })
+    page.getByRole('heading', { name: 'See you at Christmas, Mr. & Mrs. Rajan!' })
+  ).toBeFocused();
+  await expect(page.getByText(/^KOG-[A-Z0-9]{4,6}$/)).toBeVisible();
+  await expect(page.getByText('Thursday, 24 December 2026')).toBeVisible();
+  await expect(page.getByText('Menara Zurich, Level 8 (Auditorium 3)')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Directions in Google Maps' })).toHaveAttribute(
+    'href',
+    /google\.com\/maps\/dir\/\?api=1&destination=Menara%20Zurich/
+  );
+  await expect(page.getByRole('link', { name: 'Open in Waze' })).toHaveAttribute(
+    'href',
+    /waze\.com\/ul\?ll=1\.4795313,103\.7593321&navigate=yes/
+  );
+  await expect(page.getByRole('heading', { name: 'How to get to Menara Zurich' })).toBeVisible();
+  await expect(page.getByText('Take the lift to Level 8')).toBeVisible();
+  // Map either renders or falls back gracefully — it must not stay stuck loading
+  await expect(page.getByText('Loading map…')).toHaveCount(0, { timeout: 25_000 });
+
+  if (isPixel) {
+    await page.waitForTimeout(2500);
+    await page.screenshot({ path: `${artifactDir}/v190-2-register-confirmation-mobile.png`, fullPage: true });
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: `${artifactDir}/v190-3-register-confirmation-desktop.png`, fullPage: true });
+  }
+
+  // The confirmation survives a reload (guest reopens the page on the day)
+  await page.reload();
+  await expect(
+    page.getByRole('heading', { name: 'See you at Christmas, Mr. & Mrs. Rajan!' })
   ).toBeVisible();
-  await expect(
-    page.getByRole('link', { name: /Send Personal WhatsApp Invite to Mr\. & Mrs\. Rajan/i })
-  ).toHaveAttribute('href', /https:\/\/wa\.me\/60168894455/);
 
-  // 2. Open /present big-screen King of Glory Christmas Crown visualizer
-  await page.getByRole('button', { name: /Watch Crown Rise on \/present/i }).click();
+  if (isPixel) {
+    await page.getByRole('button', { name: 'Register another guest' }).click();
+    await expect(page.getByLabel('Your name')).toBeFocused();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `${artifactDir}/v190-4-register-form-desktop.png`, fullPage: true });
+  }
+
+  // 3. Open /present big-screen King of Glory Christmas Crown visualizer
+  await page.goto('/present');
   await expect(
     page.getByRole('heading', { name: 'Crown the King of Glory with Souls' })
   ).toBeVisible();
   await expect(page.getByText('Mr. & Mrs. Rajan').first()).toBeVisible();
 
-  if (isPixel) {
-    await page.setViewportSize({ width: 1366, height: 900 });
-    await page.getByRole('button', { name: /Demo Crown Fill/i }).click();
-    await page.waitForTimeout(850);
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.screenshot({
-      path: `${artifactDir}/v180-2-present-crown-desktop.png`,
-      fullPage: true,
-    });
-  }
-
-  // 3. Navigate to /admin, sign in, set Final Full Crown target, and mark Mr. & Mrs. Rajan as Attended on Christmas
+  // 4. Navigate to /admin, sign in, set Final Full Crown target, and mark Mr. & Mrs. Rajan as Attended on Christmas
   await page.goto('/admin');
   await page.getByLabel(/Team Passcode or Team Access PIN/i).fill('2468');
   await page.getByRole('button', { name: /Unlock Command Center/i }).click();
@@ -578,11 +601,11 @@ test('/register, /present, and /admin flow: church member registers souls, King 
   await page.getByRole('button', { name: /Save Final Full Crown Number/i }).click();
   await expect(page.getByText(/Final Full Crown is now set to 100 souls/i)).toBeVisible();
 
-  // Verify the registered soul appears in the unified table with WhatsApp link & check-in attendance toggle
+  // Verify the guest sign-up appears in the unified table with WhatsApp link & check-in attendance toggle
   const rajanRow = page.locator('tr', { hasText: 'Mr. & Mrs. Rajan' }).first();
   await expect(rajanRow).toBeVisible();
   await expect(rajanRow.getByText('3 Members')).toBeVisible();
-  await expect(rajanRow.getByText('Zone 2 · Mount Austin & Tebrau')).toBeVisible();
+  await expect(rajanRow.getByText('Guest Self Sign-up')).toBeVisible();
 
   const attendBtn = rajanRow.getByRole('button', {
     name: /Mark Mr\. & Mrs\. Rajan as attended on Christmas/i,

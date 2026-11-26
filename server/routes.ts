@@ -14,6 +14,7 @@ import {
 import { buildGoogleCalendarUrl, buildIcsContent } from './calendar.ts';
 import { HockeyRoomManager } from './hockeyRooms.ts';
 import { normalizePhoneForWhatsApp } from './phone.ts';
+import { KING_OF_GLORY_INVITE } from '../src/invite/kingOfGloryInvite.ts';
 
 const GameIdEnum = z.enum([
   'ice-hockey',
@@ -326,6 +327,35 @@ const SoulRegistrationSchema = z.object({
     .max(80)
     .optional()
     .default(() => `soul-${Math.random().toString(36).slice(2, 12)}-${Date.now()}`),
+});
+
+const GuestSignupSchema = z.object({
+  guestName: z
+    .string()
+    .trim()
+    .min(2, 'Please enter your name (at least 2 characters).')
+    .max(80, 'Name must be 80 characters or fewer.'),
+  guestPhone: z
+    .string()
+    .trim()
+    .min(5, 'Please enter your mobile / WhatsApp number.')
+    .max(30, 'Phone number is too long.'),
+  seats: z.coerce
+    .number()
+    .int('Number of seats must be a whole number.')
+    .min(1, 'Please reserve at least 1 seat.')
+    .max(
+      KING_OF_GLORY_INVITE.maxSeatsPerRegistration,
+      `You can reserve up to ${KING_OF_GLORY_INVITE.maxSeatsPerRegistration} seats per registration.`
+    ),
+  invitedBy: z.string().trim().max(80, 'Name must be 80 characters or fewer.').optional().default(''),
+  countryCode: z
+    .string()
+    .trim()
+    .regex(/^\+?\d{1,4}$/, 'Invalid country code.')
+    .optional()
+    .default('60'),
+  clientRequestId: z.string().trim().min(6).max(80).optional(),
 });
 
 const SoulRegistrationPatchSchema = z.object({
@@ -656,6 +686,37 @@ export function createApiRouter(db: ArcadeDatabase, options: { now?: () => numbe
         registration: outcome.registration,
         crownStatus: outcome.crownStatus,
       });
+    })
+  );
+
+  // --- /register Guest Self Sign-up (physical "Jesus, the King of Glory" invitation card) ---
+  router.post(
+    '/public/guest-signup',
+    asyncHandler(async (req, res) => {
+      const ip = getClientIp(req);
+      if (!leadLimiter.isAllowed(ip)) {
+        res.status(429).json({
+          error: 'Too many sign-ups right now. Please wait a moment and try again.',
+        });
+        return;
+      }
+
+      const parsed = GuestSignupSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        const firstIssue = parsed.error.issues[0]?.message || 'Please check your details.';
+        res.status(400).json({ error: firstIssue });
+        return;
+      }
+
+      const outcome = db.createGuestSignup(parsed.data, getPublicBaseUrl(req));
+      if (!outcome.ok) {
+        res.status(outcome.status).json({ error: outcome.error });
+        return;
+      }
+
+      await db.flushPersistence();
+      // Only the guest-facing summary is returned publicly (no admin/WhatsApp internals).
+      res.status(outcome.created ? 201 : 200).json({ guest: outcome.guest });
     })
   );
 

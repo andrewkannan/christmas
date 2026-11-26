@@ -44,7 +44,7 @@ import { TeamLogin } from './team/TeamLogin.tsx';
 import { TeamDashboard } from './team/TeamDashboard.tsx';
 import { PromoStoryboard } from './storyboard/PromoStoryboard.tsx';
 import { ChurchBoothPage } from './winners/ChurchBoothPage.tsx';
-import { SoulRegisterPage } from './register/SoulRegisterPage.tsx';
+import { GuestSignupPage } from './register/GuestSignupPage.tsx';
 import { PresentCrownPage } from './present/PresentCrownPage.tsx';
 import { AdminConsolePage } from './admin/AdminConsolePage.tsx';
 
@@ -245,7 +245,7 @@ export function App() {
       return;
     }
     if (routeMode === 'register') {
-      document.title = `Register Your New Soul | ${settings.churchName}`;
+      document.title = 'Register · Jesus, the King of Glory | CCCJB Bilingual Christmas';
       return;
     }
     if (routeMode === 'present') {
@@ -278,11 +278,16 @@ export function App() {
 
   // Background Christmas music on Lobby, Claim, VIP Invitation & Church Booth
   useEffect(() => {
-    if (routeMode === 'team' || routeMode === 'admin' || routeMode === 'storyboard') {
+    if (
+      routeMode === 'team' ||
+      routeMode === 'admin' ||
+      routeMode === 'storyboard' ||
+      routeMode === 'register'
+    ) {
       setMusicScene('none');
       return;
     }
-    if (routeMode === 'winners' || routeMode === 'register' || routeMode === 'present') {
+    if (routeMode === 'winners' || routeMode === 'present') {
       setMusicScene('christmas-bg');
       return;
     }
@@ -383,16 +388,20 @@ export function App() {
     routeMode === 'register' ||
     routeMode === 'present';
 
+  const isGuestInviteRoute = routeMode === 'register';
+
   return (
     <div
       className={`app-shell ${isWideRoute ? 'app-shell--wide' : ''} ${
         routeMode === 'present' ? 'app-shell--present' : ''
-      }`}
+      } ${isGuestInviteRoute ? 'app-shell--invite' : ''}`}
     >
       <a href="#main-content" className="skip-link visually-hidden">
         Skip to main content
       </a>
 
+      {/* /register is a standalone guest invitation page — no arcade/staff navigation. */}
+      {!isGuestInviteRoute && (
       <header className="top-bar no-print">
         <a
           href={`/${window.location.search}`}
@@ -413,13 +422,11 @@ export function App() {
                 ? 'Promo Storyboard'
                 : routeMode === 'winners'
                   ? 'Church Booth · Win a Seat'
-                  : routeMode === 'register'
-                    ? 'Register New Soul'
-                    : routeMode === 'present'
-                      ? 'King of Glory Crown'
-                      : routeMode === 'admin'
-                        ? 'Unified Soul & Attendance Admin'
-                        : 'Christmas Arcade'}
+                  : routeMode === 'present'
+                    ? 'King of Glory Crown'
+                    : routeMode === 'admin'
+                      ? 'Unified Soul & Attendance Admin'
+                      : 'Christmas Arcade'}
             </span>
           </span>
         </a>
@@ -437,7 +444,6 @@ export function App() {
           )}
           {(routeMode === 'player' ||
             routeMode === 'winners' ||
-            routeMode === 'register' ||
             routeMode === 'present') && (
             <button
               type="button"
@@ -494,6 +500,7 @@ export function App() {
           )}
         </nav>
       </header>
+      )}
 
       <main
         id="main-content"
@@ -518,14 +525,7 @@ export function App() {
             }}
           />
         ) : routeMode === 'register' ? (
-          <SoulRegisterPage
-            settings={settings}
-            onOpenPresentScreen={() => navigateMode('present')}
-            onOpenArcade={() => {
-              navigateMode('player');
-              setStep({ kind: 'lobby' });
-            }}
-          />
+          <GuestSignupPage />
         ) : routeMode === 'present' ? (
           <PresentCrownPage
             settings={settings}

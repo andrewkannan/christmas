@@ -7999,111 +7999,8 @@ dialog::backdrop {
 }
 
 /* ==========================================================================
-   /register — Church Member Soul Registration Form (SoulRegisterPage)
-   ========================================================================== */
-.soul-register-stage {
-  display: grid;
-  gap: 1.1rem;
-  max-inline-size: 54rem;
-  margin-inline: auto;
-  width: 100%;
-}
-
-.soul-register-hero {
-  background: linear-gradient(150deg, #fffdf8 0%, #fff7ed 50%, #fef3c7 100%);
-  border: 1.5px solid rgba(217, 119, 6, 0.38);
-}
-
-.soul-register-hero__grid {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 1.25rem;
-  align-items: center;
-}
-
-.soul-register-hero__copy {
-  display: grid;
-  gap: 0.65rem;
-  min-inline-size: 0;
-}
-
-.soul-register-progress-pill {
-  padding: 0.7rem 0.9rem;
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(180, 83, 9, 0.3);
-  display: grid;
-  gap: 0.42rem;
-}
-
-.soul-register-progress-pill__top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  font-size: 0.84rem;
-  color: var(--ink-primary);
-}
-
-.soul-register-progress-bar {
-  block-size: 0.65rem;
-  border-radius: 999px;
-  background: rgba(24, 24, 27, 0.09);
-  overflow: hidden;
-}
-
-.soul-register-progress-bar__fill {
-  block-size: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #15803d 0%, #d97706 55%, #eab308 100%);
-  transition: width 450ms ease;
-}
-
-.soul-register-hero__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.soul-register-hero__crown-box {
-  inline-size: 15.5rem;
-}
-
-.soul-register-form-card {
-  display: grid;
-  gap: 1rem;
-}
-
-.soul-register-form {
-  display: grid;
-  gap: 1.1rem;
-}
-
-.soul-fieldset {
-  margin: 0;
-  padding: 1rem 1.05rem;
-  border-radius: var(--radius-lg);
-  border: 1.5px solid var(--border-subtle);
-  background: var(--bg-tinted);
-  display: grid;
-  gap: 0.85rem;
-}
-
-.soul-fieldset--gold {
-  background: linear-gradient(180deg, #fffdf9 0%, #fffbeb 100%);
-  border-color: rgba(217, 119, 6, 0.38);
-}
-
-.soul-fieldset__legend {
-  padding: 0.2rem 0.65rem;
-  border-radius: 999px;
-  background: #7f1d1d;
-  color: #fef08a;
-  font-size: 0.78rem;
-  font-weight: 900;
-  letter-spacing: 0.03em;
-}
+   Shared form helpers (admin console & team forms)
+   ==========================================================================
 
 .form-grid-2 {
   display: grid;
@@ -8136,110 +8033,6 @@ dialog::backdrop {
   font-size: 0.74rem;
   font-weight: 600;
   color: var(--ink-muted);
-}
-
-.soul-count-control {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem;
-  align-items: center;
-}
-
-.soul-count-stepper {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.soul-count-stepper__btn {
-  min-inline-size: 48px;
-  min-block-size: 48px;
-  font-size: 1.2rem;
-  font-weight: 900;
-}
-
-.soul-count-stepper__input {
-  inline-size: 5.5rem;
-  text-align: center;
-  font-size: 1.05rem;
-  font-weight: 900;
-}
-
-.soul-count-presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-/* Registration Success Screen */
-.soul-register-success {
-  display: grid;
-  gap: 1.1rem;
-  border: 2px solid rgba(22, 163, 74, 0.42);
-}
-
-.soul-register-success__banner {
-  padding: 1.15rem;
-  border-radius: var(--radius-lg);
-  background: linear-gradient(140deg, #064e3b 0%, #047857 56%, #b45309 100%);
-  color: #ffffff;
-  display: grid;
-  gap: 0.45rem;
-}
-
-.soul-register-success__title {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 900;
-  line-height: 1.18;
-  color: #fef08a;
-}
-
-.soul-register-success__sub {
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.42;
-  color: #ecfdf5;
-}
-
-.soul-register-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-  gap: 0.75rem;
-}
-
-.soul-register-summary-card {
-  padding: 0.85rem 0.95rem;
-  border-radius: var(--radius-md);
-  background: var(--bg-tinted);
-  border: 1px solid var(--border-subtle);
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.soul-register-summary-card__label {
-  font-size: 0.72rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--ink-secondary);
-}
-
-.soul-register-summary-card__addr {
-  font-size: 0.8rem;
-  color: var(--ink-secondary);
-}
-
-.soul-register-success__actions {
-  display: grid;
-  gap: 0.65rem;
-}
-
-.soul-register-success__secondary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
 }
 
 /* ==========================================================================
@@ -9058,12 +8851,8 @@ body:has(.app-shell--present) {
 }
 
 @media (max-width: 720px) {
-  .soul-register-hero__grid,
   .admin-crown-config__grid {
     grid-template-columns: 1fr;
-  }
-  .soul-register-hero__crown-box {
-    margin-inline: auto;
   }
   .admin-filter-inputs {
     grid-template-columns: 1fr;
@@ -9071,3 +8860,916 @@ body:has(.app-shell--present) {
 }
 
 
+
+/* ==========================================================================
+   /register — Guest sign-up styled after the "Jesus, the King of Glory"
+   Canva invitation card (stamp-perforated front + postcard back)
+   ========================================================================== */
+body:has(.app-shell--invite) {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(141, 17, 20, 0.08), transparent 42%),
+    radial-gradient(circle at 92% 8%, rgba(232, 182, 90, 0.18), transparent 40%),
+    #efebe5;
+}
+
+.app-shell--invite {
+  --kog-red: #7b0d0d;
+  --kog-red-deep: #5f0808;
+  --kog-gold: #ecb862;
+  --kog-gold-soft: #fbe3a6;
+  --kog-cream: #f3ece6;
+  --kog-ink: #1e1a19;
+  --kog-ink-soft: #5b4f4b;
+  --kog-maroon: #7a1717;
+  --kog-green: #1e4a37;
+  --kog-serif: 'Cinzel', 'Trajan Pro', 'Cormorant SC', 'Times New Roman', serif;
+  --kog-script: 'Pinyon Script', 'Snell Roundhand', 'Apple Chancery', 'Brush Script MT', cursive;
+  --kog-sans: 'Poppins', var(--font-sans);
+
+  max-inline-size: 66rem;
+  padding-block-start: clamp(0.75rem, 3vw, 2rem);
+  color: var(--kog-ink);
+}
+
+.app-shell--invite :where(a:any-link, button, input, select, textarea):focus-visible {
+  outline-color: var(--kog-maroon);
+}
+
+.kog-page {
+  display: grid;
+  gap: clamp(1.5rem, 4vw, 2.5rem);
+  font-family: var(--kog-sans);
+  font-size-adjust: from-font;
+}
+
+/* --- Stamp perforation (postage-stamp scalloped edges) ------------------- */
+.kog-stamp-shadow {
+  filter: drop-shadow(0 18px 28px rgba(60, 10, 10, 0.2)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.12));
+}
+
+.kog-stamp {
+  --perf-r: 8px;
+  --perf-gap: 24px;
+  --perf-mask-x:
+    radial-gradient(circle at 50% 0, #0000 var(--perf-r), #000 calc(var(--perf-r) + 0.5px)) top / var(--perf-gap) 51% round no-repeat,
+    radial-gradient(circle at 50% 100%, #0000 var(--perf-r), #000 calc(var(--perf-r) + 0.5px)) bottom / var(--perf-gap) 51% round no-repeat;
+  --perf-mask-y:
+    radial-gradient(circle at 0 50%, #0000 var(--perf-r), #000 calc(var(--perf-r) + 0.5px)) left / 51% var(--perf-gap) no-repeat round,
+    radial-gradient(circle at 100% 50%, #0000 var(--perf-r), #000 calc(var(--perf-r) + 0.5px)) right / 51% var(--perf-gap) no-repeat round;
+  -webkit-mask: var(--perf-mask-x);
+  mask: var(--perf-mask-x);
+}
+
+/* Nested masks intersect: outer bites top/bottom, inner bites left/right. */
+.kog-stamp__paper {
+  -webkit-mask: var(--perf-mask-y);
+  mask: var(--perf-mask-y);
+  padding: calc(var(--perf-r) * 2 + 6px);
+}
+
+.kog-stamp--white .kog-stamp__paper {
+  background:
+    radial-gradient(rgba(0, 0, 0, 0.07) 0.7px, transparent 1.1px) 0 0 / 5px 5px,
+    linear-gradient(160deg, #ffffff, #f1f1ef);
+}
+
+.kog-stamp--red .kog-stamp__paper {
+  background:
+    radial-gradient(rgba(255, 255, 255, 0.1) 0.7px, transparent 1.1px) 0 0 / 5px 5px,
+    linear-gradient(160deg, #941417, #7a0c10);
+}
+
+/* --- Card front ----------------------------------------------------------- */
+.kog-front__panel {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: clamp(0.5rem, 1.8vw, 0.9rem);
+  min-block-size: clamp(21rem, 50vw, 33rem);
+  padding: clamp(3rem, 7vw, 4.2rem) clamp(1.4rem, 7vw, 5rem);
+  text-align: center;
+  color: var(--kog-gold);
+  background:
+    radial-gradient(rgba(0, 0, 0, 0.08) 0.6px, transparent 1px) 0 0 / 4px 4px,
+    radial-gradient(120% 95% at 50% 38%, #8f1111 0%, #760b0b 55%, #5c0606 100%);
+}
+
+/* Thin gold side rules like the printed card */
+.kog-front__panel::before {
+  content: '';
+  position: absolute;
+  inset-block: 18%;
+  inset-inline: clamp(0.7rem, 2.6vw, 1.5rem);
+  border-inline: 1px solid rgba(236, 184, 98, 0.55);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.kog-flourish {
+  position: absolute;
+  inline-size: clamp(2.3rem, 7vw, 4rem);
+  block-size: auto;
+  color: var(--kog-gold);
+  opacity: 0.9;
+}
+.kog-flourish--bl { inset-block-end: 0.6rem; inset-inline-start: 0.6rem; }
+.kog-flourish--tl { inset-block-start: 0.6rem; inset-inline-start: 0.6rem; transform: scaleY(-1); }
+.kog-flourish--br { inset-block-end: 0.6rem; inset-inline-end: 0.6rem; transform: scaleX(-1); }
+.kog-flourish--tr { inset-block-start: 0.6rem; inset-inline-end: 0.6rem; transform: scale(-1, -1); }
+
+.kog-front__rule {
+  position: absolute;
+  inset-inline: clamp(3.4rem, 14vw, 9rem);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--kog-gold);
+}
+.kog-front__rule::before,
+.kog-front__rule::after {
+  content: '';
+  flex: 1;
+  block-size: 1px;
+  background: currentColor;
+  opacity: 0.7;
+}
+.kog-front__rule--top { inset-block-start: clamp(1rem, 3vw, 1.6rem); }
+.kog-front__rule--bottom { inset-block-end: clamp(1rem, 3vw, 1.6rem); }
+.kog-front__rule .kog-rule-ornament {
+  inline-size: clamp(2.6rem, 6vw, 3.6rem);
+  block-size: auto;
+}
+
+.kog-front__tagline {
+  margin: 0 0 clamp(0.6rem, 2.4vw, 1.4rem);
+  font-family: var(--kog-sans);
+  font-weight: 700;
+  font-size: clamp(0.7rem, 1.7vw, 0.98rem);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffffff;
+}
+
+.kog-title {
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  font-family: var(--kog-serif);
+  font-weight: 600;
+  font-size: clamp(2.1rem, 7.6vw, 4.6rem);
+  line-height: 0.95;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--kog-gold);
+  text-shadow: 0 2px 0 rgba(60, 0, 0, 0.35);
+  font-size-adjust: cap-height from-font;
+}
+
+.kog-title__line {
+  display: block;
+  white-space: nowrap;
+}
+.kog-title__line--1 { transform: translateX(-3%); }
+.kog-title__line--2 {
+  font-size: 0.6em;
+  margin-block: 0.32em 0.12em;
+  transform: translateX(18%);
+}
+.kog-title__line--3 { transform: translateX(-4%); }
+
+.kog-title__the { font-size: 0.75em; }
+
+.kog-title__star {
+  font-size: 0.32em;
+  vertical-align: 1.5em;
+  margin-inline-end: 0.15em;
+  color: var(--kog-gold-soft);
+}
+
+.kog-swash {
+  font-family: var(--kog-script);
+  font-weight: 400;
+  text-transform: none;
+  font-size: 2.1em;
+  line-height: 0;
+  vertical-align: -0.16em;
+  margin-inline-end: -0.04em;
+}
+
+.kog-manger {
+  inline-size: clamp(3.8rem, 10vw, 5.8rem);
+  block-size: auto;
+  margin-block-start: clamp(0.3rem, 1.5vw, 0.8rem);
+}
+.kog-manger__crown { fill: var(--kog-gold); }
+.kog-manger__straw { fill: #fff7e6; }
+.kog-manger__wood { fill: #ffffff; }
+
+/* --- Postcard back (details + form) -------------------------------------- */
+.kog-postcard {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: clamp(1rem, 3vw, 1.7rem) clamp(1rem, 3.6vw, 2.3rem) clamp(1.6rem, 4vw, 2.6rem);
+  background: var(--kog-cream);
+  color: var(--kog-ink);
+}
+
+/* Faint pine-forest silhouette along the bottom, like the printed card */
+.kog-postcard::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  block-size: min(40%, 14rem);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 100' preserveAspectRatio='none'%3E%3Cg fill='%23748a84'%3E%3Cpath d='M0 100 12 52 24 100Z M18 100 34 30 50 100Z M44 100 58 58 72 100Z M64 100 82 24 100 100Z M94 100 108 50 122 100Z M114 100 132 34 150 100Z M144 100 158 56 172 100Z M164 100 182 28 200 100Z M194 100 208 48 222 100Z M214 100 230 36 246 100Z'/%3E%3C/g%3E%3C/svg%3E")
+    repeat-x left bottom / 22rem 100%;
+  opacity: 0.16;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.kog-postcard__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-end: clamp(0.8rem, 2.5vw, 1.4rem);
+}
+
+.kog-postcard__church {
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.kog-postcard__logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-inline-size: 9rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #2c2725;
+}
+.kog-postcard__logo svg {
+  inline-size: 1.6rem;
+  block-size: 1.6rem;
+  flex: none;
+}
+
+.kog-postcard__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.15fr);
+  gap: clamp(1rem, 3vw, 2.2rem);
+  align-items: start;
+}
+
+.kog-postcard__divider {
+  align-self: stretch;
+  inline-size: 0;
+  border-inline-start: 2px dashed #2a2523;
+}
+
+.kog-details {
+  display: grid;
+  gap: clamp(0.9rem, 2.4vw, 1.4rem);
+  text-align: center;
+  padding-block-start: clamp(0.4rem, 2vw, 1.6rem);
+}
+
+.kog-verse {
+  margin: 0;
+  color: var(--kog-green);
+  font-weight: 700;
+  font-size: clamp(1rem, 2.1vw, 1.2rem);
+  line-height: 1.45;
+  text-wrap: balance;
+}
+.kog-verse p { margin: 0; }
+.kog-verse footer { margin-block-start: 0.2rem; }
+
+.kog-rule-ornament--maroon {
+  display: block;
+  inline-size: 100%;
+  block-size: 16px;
+  color: var(--kog-maroon);
+  background:
+    linear-gradient(currentColor, currentColor) left center / calc(50% - 46px) 2px no-repeat,
+    linear-gradient(currentColor, currentColor) right center / calc(50% - 46px) 2px no-repeat;
+}
+
+.kog-when-where {
+  margin: 0;
+  display: grid;
+  gap: 0.4rem;
+  font-family: var(--kog-serif);
+  font-weight: 700;
+  font-size: clamp(1.1rem, 2.5vw, 1.55rem);
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--kog-maroon);
+  font-size-adjust: cap-height from-font;
+}
+.kog-when-where dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  column-gap: 1.6rem;
+}
+.kog-when-where__row--venue dd {
+  flex-direction: column;
+  align-items: center;
+}
+
+.kog-postcard__form-col {
+  display: grid;
+  gap: 0.35rem;
+  min-inline-size: 0;
+}
+
+.kog-section-title {
+  margin: 0;
+  font-family: var(--kog-serif);
+  font-weight: 700;
+  font-size: clamp(1.25rem, 2.8vw, 1.6rem);
+  color: var(--kog-maroon);
+}
+
+.kog-section-sub {
+  margin: 0 0 0.6rem;
+  color: var(--kog-ink-soft);
+  font-size: 0.92rem;
+}
+
+/* --- Form ("writing lines" on the postcard) ------------------------------ */
+.kog-form {
+  display: grid;
+  gap: 1.15rem;
+}
+
+.kog-field {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.kog-label {
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #3a2c27;
+}
+
+.kog-optional {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--kog-ink-soft);
+}
+
+.kog-hint {
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--kog-ink-soft);
+}
+
+.kog-input {
+  inline-size: 100%;
+  min-block-size: 2.9rem;
+  padding: 0.35rem 0.25rem;
+  font: inherit;
+  font-size: 1.1rem;
+  color: var(--kog-ink);
+  background: transparent;
+  border: 0;
+  border-block-end: 2px solid var(--kog-ink);
+  border-radius: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.kog-input:hover { background: rgba(255, 255, 255, 0.4); }
+.kog-input:focus-visible {
+  outline-offset: 3px;
+  background: rgba(255, 255, 255, 0.65);
+  border-block-end-color: var(--kog-maroon);
+}
+.kog-input[aria-invalid='true'] {
+  border-block-end-color: #b42318;
+  background: rgba(180, 35, 24, 0.06);
+}
+
+.kog-error {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #b42318;
+}
+
+.kog-seats {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.kog-seats__btn {
+  inline-size: 2.9rem;
+  block-size: 2.9rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 2px solid var(--kog-ink);
+  background: #fffaf2;
+  color: var(--kog-ink);
+  font: 600 1.45rem/1 var(--kog-sans);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.kog-seats__btn:hover:not(:disabled) { background: #ffffff; }
+.kog-seats__btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+.kog-input.kog-seats__input {
+  inline-size: 4.75rem;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.3rem;
+  border: 2px solid var(--kog-ink);
+  border-radius: 0.7rem;
+  background: #fffdf9;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.kog-seats__input::-webkit-inner-spin-button,
+.kog-seats__input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.kog-input.kog-seats__input[aria-invalid='true'] { border-color: #b42318; }
+
+.kog-seat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-block-start: 0.2rem;
+}
+
+.kog-seat-chip {
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  padding-inline: 0.6rem;
+  border-radius: 999px;
+  border: 1.5px solid rgba(30, 26, 25, 0.35);
+  background: transparent;
+  color: var(--kog-ink);
+  font: 600 0.98rem/1 var(--kog-sans);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.kog-seat-chip:hover { background: rgba(255, 255, 255, 0.6); }
+.kog-seat-chip[aria-pressed='true'] {
+  background: var(--kog-red);
+  border-color: var(--kog-red);
+  color: #fff3d6;
+}
+
+.kog-alert {
+  padding: 0.8rem 1rem;
+  border-radius: 0.8rem;
+  border: 1.5px solid #b42318;
+  background: #fdecea;
+  color: #8a1c12;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.kog-fineprint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--kog-ink-soft);
+  text-align: center;
+}
+
+/* --- Buttons --------------------------------------------------------------- */
+.kog-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-block-size: 3rem;
+  padding: 0.7rem 1.35rem;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  font: 600 1rem/1.2 var(--kog-sans);
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.kog-btn:active:not(:disabled) { transform: translateY(1px); }
+.kog-btn:disabled { opacity: 0.75; cursor: progress; }
+
+.kog-btn--primary {
+  background: var(--kog-red);
+  border-color: var(--kog-gold);
+  color: #fff6df;
+  box-shadow: 0 8px 18px rgba(123, 13, 13, 0.28);
+}
+.kog-btn--primary:hover:not(:disabled) { background: var(--kog-red-deep); }
+
+.kog-btn--waze {
+  background: #33ccff;
+  border-color: #0b1f2a;
+  color: #08202b;
+}
+.kog-btn--waze:hover { background: #5ad6ff; }
+
+.kog-btn--outline {
+  background: rgba(255, 255, 255, 0.55);
+  border-color: var(--kog-red);
+  color: var(--kog-red-deep);
+}
+.kog-btn--outline:hover:not(:disabled) { background: #ffffff; }
+
+.kog-btn--sm {
+  min-block-size: 2.75rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+.kog-btn--block { inline-size: 100%; }
+
+.kog-spinner {
+  inline-size: 1.1rem;
+  block-size: 1.1rem;
+  border-radius: 50%;
+  border: 2.5px solid rgba(123, 13, 13, 0.22);
+  border-block-start-color: var(--kog-red);
+  animation: kog-spin 0.8s linear infinite;
+}
+.kog-spinner--light {
+  border-color: rgba(255, 246, 223, 0.35);
+  border-block-start-color: #fff6df;
+}
+
+@keyframes kog-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* --- Postmark (decorative) --------------------------------------------------- */
+.kog-postmark {
+  position: absolute;
+  inset-block-end: clamp(0.5rem, 2vw, 1rem);
+  inset-inline-end: clamp(0.5rem, 2vw, 1.2rem);
+  inline-size: clamp(4.4rem, 10vw, 6.6rem);
+  block-size: auto;
+  color: rgba(122, 23, 23, 0.38);
+  transform: rotate(-12deg);
+  pointer-events: none;
+  z-index: -1;
+}
+.kog-postmark__text {
+  font: 700 11px var(--kog-sans);
+  letter-spacing: 1.6px;
+  fill: currentColor;
+}
+
+/* --- Confirmation ticket --------------------------------------------------- */
+.kog-confirm {
+  display: grid;
+  gap: clamp(1.5rem, 4vw, 2.2rem);
+}
+
+.kog-ticket {
+  display: grid;
+  justify-items: start;
+  gap: 1rem;
+  max-inline-size: 42rem;
+  margin-inline: auto;
+  padding-block-end: clamp(1.5rem, 5vw, 3rem);
+}
+
+.kog-ticket__eyebrow {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+  background: var(--kog-green);
+  color: #effff6;
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.kog-ticket__title {
+  margin: 0;
+  font-family: var(--kog-serif);
+  font-weight: 700;
+  font-size: clamp(1.45rem, 4.2vw, 2.25rem);
+  line-height: 1.15;
+  color: var(--kog-maroon);
+  overflow-wrap: anywhere;
+}
+.kog-ticket__title:focus { outline: none; }
+
+.kog-ticket__lead {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.kog-ticket__code {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.8rem 1.1rem;
+  border: 2px dashed var(--kog-maroon);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.65);
+}
+.kog-ticket__code span {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kog-ink-soft);
+}
+.kog-ticket__code strong {
+  font-family: var(--kog-serif);
+  font-size: clamp(1.4rem, 4vw, 1.8rem);
+  letter-spacing: 0.12em;
+  color: var(--kog-red-deep);
+}
+.kog-ticket__code small {
+  font-size: 0.8rem;
+  color: var(--kog-ink-soft);
+}
+
+.kog-ticket__facts {
+  margin: 0;
+  inline-size: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.75rem;
+}
+.kog-ticket__facts > div {
+  padding: 0.8rem 1rem;
+  border-radius: 0.85rem;
+  background: rgba(255, 255, 255, 0.6);
+  border-inline-start: 4px solid var(--kog-gold);
+}
+.kog-ticket__facts dt {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--kog-ink-soft);
+}
+.kog-ticket__facts dd {
+  margin: 0.15rem 0 0;
+  display: grid;
+  gap: 0.15rem;
+  line-height: 1.35;
+}
+.kog-ticket__facts dd span {
+  font-size: 0.9rem;
+  color: var(--kog-ink-soft);
+}
+
+.kog-ticket__actions {
+  inline-size: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.kog-ticket__actions > * { flex: 1 1 13rem; }
+
+/* --- Route guide + map ------------------------------------------------------ */
+.kog-route {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1.1rem, 3.5vw, 2rem);
+  border-radius: 1.5rem;
+  background: #fbf6ee;
+  border: 1px solid rgba(122, 23, 23, 0.14);
+  box-shadow: 0 12px 30px rgba(60, 10, 10, 0.08);
+}
+
+.kog-route__title {
+  margin: 0;
+  font-family: var(--kog-serif);
+  font-weight: 700;
+  font-size: clamp(1.3rem, 3.4vw, 1.85rem);
+  color: var(--kog-maroon);
+}
+
+.kog-route__sub {
+  margin: -0.5rem 0 0;
+  color: var(--kog-ink-soft);
+}
+
+.kog-map-block {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.kog-map-frame {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  max-block-size: 70vh;
+  inline-size: calc(100% - 8px);
+  border: 3px solid #1b1714;
+  border-radius: 1.6rem;
+  overflow: hidden;
+  background: #f5eedf;
+  box-shadow: 8px 8px 0 #1b1714;
+}
+
+/* Higher specificity than MapLibre's lazily-loaded .maplibregl-map { position: relative } */
+.kog-map-frame > .kog-map {
+  position: absolute;
+  inset: 0;
+}
+
+.kog-map-chip {
+  position: absolute;
+  inset-block-start: 0.75rem;
+  inset-inline-start: 0.75rem;
+  z-index: 2;
+  min-block-size: 2.75rem;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 2.5px solid #1b1714;
+  background: #fff8ea;
+  color: #1b1714;
+  font: 700 0.92rem/1 var(--kog-sans);
+  box-shadow: 3px 3px 0 #1b1714;
+  cursor: pointer;
+}
+.kog-map-chip:hover { background: #ffffff; }
+
+.kog-map-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  text-align: center;
+  background: #f5eedf;
+  color: #3a2c27;
+}
+.kog-map-overlay--error strong { color: var(--kog-maroon); }
+
+.kog-map-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  pointer-events: none;
+}
+
+.kog-map-pin__dot {
+  inline-size: 44px;
+  block-size: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #d42020;
+  border: 4px solid #f5b83d;
+  box-shadow: 0 0 0 3px #1b1714, 0 6px 14px rgba(0, 0, 0, 0.3);
+  color: #ffffff;
+  font-size: 1.05rem;
+}
+
+.kog-map-pin__label {
+  display: grid;
+  gap: 0.05rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.6rem;
+  background: #1b1714;
+  color: #ffffff;
+  font: 500 0.78rem/1.25 var(--kog-sans);
+  text-align: start;
+  white-space: nowrap;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+}
+.kog-map-pin__label strong { font-size: 0.92rem; }
+.kog-map-pin__label em {
+  font-style: normal;
+  font-weight: 700;
+  color: #f5b83d;
+}
+
+.kog-map-user-dot {
+  inline-size: 18px;
+  block-size: 18px;
+  border-radius: 50%;
+  background: #1a73e8;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 0 6px rgba(26, 115, 232, 0.25);
+}
+
+.kog-map-locate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+}
+.kog-map-locate__note {
+  flex: 1 1 16rem;
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--kog-ink-soft);
+}
+
+.kog-steps {
+  list-style: none;
+  counter-reset: kog-step;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.kog-step {
+  counter-increment: kog-step;
+  display: grid;
+  grid-template-columns: 2.5rem 1fr;
+  column-gap: 0.85rem;
+  row-gap: 0.15rem;
+  align-items: start;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  background: #ffffff;
+  border: 1px solid rgba(27, 23, 20, 0.1);
+}
+.kog-step::before {
+  content: counter(kog-step, decimal-leading-zero);
+  grid-row: span 2;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--kog-gold);
+  background: var(--kog-red);
+  color: var(--kog-gold-soft);
+  font: 700 0.85rem/1 var(--kog-sans);
+}
+.kog-step__title { font-size: 1rem; }
+.kog-step__detail {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--kog-ink-soft);
+}
+
+.kog-confirm__another {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  text-align: center;
+  color: var(--kog-ink-soft);
+}
+.kog-confirm__another p { margin: 0; }
+
+/* --- Responsive ---------------------------------------------------------------- */
+@media (min-width: 760px) {
+  .kog-map-frame { aspect-ratio: 16 / 10; }
+  .kog-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 759px) {
+  .kog-stamp {
+    --perf-r: 6px;
+    --perf-gap: 18px;
+  }
+
+  .kog-postcard__body { grid-template-columns: 1fr; }
+
+  .kog-postcard__divider {
+    inline-size: 100%;
+    block-size: 0;
+    border-inline-start: 0;
+    border-block-start: 2px dashed #2a2523;
+  }
+
+  .kog-details { padding-block-start: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kog-spinner { animation-duration: 2.4s; }
+  .kog-btn,
+  .kog-input { transition: none; }
+}

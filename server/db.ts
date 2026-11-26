@@ -32,6 +32,8 @@ import {
   type GameAnalyticsRow,
   type GameId,
   type GameLeaderboard,
+  type GuestSignupInput,
+  type GuestSignupResult,
   type LeadPatchInput,
   type MasterAnalyticsResponse,
   type PublicClaimResult,
@@ -48,7 +50,13 @@ import {
   type TeamUserRole,
   type TrackEventInput,
   type VolunteerAnalyticsRow,
+  GUEST_SIGNUP_DEFAULT_INVITER,
+  GUEST_SIGNUP_ZONE,
 } from '../src/types.ts';
+import {
+  KING_OF_GLORY_INVITE,
+  buildGuestConfirmationMessage,
+} from '../src/invite/kingOfGloryInvite.ts';
 import { RUN_EXPIRY_MS, isPlausibleScore, type RoundEndReason } from '../src/games/rules.ts';
 import { formatBoardName } from '../src/games/boardName.ts';
 import {
@@ -2755,20 +2763,20 @@ export class ArcadeDatabase {
      /register, /present (King of Glory Crown), and /admin Unified Console
      ========================================================================== */
 
-  private generateUniqueSoulConfirmationCode(): string {
+  private generateUniqueSoulConfirmationCode(prefix: 'CROWN' | 'KOG' = 'CROWN'): string {
     const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
     for (let attempt = 0; attempt < 12; attempt++) {
       let suffix = '';
       for (let i = 0; i < 4; i++) {
         suffix += alphabet[crypto.randomInt(0, alphabet.length)];
       }
-      const candidate = `CROWN-${suffix}`;
+      const candidate = `${prefix}-${suffix}`;
       const clash = this.db
         .prepare('SELECT 1 FROM soul_registrations WHERE confirmation_code = ?')
         .get(candidate);
       if (!clash) return candidate;
     }
-    return `CROWN-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+    return `${prefix}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
   }
 
   private toSoulRegistrationRecord(
@@ -2781,15 +2789,21 @@ export class ArcadeDatabase {
     const guestInviteLink = `${cleanBase}/?invitedBy=${encodeURIComponent(row.member_name)}&vip=${encodeURIComponent(row.soul_name)}`;
     const seatsLabel =
       row.member_count > 1 ? `${row.member_count} reserved VIP seats` : '1 reserved VIP seat';
+    const isGuestSignup = row.church_zone === GUEST_SIGNUP_ZONE;
 
-    const soulMessage =
-      `Hi ${row.soul_name}! 🎄✨\n\n` +
-      `${row.member_name} from *${settings.churchName}* (${row.church_zone}) has registered *${seatsLabel}* for you at *${settings.eventTitle}*!\n\n` +
-      `👑 *Reservation Code:* ${row.confirmation_code}\n` +
-      `📅 *Date & Time:* ${readableDate}\n` +
-      `📍 *Venue:* ${settings.venueName} (${settings.venueAddress})\n\n` +
-      `🕹️ Preview the Christmas Arcade & E-Invitation here:\n${guestInviteLink}\n\n` +
-      `We cannot wait to welcome you this Christmas!`;
+    const soulMessage = isGuestSignup
+      ? buildGuestConfirmationMessage({
+          guestName: row.soul_name,
+          seats: Math.max(1, Number(row.member_count) || 1),
+          confirmationCode: row.confirmation_code,
+        })
+      : `Hi ${row.soul_name}! 🎄✨\n\n` +
+        `${row.member_name} from *${settings.churchName}* (${row.church_zone}) has registered *${seatsLabel}* for you at *${settings.eventTitle}*!\n\n` +
+        `👑 *Reservation Code:* ${row.confirmation_code}\n` +
+        `📅 *Date & Time:* ${readableDate}\n` +
+        `📍 *Venue:* ${settings.venueName} (${settings.venueAddress})\n\n` +
+        `🕹️ Preview the Christmas Arcade & E-Invitation here:\n${guestInviteLink}\n\n` +
+        `We cannot wait to welcome you this Christmas!`;
 
     const memberMessage =
       `Hi ${row.member_name}! 👑🎄\n\n` +
@@ -2816,7 +2830,107 @@ export class ArcadeDatabase {
       notes: row.notes || '',
       createdAt: row.created_at,
       soulWhatsappUrl: `https://wa.me/${row.soul_normalized_phone}?text=${encodeURIComponent(soulMessage)}`,
-      memberWhatsappUrl: `https://wa.me/${row.member_normalized_phone}?text=${encodeURIComponent(memberMessage)}`,
+      // Guest self sign-ups have no inviting church member phone on record.
+      memberWhatsappUrl: row.member_normalized_phone
+        ? `https://wa.me/${row.member_normalized_phone}?text=${encodeURIComponent(memberMessage)}`
+        : '',
+    };
+  }
+
+  /**
+   * /register guest self sign-up from the physical invitation card.
+   * Reuses soul_registrations (church_zone = GUEST_SIGNUP_ZONE) so /admin attendance tracking,
+   * CSV export, and the /present crown all keep working without a schema migration.
+   */
+  createGuestSignup(
+    input: GuestSignupInput,
+    publicBaseUrl: string
+  ):
+    | { ok: true; guest: GuestSignupResult; registration: SoulRegistrationRecord; created: boolean }
+    | { ok: false; status: number; error: string } {
+    const guestName = (input.guestName || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+    if (guestName.length < 2) {
+      return { ok: false, status: 400, error: 'Please enter your name (at least 2 characters).' };
+    }
+
+    const settings = this.getSettings();
+    const defaultCc = input.countryCode || settings.defaultCountryCode || '60';
+    const phoneRes = normalizePhoneForWhatsApp(input.guestPhone || '', defaultCc);
+    if (!phoneRes.valid) {
+      return {
+        ok: false,
+        status: 400,
+        error: phoneRes.error || 'Please enter a valid mobile / WhatsApp number.',
+      };
+    }
+
+    const seats = Math.round(Number(input.seats));
+    const maxSeats = KING_OF_GLORY_INVITE.maxSeatsPerRegistration;
+    if (!Number.isFinite(seats) || seats < 1 || seats > maxSeats) {
+      return { ok: false, status: 400, error: `Please choose between 1 and ${maxSeats} seats.` };
+    }
+
+    const invitedBy = (input.invitedBy || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+    const clientRequestId =
+      (input.clientRequestId || '').trim().slice(0, 80) || `guest-${crypto.randomUUID()}`;
+
+    const toGuestResult = (row: PersistedSoulRegistrationRow): GuestSignupResult => ({
+      confirmationCode: row.confirmation_code,
+      guestName: row.soul_name,
+      guestPhone: row.soul_phone,
+      seats: Math.max(1, Number(row.member_count) || 1),
+      invitedBy: row.member_name === GUEST_SIGNUP_DEFAULT_INVITER ? '' : row.member_name,
+      createdAt: row.created_at,
+    });
+
+    const existing = this.db
+      .prepare('SELECT * FROM soul_registrations WHERE client_request_id = ?')
+      .get(clientRequestId) as unknown as PersistedSoulRegistrationRow | undefined;
+    if (existing) {
+      return {
+        ok: true,
+        guest: toGuestResult(existing),
+        registration: this.toSoulRegistrationRecord(existing, settings, publicBaseUrl),
+        created: false,
+      };
+    }
+
+    const confirmationCode = this.generateUniqueSoulConfirmationCode('KOG');
+    const createdAt = new Date(this.now()).toISOString();
+
+    const info = this.db
+      .prepare(
+        `INSERT INTO soul_registrations (
+           client_request_id, confirmation_code, member_name, member_phone,
+           member_normalized_phone, church_zone, soul_name, member_count,
+           soul_phone, soul_normalized_phone, address, attended,
+           attended_at, whatsapp_sent, notes, created_at
+         ) VALUES (?, ?, ?, '', '', ?, ?, ?, ?, ?, '', 0, '', 0, '', ?)`
+      )
+      .run(
+        clientRequestId,
+        confirmationCode,
+        invitedBy || GUEST_SIGNUP_DEFAULT_INVITER,
+        GUEST_SIGNUP_ZONE,
+        guestName,
+        seats,
+        (input.guestPhone || '').trim().slice(0, 30),
+        phoneRes.normalizedPhone,
+        createdAt
+      );
+
+    const newId = Number(info.lastInsertRowid);
+    this.syncSoulRegistrationById(newId);
+
+    const createdRow = this.db
+      .prepare('SELECT * FROM soul_registrations WHERE id = ?')
+      .get(newId) as unknown as PersistedSoulRegistrationRow;
+
+    return {
+      ok: true,
+      guest: toGuestResult(createdRow),
+      registration: this.toSoulRegistrationRecord(createdRow, settings, publicBaseUrl),
+      created: true,
     };
   }
 

@@ -698,6 +698,32 @@ export interface SoulRegistrationInput {
   clientRequestId?: string;
 }
 
+/**
+ * /register guest self sign-up (from the physical "Jesus, the King of Glory" invitation card).
+ * Stored in soul_registrations with church_zone = GUEST_SIGNUP_ZONE so it shows up in /admin
+ * and counts toward the /present crown with no database migration.
+ */
+export const GUEST_SIGNUP_ZONE = 'Guest Self Sign-up';
+export const GUEST_SIGNUP_DEFAULT_INVITER = 'Self sign-up (invitation card)';
+
+export interface GuestSignupInput {
+  guestName: string;
+  guestPhone: string;
+  seats: number;
+  invitedBy?: string;
+  countryCode?: string;
+  clientRequestId?: string;
+}
+
+export interface GuestSignupResult {
+  confirmationCode: string;
+  guestName: string;
+  guestPhone: string;
+  seats: number;
+  invitedBy: string;
+  createdAt: string;
+}
+
 export interface SoulRegistrationPatchInput {
   attended?: boolean;
   whatsappSent?: boolean;

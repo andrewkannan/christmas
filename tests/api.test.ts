@@ -1179,6 +1179,86 @@ describe('Christmas Pocket Arcade API & Security', () => {
     expect(csvRes.text).toContain('Kevin Tan');
     expect(csvRes.text).toContain('Zone 2 · Mount Austin & Tebrau');
   });
+
+  it('/register guest self sign-up validates input, is idempotent, counts toward the crown, and appears in /admin', async () => {
+    // Validation: name, phone and seat range are enforced server-side
+    const badName = await request(app)
+      .post('/api/public/guest-signup')
+      .send({ guestName: 'A', guestPhone: '012-345 6789', seats: 2 })
+      .expect(400);
+    expect(badName.body.error).toMatch(/name/i);
+
+    const badSeats = await request(app)
+      .post('/api/public/guest-signup')
+      .send({ guestName: 'Priya Devi', guestPhone: '012-345 6789', seats: 21 })
+      .expect(400);
+    expect(badSeats.body.error).toMatch(/up to 20 seats/i);
+
+    const badPhone = await request(app)
+      .post('/api/public/guest-signup')
+      .send({ guestName: 'Priya Devi', guestPhone: '12', seats: 2 })
+      .expect(400);
+    expect(badPhone.body.error).toBeTruthy();
+
+    // Happy path
+    const payload = {
+      guestName: '  Priya   Devi ',
+      guestPhone: '012-345 6789',
+      seats: 3,
+      invitedBy: 'Andrew Kannan',
+      clientRequestId: 'guest-req-priya-0001',
+    };
+    const created = await request(app).post('/api/public/guest-signup').send(payload).expect(201);
+    expect(created.body.guest).toMatchObject({
+      guestName: 'Priya Devi',
+      guestPhone: '012-345 6789',
+      seats: 3,
+      invitedBy: 'Andrew Kannan',
+    });
+    expect(created.body.guest.confirmationCode).toMatch(/^KOG-[A-Z0-9]{4,6}$/);
+    // Public response must not leak admin-only fields
+    expect(created.body.registration).toBeUndefined();
+    expect(created.body.guest.soulWhatsappUrl).toBeUndefined();
+
+    // Retrying the same submission (e.g. flaky network) does not double-book
+    const retried = await request(app).post('/api/public/guest-signup').send(payload).expect(200);
+    expect(retried.body.guest.confirmationCode).toBe(created.body.guest.confirmationCode);
+
+    // Self sign-up without an inviter
+    await request(app)
+      .post('/api/public/guest-signup')
+      .send({ guestName: 'Daniel Wong', guestPhone: '016-221 0099', seats: 1 })
+      .expect(201);
+
+    const crownRes = await request(app).get('/api/public/crown-status').expect(200);
+    expect(crownRes.body).toMatchObject({ registeredSoulsHeadcount: 4, registeredGroupsCount: 2 });
+
+    const agent = request.agent(app);
+    await agent
+      .post('/api/team/login')
+      .set('X-Forwarded-For', '203.0.113.91')
+      .send({ pin: '7788' })
+      .expect(200);
+    const overview = await agent.get('/api/team/admin-overview').expect(200);
+    const priya = overview.body.records.find((r: { soulName: string }) => r.soulName === 'Priya Devi');
+    expect(priya).toMatchObject({
+      source: 'register',
+      churchZone: 'Guest Self Sign-up',
+      memberName: 'Andrew Kannan',
+      memberCount: 3,
+      soulNormalizedPhone: '60123456789',
+    });
+    expect(priya.soulWhatsappUrl).toContain('https://wa.me/60123456789');
+    const message = decodeURIComponent(priya.soulWhatsappUrl.split('?text=')[1]);
+    expect(message).toContain('Jesus, the King of Glory');
+    expect(message).toContain('Menara Zurich, Level 8 (Auditorium 3)');
+    expect(message).toContain(created.body.guest.confirmationCode);
+    // No inviting-member phone on record → no member WhatsApp link
+    expect(priya.memberWhatsappUrl || '').toBe('');
+
+    const daniel = overview.body.records.find((r: { soulName: string }) => r.soulName === 'Daniel Wong');
+    expect(daniel.memberName).toBe('Self sign-up (invitation card)');
+  });
 });
 
 

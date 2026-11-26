@@ -21,6 +21,8 @@ import type {
   PublicClaimResult,
   RunFinishResult,
   SoulRegistrationInput,
+  GuestSignupInput,
+  GuestSignupResult,
   SoulRegistrationPatchInput,
   SoulRegistrationRecord,
   TeamLeadRecord,
@@ -374,6 +376,18 @@ export async function submitSoulRegistration(
   payload: SoulRegistrationInput
 ): Promise<{ registration: SoulRegistrationRecord; crownStatus: CrownStatusResponse }> {
   const res = await fetch('/api/public/register-soul', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonOrThrow(res);
+}
+
+/** /register guest self sign-up from the physical invitation card. */
+export async function submitGuestSignup(
+  payload: GuestSignupInput
+): Promise<{ guest: GuestSignupResult }> {
+  const res = await fetch('/api/public/guest-signup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
