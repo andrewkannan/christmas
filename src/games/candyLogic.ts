@@ -13,20 +13,36 @@ export const CANDY_KINDS = 5;
 
 /** Shortest run that clears. */
 export const MIN_MATCH = 3;
-/** A run at least this long leaves a 'row' sparkler behind. */
+/** A run of 4 leaves a 'row' or 'col' striped blaster behind. */
 export const SPARKLER_RUN = 4;
+/** A run of 5+ leaves a 'star' rainbow color bomb behind. */
+export const STAR_RUN = 5;
+
+/** Scoring constants — Candy Crush style high-energy points! */
+export const POINTS_PER_CANDY = 10;
+export const SPECIAL_FIRE_BONUS = 30;
+export const SPECIAL_CREATE_BONUS = 20;
+
 /**
  * Safety valve: refills are random, so a cascade could in theory go on for a long time.
  * After this many steps the board is regenerated instead (practically never reached).
  */
 export const MAX_CASCADE_STEPS = 40;
 
-export type CandySpecial = 'none' | 'row';
+/**
+ * Bonus Special Candies:
+ * - 'none': regular candy
+ * - 'row': horizontal striped blaster (clears its entire row)
+ * - 'col': vertical striped blaster (clears its entire column)
+ * - 'bomb': wrapped gift bomb (blasts a 3×3 area around it)
+ * - 'star': rainbow star bomb (zaps every candy of that colour across the whole board)
+ */
+export type CandySpecial = 'none' | 'row' | 'col' | 'bomb' | 'star';
 
 export interface Candy {
   /** Candy type in [0, CANDY_KINDS). Matching compares `kind` only. */
   kind: number;
-  /** 'row' = sparkler: when it is cleared, its whole row is cleared too. */
+  /** Special power-up attached to this candy. */
   special: CandySpecial;
 }
 
@@ -34,20 +50,14 @@ export type Board = Candy[][];
 
 export type Pos = { r: number; c: number };
 
-/** A sparkler created by a 4+ run. It replaces the candy at `pos` instead of that cell being cleared. */
+/** A special bonus candy created by a match or cascade. It replaces the candy at `pos` instead of that cell being cleared. */
 export interface CreatedCandy {
   pos: Pos;
   candy: Candy;
 }
 
 /**
- * One clear → gravity → refill pass of a cascade. Designed so a renderer can animate it in two phases:
- *
- * 1. **Clear phase** — draw `before`; fade out every cell in `cleared`; flash every row in `blastRows`;
- *    morph each `created[i].pos` into `created[i].candy`.
- * 2. **Fall phase** — draw `after`; each cell `after[r][c]` starts at row `fallFrom[r][c]` and slides down to
- *    row `r`. `fallFrom` is a row of `before` for surviving candies (`fallFrom[r][c] <= r`), or a negative
- *    virtual row above the board for refilled candies (-1 is the row just above the top edge).
+ * One clear → gravity → refill pass of a cascade.
  */
 export interface CascadeStep {
   /** 1 for the clear caused by the swap, 2 for the first cascade, ... (also the points multiplier). */
@@ -56,19 +66,25 @@ export interface CascadeStep {
   before: Board;
   /** Every 3+ run found in `before`. */
   groups: Pos[][];
-  /** Positions in `before` of sparklers that fired (each clears its whole row). */
+  /** Positions in `before` of special candies that fired during this step. */
   sparklersFired: Pos[];
-  /** Rows cleared completely by sparklers, ascending. */
+  /** Rows cleared completely by 'row' blasters, ascending. */
   blastRows: number[];
+  /** Columns cleared completely by 'col' blasters, ascending. */
+  blastCols: number[];
+  /** 3×3 bomb centres that detonated in this step. */
+  blastBombs: Pos[];
+  /** Rainbow star positions that zapped a colour across the board in this step. */
+  blastStars: Pos[];
   /** Positions in `before` removed by this step (excludes `created` cells), row-major order. */
   cleared: Pos[];
-  /** Sparklers created by 4+ runs (they stay on the board and fall with gravity). */
+  /** Special candies created by 4+/5+/L/T or cascade bonus runs (they stay on the board and fall with gravity). */
   created: CreatedCandy[];
-  /** `cleared.length * level`. */
+  /** `(cleared.length * POINTS_PER_CANDY + sparklersFired.length * SPECIAL_FIRE_BONUS + created.length * SPECIAL_CREATE_BONUS) * level`. */
   points: number;
   /** Board after gravity and refill. */
   after: Board;
-  /** Source row for every cell of `after` — see the interface docs. */
+  /** Source row for every cell of `after`. */
   fallFrom: number[][];
 }
 
@@ -81,7 +97,7 @@ export interface ResolveResult {
   points: number;
   /** Sum of `steps[i].cleared.length`. */
   cleared: number;
-  /** True when the settled board was shuffled/regenerated (no valid move left). `board` then differs from the last step's `after`. */
+  /** True when the settled board was shuffled/regenerated (no valid move left). */
   reshuffled: boolean;
 }
 
@@ -167,9 +183,20 @@ export function swapCells(board: Board, a: Pos, b: Pos): Board {
   return next;
 }
 
-/** In bounds, adjacent, and the swap creates at least one match. */
+/**True if swapping `a` and `b` triggers a special-candy combo directly (Rainbow Star or dual-special swap). */
+export function isSpecialComboSwap(board: Board, a: Pos, b: Pos): boolean {
+  if (!isInBounds(a) || !isInBounds(b) || !isAdjacent(a, b)) return false;
+  const ca = board[a.r][a.c];
+  const cb = board[b.r][b.c];
+  if (ca.special === 'star' || cb.special === 'star') return true;
+  if (ca.special !== 'none' && cb.special !== 'none') return true;
+  return false;
+}
+
+/** In bounds, adjacent, and the swap creates at least one match (or activates a special combo). */
 export function isValidSwap(board: Board, a: Pos, b: Pos): boolean {
   if (!isInBounds(a) || !isInBounds(b) || !isAdjacent(a, b)) return false;
+  if (isSpecialComboSwap(board, a, b)) return true;
   return hasMatch(swapCells(board, a, b));
 }
 
@@ -194,10 +221,6 @@ export function findFirstValidMove(board: Board): [Pos, Pos] | null {
 const BOARD_ATTEMPTS = 200;
 const SHUFFLE_ATTEMPTS = 100;
 
-/**
- * Last-resort board (no matches; swapping (0,2)↔(1,2) makes a row of 0s). Only used if hundreds of
- * random attempts all fail, which is practically impossible — but it guarantees termination.
- */
 const FALLBACK_KINDS: readonly (readonly number[])[] = [
   [0, 0, 2, 3, 4, 0],
   [2, 3, 0, 0, 1, 2],
@@ -245,7 +268,7 @@ export function createBoard(rng: Rng): Board {
 }
 
 /**
- * Rearranges the existing candies (keeping sparklers) into a playable layout; falls back to a brand-new
+ * Rearranges the existing candies (keeping specials) into a playable layout; falls back to a brand-new
  * board if no shuffle works.
  */
 export function shuffleBoard(board: Board, rng: Rng): Board {
@@ -267,10 +290,9 @@ export function shuffleBoard(board: Board, rng: Rng): Board {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Cascades
+// Cascades & Special Power-Ups
 // ---------------------------------------------------------------------------------------------
 
-/** Order in which a run's cells are tried for a new sparkler: preferred cells first, then middle-out. */
 function sparklerCandidates(group: Pos[], preferred: readonly Pos[]): Pos[] {
   const inGroup = (p: Pos) => group.some((g) => g.r === p.r && g.c === p.c);
   const firstChoices = preferred.filter(inGroup);
@@ -281,38 +303,131 @@ function sparklerCandidates(group: Pos[], preferred: readonly Pos[]): Pos[] {
   return [...firstChoices, ...middleOut];
 }
 
-function resolveStep(before: Board, groups: Pos[][], level: number, rng: Rng, preferred: readonly Pos[]): CascadeStep {
+function resolveStep(
+  before: Board,
+  groups: Pos[][],
+  level: number,
+  rng: Rng,
+  preferred: readonly Pos[],
+  comboSeedCells: readonly Pos[] = []
+): CascadeStep {
   const removed = new Set<number>();
   for (const group of groups) for (const p of group) removed.add(key(p.r, p.c));
+  for (const p of comboSeedCells) removed.add(key(p.r, p.c));
 
-  // Sparklers caught in a match fire and clear their row; that can catch more sparklers (same rows), so iterate.
+  // If a Rainbow Star was directly swapped with a neighbour, zap every candy of that neighbour's kind!
+  const starPartnerKind = new Map<number, number>();
+  if (comboSeedCells.length === 2) {
+    const [p0, p1] = comboSeedCells;
+    const c0 = before[p0.r][p0.c];
+    const c1 = before[p1.r][p1.c];
+    if (c0.special === 'star') starPartnerKind.set(key(p0.r, p0.c), c1.kind);
+    if (c1.special === 'star') starPartnerKind.set(key(p1.r, p1.c), c0.kind);
+  }
+
+  // Chain reaction loop: any special candy in `removed` fires its blast and can trigger other specials!
   const fired = new Set<number>();
   const blastRows = new Set<number>();
+  const blastCols = new Set<number>();
+  const blastBombs: Pos[] = [];
+  const blastStars: Pos[] = [];
+
   let changed = true;
   while (changed) {
     changed = false;
-    for (const k of removed) {
+    for (const k of [...removed]) {
       if (fired.has(k)) continue;
       const r = Math.floor(k / CANDY_COLS);
       const c = k % CANDY_COLS;
-      if (before[r][c].special !== 'row') continue;
+      const spec = before[r][c].special;
+      if (spec === 'none') continue;
+
       fired.add(k);
-      if (!blastRows.has(r)) {
-        blastRows.add(r);
-        for (let cc = 0; cc < CANDY_COLS; cc++) removed.add(key(r, cc));
-        changed = true;
+      if (spec === 'row') {
+        if (!blastRows.has(r)) {
+          blastRows.add(r);
+          for (let cc = 0; cc < CANDY_COLS; cc++) {
+            if (!removed.has(key(r, cc))) {
+              removed.add(key(r, cc));
+              changed = true;
+            }
+          }
+        }
+      } else if (spec === 'col') {
+        if (!blastCols.has(c)) {
+          blastCols.add(c);
+          for (let rr = 0; rr < CANDY_ROWS; rr++) {
+            if (!removed.has(key(rr, c))) {
+              removed.add(key(rr, c));
+              changed = true;
+            }
+          }
+        }
+      } else if (spec === 'bomb') {
+        blastBombs.push({ r, c });
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            const nr = r + dr;
+            const nc = c + dc;
+            if (nr >= 0 && nr < CANDY_ROWS && nc >= 0 && nc < CANDY_COLS) {
+              if (!removed.has(key(nr, nc))) {
+                removed.add(key(nr, nc));
+                changed = true;
+              }
+            }
+          }
+        }
+      } else if (spec === 'star') {
+        blastStars.push({ r, c });
+        const targetKind = starPartnerKind.get(k) ?? before[r][c].kind;
+        for (let rr = 0; rr < CANDY_ROWS; rr++) {
+          for (let cc = 0; cc < CANDY_COLS; cc++) {
+            if (before[rr][cc].kind === targetKind && !removed.has(key(rr, cc))) {
+              removed.add(key(rr, cc));
+              changed = true;
+            }
+          }
+        }
       }
     }
   }
 
-  // Each 4+ run leaves a sparkler of its kind behind at one of its cells (that cell is not cleared).
+  // Detect L / T intersections (a cell shared by 2+ groups) -> creates a 3×3 Wrapped Gift Bomb ('bomb')!
+  const cellGroupCount = new Map<number, number>();
+  for (const group of groups) {
+    for (const p of group) {
+      const k = key(p.r, p.c);
+      cellGroupCount.set(k, (cellGroupCount.get(k) ?? 0) + 1);
+    }
+  }
+
   const created = new Map<number, Candy>();
+  for (const [k, cnt] of cellGroupCount.entries()) {
+    if (cnt >= 2) {
+      const r = Math.floor(k / CANDY_COLS);
+      const c = k % CANDY_COLS;
+      created.set(k, { kind: before[r][c].kind, special: 'bomb' });
+    }
+  }
+
+  // 4-runs create a Striped Blaster ('row' for horizontal, 'col' for vertical), 5+ runs create a Rainbow Star ('star')!
   for (const group of groups) {
     if (group.length < SPARKLER_RUN) continue;
+    const alreadyHasCreated = group.some((p) => created.has(key(p.r, p.c)));
+    if (alreadyHasCreated) continue;
+
     const kind = before[group[0].r][group[0].c].kind;
-    const spot = sparklerCandidates(group, preferred).find((p) => !created.has(key(p.r, p.c)));
-    if (spot) created.set(key(spot.r, spot.c), { kind, special: 'row' });
+    if (group.length >= STAR_RUN) {
+      const spot = sparklerCandidates(group, preferred).find((p) => !created.has(key(p.r, p.c)));
+      if (spot) created.set(key(spot.r, spot.c), { kind, special: 'star' });
+    } else {
+      const isHorizontal = group.every((p) => p.r === group[0].r);
+      const special: CandySpecial = isHorizontal ? 'row' : 'col';
+      const spot = sparklerCandidates(group, preferred).find((p) => !created.has(key(p.r, p.c)));
+      if (spot) created.set(key(spot.r, spot.c), { kind, special });
+    }
   }
+
   for (const k of created.keys()) removed.delete(k);
 
   const cleared: Pos[] = [];
@@ -320,9 +435,12 @@ function resolveStep(before: Board, groups: Pos[][], level: number, rng: Rng, pr
     for (let c = 0; c < CANDY_COLS; c++) if (removed.has(key(r, c))) cleared.push({ r, c });
   }
 
-  // Gravity + refill, column by column.
+  // Gravity + refill, column by column (with lucky Candy Crush bonus drops on cascades!).
   const after: Board = Array.from({ length: CANDY_ROWS }, () => new Array<Candy>(CANDY_COLS));
   const fallFrom: number[][] = Array.from({ length: CANDY_ROWS }, () => new Array<number>(CANDY_COLS).fill(0));
+  let bonusDroppedThisStep = false;
+  const bonusPool: readonly CandySpecial[] = ['bomb', 'row', 'col'];
+
   for (let c = 0; c < CANDY_COLS; c++) {
     let write = CANDY_ROWS - 1;
     for (let r = CANDY_ROWS - 1; r >= 0; r--) {
@@ -335,23 +453,44 @@ function resolveStep(before: Board, groups: Pos[][], level: number, rng: Rng, pr
     }
     const missing = write + 1;
     for (let r = write; r >= 0; r--) {
-      after[r][c] = plainCandy(randInt(rng, CANDY_KINDS));
+      const kind = randInt(rng, CANDY_KINDS);
+      if (!bonusDroppedThisStep && (level >= 2 || cleared.length >= 4)) {
+        bonusDroppedThisStep = true;
+        const bonusSpecial = bonusPool[(level + c + kind) % bonusPool.length];
+        after[r][c] = { kind, special: bonusSpecial };
+      } else {
+        after[r][c] = plainCandy(kind);
+      }
       fallFrom[r][c] = r - missing;
     }
   }
+
+  const sparklersFired = [...fired]
+    .sort((a, b) => a - b)
+    .map((k) => ({ r: Math.floor(k / CANDY_COLS), c: k % CANDY_COLS }));
+  const createdList = [...created.entries()].map(([k, candy]) => ({
+    pos: { r: Math.floor(k / CANDY_COLS), c: k % CANDY_COLS },
+    candy,
+  }));
+
+  const stepPoints =
+    (cleared.length * POINTS_PER_CANDY +
+      sparklersFired.length * SPECIAL_FIRE_BONUS +
+      createdList.length * SPECIAL_CREATE_BONUS) *
+    level;
 
   return {
     level,
     before: cloneBoard(before),
     groups: groups.map((g) => g.map((p) => ({ ...p }))),
-    sparklersFired: [...fired].sort((a, b) => a - b).map((k) => ({ r: Math.floor(k / CANDY_COLS), c: k % CANDY_COLS })),
+    sparklersFired,
     blastRows: [...blastRows].sort((a, b) => a - b),
+    blastCols: [...blastCols].sort((a, b) => a - b),
+    blastBombs,
+    blastStars,
     cleared,
-    created: [...created.entries()].map(([k, candy]) => ({
-      pos: { r: Math.floor(k / CANDY_COLS), c: k % CANDY_COLS },
-      candy,
-    })),
-    points: cleared.length * level,
+    created: createdList,
+    points: stepPoints,
     after,
     fallFrom,
   };
@@ -360,9 +499,6 @@ function resolveStep(before: Board, groups: Pos[][], level: number, rng: Rng, pr
 /**
  * Settles a board (typically right after a valid swap): clears matches, applies gravity, refills from the top
  * with `rng`, and repeats until stable. If the stable board has no valid move it is reshuffled.
- *
- * @param preferred cells to prefer when placing a new sparkler in the FIRST step (pass the swapped cells so the
- *   sparkler appears where the player made the move).
  */
 export function resolveBoard(board: Board, rng: Rng, preferred: readonly Pos[] = []): ResolveResult {
   let current = cloneBoard(board);
@@ -372,8 +508,21 @@ export function resolveBoard(board: Board, rng: Rng, preferred: readonly Pos[] =
 
   for (let level = 1; level <= MAX_CASCADE_STEPS; level++) {
     const groups = findMatchGroups(current);
-    if (groups.length === 0) break;
-    const step = resolveStep(current, groups, level, rng, level === 1 ? preferred : []);
+    const isDirectSpecialSwap =
+      level === 1 &&
+      preferred.length >= 2 &&
+      isSpecialComboSwap(current, preferred[0], preferred[1]);
+
+    if (groups.length === 0 && !isDirectSpecialSwap) break;
+
+    const step = resolveStep(
+      current,
+      groups,
+      level,
+      rng,
+      level === 1 ? preferred : [],
+      isDirectSpecialSwap ? [preferred[0], preferred[1]] : []
+    );
     steps.push(step);
     points += step.points;
     cleared += step.cleared.length;

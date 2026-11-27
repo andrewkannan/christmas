@@ -57,11 +57,11 @@ export const GAME_RULES: Record<ActiveGameId, GameRules> = {
   },
   'candy-match': {
     lives: null,
-    moves: 20,
-    timeLimitSec: 90,
-    maxPointsPerSec: 80,
-    maxScore: 2000,
-    controlHint: 'Swap two neighbours to line up 3 · 20 moves',
+    moves: 12,
+    timeLimitSec: 45,
+    maxPointsPerSec: 350,
+    maxScore: 8000,
+    controlHint: 'Swap neighbours to match 3+ · trigger Gift Bombs & Rainbow Stars · 12 moves',
   },
 };
 

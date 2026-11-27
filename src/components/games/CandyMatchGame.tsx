@@ -46,8 +46,8 @@ interface Timings {
   motion: boolean;
 }
 
-const NORMAL_TIMINGS: Timings = { swap: 0.16, clear: 0.24, fall: 0.26, reshuffle: 0.4, popup: 0.9, combo: 1.1, motion: true };
-const REDUCED_TIMINGS: Timings = { swap: 0.08, clear: 0.14, fall: 0.14, reshuffle: 0.2, popup: 0.9, combo: 1.1, motion: false };
+const NORMAL_TIMINGS: Timings = { swap: 0.13, clear: 0.2, fall: 0.21, reshuffle: 0.34, popup: 0.95, combo: 1.2, motion: true };
+const REDUCED_TIMINGS: Timings = { swap: 0.08, clear: 0.14, fall: 0.14, reshuffle: 0.2, popup: 0.95, combo: 1.2, motion: false };
 
 /** The five Christmas candies — each has a distinct colour AND shape (colour-blind friendly). */
 const CANDY_STYLES = [
@@ -67,6 +67,7 @@ const ARROW_DIRS: Record<string, Pos> = {
 
 const CANVAS_LABEL =
   'Candy Match board: a 6 by 6 grid of Christmas candies. Tap two neighbouring candies or drag one to swap them and line up 3 or more. ' +
+  'Match 4 for a Striped Row/Column Blaster, L/T for a Wrapped Gift Bomb, or 5 for a Rainbow Color Star! ' +
   'Keyboard: arrow keys move the cursor, Enter or Space selects, then an arrow key swaps in that direction.';
 
 // ---------------------------------------------------------------------------------------------
@@ -102,10 +103,10 @@ function paintCandy(ctx: CanvasRenderingContext2D, candy: Candy): void {
   const mid = CELL / 2;
 
   roundedRectPath(ctx, 3, 3, CELL - 6, CELL - 6, 12);
-  ctx.fillStyle = style.bg;
+  ctx.fillStyle = candy.special === 'star' ? '#1e1b4b' : style.bg;
   ctx.fill();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = style.border;
+  ctx.lineWidth = candy.special === 'none' ? 2 : 2.6;
+  ctx.strokeStyle = candy.special === 'star' ? '#fbbf24' : candy.special === 'bomb' ? '#d97706' : style.border;
   ctx.stroke();
 
   ctx.lineJoin = 'round';
@@ -242,9 +243,9 @@ function paintCandy(ctx: CanvasRenderingContext2D, candy: Candy): void {
   }
 
   if (candy.special === 'row') {
-    // Row sparkler: a bright horizontal double arrow across the candy.
-    roundedRectPath(ctx, 8, mid - 3.5, CELL - 16, 7, 3.5);
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    // Horizontal Striped Blaster: bright horizontal double arrow across the candy.
+    roundedRectPath(ctx, 7, mid - 3.5, CELL - 14, 7, 3.5);
+    ctx.fillStyle = 'rgba(255,255,255,0.96)';
     ctx.fill();
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = '#b45309';
@@ -259,6 +260,78 @@ function paintCandy(ctx: CanvasRenderingContext2D, candy: Candy): void {
       ctx.fill();
       ctx.stroke();
     }
+  } else if (candy.special === 'col') {
+    // Vertical Striped Blaster: bright vertical double arrow across the candy.
+    roundedRectPath(ctx, mid - 3.5, 7, 7, CELL - 14, 3.5);
+    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#b45309';
+    ctx.stroke();
+    ctx.fillStyle = '#f59e0b';
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(mid, mid + side * 24);
+      ctx.lineTo(mid - 7, mid + side * 16);
+      ctx.lineTo(mid + 7, mid + side * 16);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  } else if (candy.special === 'bomb') {
+    // Wrapped Gift Bomb: golden cross-ribbon frame + pulsing corner bow badge.
+    ctx.save();
+    roundedRectPath(ctx, 4.5, 4.5, CELL - 9, CELL - 9, 10);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#fbbf24';
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.88)';
+    ctx.fillRect(mid - 2.5, 4, 5, CELL - 8);
+    ctx.fillRect(4, mid - 2.5, CELL - 8, 5);
+    // Corner bomb badge
+    ctx.beginPath();
+    ctx.arc(CELL - 11, 11, 7.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#be123c';
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#fde68a';
+    ctx.stroke();
+    ctx.fillStyle = '#fffbeb';
+    ctx.font = '800 9px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('3×3', CELL - 11, 11.5);
+    ctx.restore();
+  } else if (candy.special === 'star') {
+    // Rainbow Color Star: multi-color sprinkle segments + glowing gold star core.
+    const ringColors = ['#e11d48', '#fbbf24', '#22c55e', '#38bdf8', '#c084fc', '#fb7185'];
+    for (let i = 0; i < ringColors.length; i++) {
+      const a = (i * Math.PI * 2) / ringColors.length;
+      const sx = mid + Math.cos(a) * 16;
+      const sy = mid + Math.sin(a) * 16;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+      ctx.fillStyle = ringColors[i];
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const radius = i % 2 === 0 ? 13 : 6;
+      const a = -Math.PI / 2 + (i * Math.PI) / 5;
+      const x = mid + Math.cos(a) * radius;
+      const y = mid + Math.sin(a) * radius;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#fde047';
+    ctx.fill();
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
   }
 }
 
@@ -458,7 +531,7 @@ class CandyController {
     this.idleSec = 0;
     if (isValidSwap(this.board, a, b)) {
       api.spendMove();
-      // Prefer placing any sparkler where the player's candy landed.
+      // Prefer placing any special candy where the player's candy landed.
       const result = resolveBoard(swapCells(this.board, a, b), this.deps.rng, [b, a]);
       this.phase = { kind: 'swap', a, b, t: 0, returning: false, result };
       return 'valid';
@@ -473,7 +546,17 @@ class CandyController {
   private describeCell(p: Pos): string {
     const candy = this.board[p.r][p.c];
     const name = CANDY_STYLES[candy.kind]?.label ?? 'Candy';
-    return `Row ${p.r + 1}, column ${p.c + 1}: ${name}${candy.special === 'row' ? ' sparkler' : ''}`;
+    const specialName =
+      candy.special === 'row'
+        ? ' row blaster'
+        : candy.special === 'col'
+          ? ' column blaster'
+          : candy.special === 'bomb'
+            ? ' gift bomb'
+            : candy.special === 'star'
+              ? ' rainbow star'
+              : '';
+    return `Row ${p.r + 1}, column ${p.c + 1}: ${name}${specialName}`;
   }
 
   // ----- simulation -----
@@ -547,16 +630,31 @@ class CandyController {
     const cx = step.cleared.reduce((sum, p) => sum + cellX(p.c), 0) / n;
     const cy = step.cleared.reduce((sum, p) => sum + cellY(p.r), 0) / n;
     this.popups.push({ x: cx, y: cy, text: `+${step.points}`, age: 0 });
-    if (step.level >= 2) this.combo = { text: `Combo ×${step.level}`, age: 0 };
 
-    const special = step.blastRows.length > 0 || step.created.length > 0;
-    playArcadeTone(special || step.level >= 2 ? 'star' : 'pickup');
-    triggerHaptic(special ? 24 : 14);
+    const specialFired =
+      step.blastRows.length > 0 ||
+      step.blastCols.length > 0 ||
+      step.blastBombs.length > 0 ||
+      step.blastStars.length > 0;
+    const specialCreated = step.created.length > 0;
+
+    if (step.blastStars.length > 0 || step.level >= 4 || step.points >= 250) {
+      this.combo = { text: `SUGAR CRUSH! 💥 ×${step.level}`, age: 0 };
+    } else if (step.level >= 3 || step.blastBombs.length > 0 || step.points >= 140) {
+      this.combo = { text: `DIVINE! 👑 ×${step.level}`, age: 0 };
+    } else if (step.level >= 2 || specialFired) {
+      this.combo = { text: `TASTY! 🍬 ×${step.level}`, age: 0 };
+    } else if (specialCreated || step.cleared.length >= 4) {
+      this.combo = { text: 'SWEET! ✨', age: 0 };
+    }
+
+    playArcadeTone(specialFired || specialCreated || step.level >= 2 ? 'star' : 'pickup');
+    triggerHaptic(specialFired ? 30 : specialCreated ? 22 : 14);
 
     const parts = [`Plus ${step.points}`];
     if (step.level >= 2) parts.push(`combo times ${step.level}`);
-    if (step.created.length > 0) parts.push('sparkler made');
-    if (step.blastRows.length > 0) parts.push('sparkler cleared a row');
+    if (specialCreated) parts.push('bonus candy created');
+    if (specialFired) parts.push('power-up blasted');
     this.deps.announce(`${parts.join(', ')}.`);
 
     this.phase = { kind: 'clear', result, index, t: 0 };
@@ -577,16 +675,16 @@ class CandyController {
     const motion = this.timings.motion;
 
     const bg = ctx.createLinearGradient(0, 0, 0, VIEW_H);
-    bg.addColorStop(0, '#fff7f7');
-    bg.addColorStop(1, '#f0f9ff');
+    bg.addColorStop(0, '#fff7ed');
+    bg.addColorStop(1, '#fef2f2');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
     roundedRectPath(ctx, BOARD_X - 6, BOARD_Y - 6, BOARD_W + 12, BOARD_H + 12, 18);
-    ctx.fillStyle = '#f8fafc';
+    ctx.fillStyle = '#fffbeb';
     ctx.fill();
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(217, 119, 6, 0.35)';
     ctx.stroke();
 
     const drawCandy = (candy: Candy, x: number, y: number, scale = 1, alpha = 1) => {
@@ -633,25 +731,71 @@ class CandyController {
             const k = r * CANDY_COLS + c;
             const created = createdByKey.get(k);
             if (clearedKeys.has(k)) {
-              drawCandy(step.before[r][c], cellX(c), cellY(r), motion ? 1 - 0.6 * t : 1, 1 - t);
+              drawCandy(step.before[r][c], cellX(c), cellY(r), motion ? 1 - 0.65 * t : 1, 1 - t);
             } else if (created) {
-              const pop = motion ? 1 + 0.15 * Math.sin(Math.PI * t) : 1;
-              drawCandy(t < 0.5 ? step.before[r][c] : created, cellX(c), cellY(r), pop);
+              const pop = motion ? 1 + 0.22 * Math.sin(Math.PI * t) : 1;
+              drawCandy(t < 0.45 ? step.before[r][c] : created, cellX(c), cellY(r), pop);
             } else {
               drawCandy(step.before[r][c], cellX(c), cellY(r));
             }
           }
         }
+        // Horizontal row laser beams
         for (const row of step.blastRows) {
-          const beamH = CELL * (motion ? 0.5 + 0.5 * t : 0.8);
+          const beamH = CELL * (motion ? 0.55 + 0.55 * t : 0.8);
           const beam = ctx.createLinearGradient(0, cellY(row) - beamH / 2, 0, cellY(row) + beamH / 2);
           beam.addColorStop(0, 'rgba(251,191,36,0)');
-          beam.addColorStop(0.5, 'rgba(255,251,235,0.95)');
+          beam.addColorStop(0.5, 'rgba(255,251,235,0.96)');
           beam.addColorStop(1, 'rgba(251,191,36,0)');
           ctx.globalAlpha = 1 - t;
           ctx.fillStyle = beam;
           ctx.fillRect(BOARD_X, cellY(row) - beamH / 2, BOARD_W, beamH);
           ctx.globalAlpha = 1;
+        }
+        // Vertical column laser beams
+        for (const col of step.blastCols) {
+          const beamW = CELL * (motion ? 0.55 + 0.55 * t : 0.8);
+          const beam = ctx.createLinearGradient(cellX(col) - beamW / 2, 0, cellX(col) + beamW / 2, 0);
+          beam.addColorStop(0, 'rgba(251,191,36,0)');
+          beam.addColorStop(0.5, 'rgba(255,251,235,0.96)');
+          beam.addColorStop(1, 'rgba(251,191,36,0)');
+          ctx.globalAlpha = 1 - t;
+          ctx.fillStyle = beam;
+          ctx.fillRect(cellX(col) - beamW / 2, BOARD_Y, beamW, BOARD_H);
+          ctx.globalAlpha = 1;
+        }
+        // 3x3 Wrapped Gift Bomb shockwaves
+        for (const bomb of step.blastBombs) {
+          const bx = cellX(bomb.c);
+          const by = cellY(bomb.r);
+          const radius = CELL * (0.6 + 1.35 * t);
+          ctx.save();
+          ctx.globalAlpha = 1 - t;
+          const grad = ctx.createRadialGradient(bx, by, radius * 0.15, bx, by, radius);
+          grad.addColorStop(0, 'rgba(254, 240, 138, 0.95)');
+          grad.addColorStop(0.6, 'rgba(249, 115, 22, 0.65)');
+          grad.addColorStop(1, 'rgba(225, 29, 72, 0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(bx, by, radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+        // Rainbow Color Star lightning rays to all cleared candies
+        for (const star of step.blastStars) {
+          const sx = cellX(star.c);
+          const sy = cellY(star.r);
+          ctx.save();
+          ctx.globalAlpha = 1 - t;
+          ctx.lineWidth = 3.5;
+          ctx.strokeStyle = '#fde047';
+          for (const target of step.cleared) {
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(cellX(target.c), cellY(target.r));
+            ctx.stroke();
+          }
+          ctx.restore();
         }
         break;
       }
@@ -726,32 +870,32 @@ class CandyController {
       const { age } = this.combo;
       const fadeStart = this.timings.combo * 0.6;
       const alpha = age < fadeStart ? 1 : 1 - (age - fadeStart) / (this.timings.combo - fadeStart);
-      const scale = motion ? 1 + 0.25 * Math.max(0, 1 - age * 6) : 1;
+      const scale = motion ? 1 + 0.28 * Math.max(0, 1 - age * 6) : 1;
       ctx.save();
       ctx.translate(VIEW_W / 2, BOARD_Y - 36);
       ctx.scale(scale, scale);
       ctx.globalAlpha = clamp01(alpha);
-      ctx.font = `800 26px ${font}`;
+      ctx.font = `900 24px ${font}`;
       ctx.lineWidth = 5;
       ctx.strokeStyle = '#ffffff';
       ctx.strokeText(this.combo.text, 0, 0);
-      ctx.fillStyle = '#c2410c';
+      ctx.fillStyle = '#b91c1c';
       ctx.fillText(this.combo.text, 0, 0);
       ctx.restore();
     } else {
-      ctx.font = `600 14px ${font}`;
-      ctx.fillStyle = '#64748b';
-      ctx.fillText('Swap neighbours to line up 3', VIEW_W / 2, BOARD_Y - 36);
+      ctx.font = `700 13.5px ${font}`;
+      ctx.fillStyle = '#7c2d12';
+      ctx.fillText('12 Quick Moves · Big Combos Drop Bonus Bombs!', VIEW_W / 2, BOARD_Y - 36);
     }
-    ctx.font = `500 13px ${font}`;
-    ctx.fillStyle = '#64748b';
-    ctx.fillText('Line up 4 to make a row sparkler', VIEW_W / 2, BOARD_Y + BOARD_H + 36);
+    ctx.font = `600 12.5px ${font}`;
+    ctx.fillStyle = '#92400e';
+    ctx.fillText('4 = Row/Col Blaster · L/T = 3×3 Gift Bomb · 5 = Rainbow Star', VIEW_W / 2, BOARD_Y + BOARD_H + 36);
 
     for (const popup of this.popups) {
       const k = popup.age / this.timings.popup;
-      const y = popup.y - (motion ? popup.age * 36 : 0);
+      const y = popup.y - (motion ? popup.age * 38 : 0);
       ctx.globalAlpha = clamp01(1 - k);
-      ctx.font = `800 22px ${font}`;
+      ctx.font = `900 22px ${font}`;
       ctx.lineWidth = 5;
       ctx.strokeStyle = '#ffffff';
       ctx.strokeText(popup.text, popup.x, y);

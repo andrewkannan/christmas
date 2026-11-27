@@ -5,6 +5,9 @@ import {
   CANDY_COLS,
   CANDY_KINDS,
   CANDY_ROWS,
+  POINTS_PER_CANDY,
+  SPECIAL_CREATE_BONUS,
+  SPECIAL_FIRE_BONUS,
   createBoard,
   fallbackBoard,
   findFirstValidMove,
@@ -29,7 +32,7 @@ const boardArb: fc.Arbitrary<Board> = fc
     fc.array(
       fc.record({
         kind: fc.integer({ min: 0, max: CANDY_KINDS - 1 }),
-        special: fc.constantFrom('none' as const, 'row' as const),
+        special: fc.constantFrom('none' as const, 'row' as const, 'col' as const, 'bomb' as const, 'star' as const),
       }),
       { minLength: CANDY_COLS, maxLength: CANDY_COLS }
     ),
@@ -44,7 +47,7 @@ function expectWellFormed(board: Board): void {
       expect(Number.isInteger(candy.kind)).toBe(true);
       expect(candy.kind).toBeGreaterThanOrEqual(0);
       expect(candy.kind).toBeLessThan(CANDY_KINDS);
-      expect(['none', 'row']).toContain(candy.special);
+      expect(['none', 'row', 'col', 'bomb', 'star']).toContain(candy.special);
     }
   }
 }
@@ -105,8 +108,8 @@ describe('candyLogic properties', () => {
 
           const result = resolveBoard(swapCells(board, a, b), rng, [b, a]);
           expectPlayable(result.board);
-          expect(result.cleared).toBeGreaterThanOrEqual(3);
-          expect(result.points).toBeGreaterThanOrEqual(result.cleared);
+          expect(result.cleared).toBeGreaterThanOrEqual(2);
+          expect(result.points).toBeGreaterThanOrEqual(result.cleared * POINTS_PER_CANDY);
           expect(result.steps.length).toBeGreaterThanOrEqual(1);
 
           // Step data is internally consistent (what the renderer relies on).
@@ -114,8 +117,13 @@ describe('candyLogic properties', () => {
           let clearedSum = 0;
           result.steps.forEach((step, i) => {
             expect(step.level).toBe(i + 1);
-            expect(step.cleared.length).toBeGreaterThanOrEqual(3);
-            expect(step.points).toBe(step.cleared.length * step.level);
+            expect(step.cleared.length).toBeGreaterThanOrEqual(2);
+            const expectedPoints =
+              (step.cleared.length * POINTS_PER_CANDY +
+                step.sparklersFired.length * SPECIAL_FIRE_BONUS +
+                step.created.length * SPECIAL_CREATE_BONUS) *
+              step.level;
+            expect(step.points).toBe(expectedPoints);
             expectWellFormed(step.after);
             if (i > 0) expect(step.before).toEqual(result.steps[i - 1].after);
             for (let c = 0; c < CANDY_COLS; c++) {
@@ -202,7 +210,7 @@ describe('candyLogic examples', () => {
     expectPlayable(fallbackBoard());
   });
 
-  it('a run of 4 leaves a row sparkler at the preferred cell', () => {
+  it('a horizontal run of 4 leaves a row blaster at the preferred cell', () => {
     const kinds = basePattern();
     kinds[1] = [2, 2, 2, 2, 1, 2];
     const board = boardOf(kinds);
@@ -212,11 +220,49 @@ describe('candyLogic examples', () => {
     const first = result.steps[0];
     expect(first.created).toEqual([{ pos: { r: 1, c: 2 }, candy: { kind: 2, special: 'row' } }]);
     expect(first.cleared).toHaveLength(3);
-    expect(first.points).toBe(3);
+    expect(first.points).toBe(3 * POINTS_PER_CANDY + SPECIAL_CREATE_BONUS);
     expect(first.after[1][2]).toEqual({ kind: 2, special: 'row' });
   });
 
-  it('matching a sparkler clears its whole row', () => {
+  it('a vertical run of 4 leaves a col blaster at the preferred cell', () => {
+    const kinds = basePattern();
+    kinds[0][3] = 4;
+    kinds[1][3] = 4;
+    kinds[2][3] = 4;
+    kinds[3][3] = 4;
+    const board = boardOf(kinds);
+
+    const result = resolveBoard(board, createRng(7), [{ r: 2, c: 3 }]);
+    const first = result.steps[0];
+    expect(first.created).toEqual([{ pos: { r: 2, c: 3 }, candy: { kind: 4, special: 'col' } }]);
+    expect(first.cleared).toHaveLength(3);
+    expect(first.points).toBe(3 * POINTS_PER_CANDY + SPECIAL_CREATE_BONUS);
+  });
+
+  it('a run of 5 leaves a rainbow star and swapping it zaps all candies of the neighbour color', () => {
+    const kinds = basePattern();
+    kinds[2] = [1, 1, 1, 1, 1, 4];
+    const board = boardOf(kinds);
+
+    const result = resolveBoard(board, createRng(9), [{ r: 2, c: 2 }]);
+    const first = result.steps[0];
+    expect(first.created).toEqual([{ pos: { r: 2, c: 2 }, candy: { kind: 1, special: 'star' } }]);
+    expect(first.cleared).toHaveLength(4);
+
+    // Direct swap between a rainbow star and an adjacent candy is valid even without a 3-in-a-row
+    const starBoard = boardOf(basePattern());
+    starBoard[2][2] = { kind: 0, special: 'star' };
+    starBoard[2][3] = { kind: 3, special: 'none' };
+    expect(isValidSwap(starBoard, { r: 2, c: 2 }, { r: 2, c: 3 })).toBe(true);
+    const starResult = resolveBoard(swapCells(starBoard, { r: 2, c: 2 }, { r: 2, c: 3 }), createRng(13), [
+      { r: 2, c: 3 },
+      { r: 2, c: 2 },
+    ]);
+    expect(starResult.steps[0].blastStars).toEqual([{ r: 2, c: 3 }]);
+    expect(starResult.steps[0].cleared.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it('matching a row blaster clears its whole row', () => {
     const kinds = basePattern();
     kinds[3][0] = 3;
     kinds[5][0] = 3; // column 0, rows 3–5 are all kind 3
@@ -228,7 +274,7 @@ describe('candyLogic examples', () => {
     expect(first.blastRows).toEqual([4]);
     expect(first.sparklersFired).toEqual([{ r: 4, c: 0 }]);
     expect(first.cleared).toHaveLength(CANDY_COLS + 2);
-    expect(first.points).toBe(CANDY_COLS + 2);
+    expect(first.points).toBe((CANDY_COLS + 2) * POINTS_PER_CANDY + SPECIAL_FIRE_BONUS);
   });
 
   it('is deterministic for a given seed', () => {
@@ -239,3 +285,4 @@ describe('candyLogic examples', () => {
     expect(resolveBoard(swapCells(a, p, q), createRng(1))).toEqual(resolveBoard(swapCells(b, p, q), createRng(1)));
   });
 });
+
