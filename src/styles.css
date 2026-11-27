@@ -2241,29 +2241,46 @@ body {
 /* ==========================================================================
    Hero Eye-Pulling Royal VIP Celebration Invitation + Live Countdown Tab
    ========================================================================== */
+.wallet-pass__org-icon {
+  border-radius: 50%;
+  flex: none;
+}
+
 .vip-invitation-wrap {
   display: flex;
   flex-direction: column;
 }
 
+.vip-stamp-card {
+  border-radius: var(--radius-xl);
+  box-shadow: 0 14px 34px rgba(92, 7, 9, 0.24);
+}
+
 .vip-invitation {
   position: relative;
   overflow: hidden;
-  padding: 1.15rem 1.1rem 1.05rem;
-  border-radius: var(--radius-xl);
-  background: linear-gradient(148deg, #4f0008 0%, #a50012 48%, #5e000b 100%);
-  color: #ffffff;
-  border: 1.5px solid rgba(254, 240, 138, 0.55);
-  box-shadow:
-    inset 0 0 0 1px rgba(254, 240, 138, 0.2),
-    0 14px 34px rgba(104, 0, 12, 0.26);
+  padding: 1.25rem 1.15rem 1.15rem;
+  border-radius: 0.75rem;
+  background:
+    radial-gradient(rgba(0, 0, 0, 0.08) 0.6px, transparent 1px) 0 0 / 4px 4px,
+    radial-gradient(120% 100% at 30% 0%, #9b1418 0%, #7c0c0f 55%, #5c0709 100%);
+  color: #fbf6e8;
+  border: 1.5px solid rgba(233, 182, 92, 0.62);
+  box-shadow: inset 0 0 0 1px rgba(245, 210, 123, 0.22);
+}
+
+.vip-invitation .rg-flourish {
+  inline-size: 2rem;
+  block-size: 2rem;
+  color: #e9b65c;
+  opacity: 0.85;
 }
 
 .vip-invitation__aura {
   position: absolute;
   inset: -30% -15% auto -15%;
   block-size: 12rem;
-  background: radial-gradient(circle at 50% 32%, rgba(254, 240, 138, 0.36), transparent 68%);
+  background: radial-gradient(circle at 50% 32%, rgba(245, 210, 123, 0.34), transparent 68%);
   pointer-events: none;
 }
 
@@ -2275,7 +2292,7 @@ body {
   background: linear-gradient(
     108deg,
     rgba(255, 255, 255, 0) 0%,
-    rgba(254, 240, 138, 0.24) 50%,
+    rgba(254, 240, 138, 0.22) 50%,
     rgba(255, 255, 255, 0) 100%
   );
   pointer-events: none;
@@ -2302,7 +2319,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 0.4rem;
 }
 
@@ -2310,23 +2327,23 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.28rem;
-  padding: 0.18rem 0.56rem;
+  padding: 0.18rem 0.6rem;
   border-radius: 999px;
-  background: rgba(254, 240, 138, 0.18);
-  border: 1px solid rgba(254, 240, 138, 0.48);
-  color: #fef08a;
+  background: rgba(245, 210, 123, 0.16);
+  border: 1px solid rgba(245, 210, 123, 0.5);
+  color: #f5d27b;
   font-size: 0.66rem;
-  font-weight: 900;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   white-space: nowrap;
 }
 
 .vip-invitation__free-tag {
-  padding: 0.16rem 0.52rem;
+  padding: 0.16rem 0.54rem;
   border-radius: 999px;
-  background: linear-gradient(135deg, #fef08a, #f59e0b);
-  color: #451a03;
+  background: linear-gradient(135deg, #f5d27b, #c8922a);
+  color: #2a1810;
   font-size: 0.65rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -2334,24 +2351,40 @@ body {
   white-space: nowrap;
 }
 
+.vip-invitation__manger-row {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin: 0.55rem 0 0.15rem;
+}
+
+.vip-invitation__manger {
+  inline-size: 3.8rem;
+  block-size: auto;
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.28));
+}
+
 .vip-invitation__title {
   position: relative;
-  margin: 0.55rem 0 0.22rem;
-  font-size: clamp(1.38rem, 1.2rem + 1vw, 1.65rem);
-  font-weight: 900;
-  line-height: 1.12;
-  letter-spacing: -0.025em;
-  color: #ffffff;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  margin: 0.2rem 0 0.25rem;
+  font-family: var(--rg-font-display);
+  font-size: clamp(1.55rem, 1.35rem + 1.1vw, 1.9rem);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  text-align: center;
+  color: #fbf6e8;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
 }
 
 .vip-invitation__subtitle {
   position: relative;
   margin: 0 0 0.65rem;
-  font-size: 0.83rem;
+  font-size: 0.84rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
-  line-height: 1.32;
+  text-align: center;
+  color: rgba(251, 246, 232, 0.92);
+  line-height: 1.36;
 }
 
 .vip-invitation__promise {
@@ -2363,8 +2396,8 @@ body {
   padding: 0.52rem 0.72rem;
   margin-block-end: 0.72rem;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, rgba(254, 240, 138, 0.22), rgba(245, 158, 11, 0.16));
-  border: 1px solid rgba(254, 240, 138, 0.5);
+  background: linear-gradient(135deg, rgba(245, 210, 123, 0.2), rgba(200, 146, 42, 0.14));
+  border: 1px solid rgba(245, 210, 123, 0.52);
   color: #fef9c3;
   font-size: 0.8rem;
   font-weight: 600;
@@ -2372,7 +2405,7 @@ body {
 }
 
 .vip-invitation__promise svg {
-  color: #fde047;
+  color: #f5d27b;
   flex: none;
 }
 
@@ -2381,36 +2414,54 @@ body {
   font-weight: 900;
 }
 
-.vip-invitation__details {
+.vip-invitation__facts {
   position: relative;
+  margin: 0;
   display: grid;
-  gap: 0.36rem;
-  padding: 0.62rem 0.75rem;
+  gap: 0.48rem;
+  padding: 0.7rem 0.78rem;
   border-radius: var(--radius-md);
-  background: rgba(20, 4, 7, 0.34);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(34, 4, 6, 0.36);
+  border: 1px solid rgba(245, 210, 123, 0.3);
 }
 
-.vip-invitation__detail-row {
+.vip-invitation__fact-row {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: start;
-  gap: 0.48rem;
-  font-size: 0.84rem;
-  font-weight: 700;
-  color: #ffffff;
-  line-height: 1.3;
+  gap: 0.52rem;
 }
 
-.vip-invitation__detail-row svg {
+.vip-invitation__fact-row dt {
   margin-block-start: 0.12rem;
-  color: #fde047;
-  flex: none;
+  color: #f5d27b;
+  display: inline-flex;
+}
+
+.vip-invitation__fact-row dd {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.06rem;
+}
+
+.vip-invitation__fact-row dd strong {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #fbf6e8;
+  line-height: 1.25;
+}
+
+.vip-invitation__fact-row dd span {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: rgba(245, 210, 123, 0.92);
+  line-height: 1.28;
 }
 
 .vip-invitation__directions {
   position: relative;
-  margin-block-start: 0.7rem;
+  margin-block-start: 0.75rem;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
@@ -2424,9 +2475,9 @@ body {
   min-block-size: 42px;
   padding: 0.42rem 0.7rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.96);
-  color: #18181b;
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: #fbf6e8;
+  color: #2a1810;
+  border: 1.5px solid rgba(233, 182, 92, 0.7);
   font-size: 0.8rem;
   font-weight: 800;
   white-space: nowrap;
@@ -2462,9 +2513,9 @@ body {
   margin-inline: 0.85rem;
   padding: 0.42rem 0.82rem;
   border-radius: 0 0 0.9rem 0.9rem;
-  background: linear-gradient(135deg, #2b070c, #450a11);
-  color: #fef08a;
-  border: 1px solid rgba(245, 158, 11, 0.45);
+  background: linear-gradient(135deg, #3b0507, #5c0709);
+  color: #f5d27b;
+  border: 1px solid rgba(233, 182, 92, 0.5);
   border-block-start: 0;
   display: flex;
   flex-wrap: wrap;
@@ -2482,7 +2533,7 @@ body {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.055em;
-  color: rgba(254, 240, 138, 0.9);
+  color: rgba(245, 210, 123, 0.92);
 }
 
 .invite-countdown-tab__clock {
@@ -2492,12 +2543,12 @@ body {
   font-family: var(--font-mono);
   font-size: 0.8rem;
   font-weight: 800;
-  color: #ffffff;
+  color: #fbf6e8;
   font-variant-numeric: tabular-nums;
 }
 
 .cd-seg strong {
-  color: #fde047;
+  color: #f5d27b;
   font-weight: 900;
 }
 
@@ -2511,6 +2562,68 @@ body {
   padding-inline: 0.65rem;
   font-size: 0.82rem;
   white-space: nowrap;
+}
+
+/* Embedded 3D Route Guide to Menara Zurich inside WinnerPass */
+.pass-route-card {
+  border-radius: var(--radius-lg);
+  background: #fbf6e8;
+  border: 1.5px solid rgba(200, 146, 42, 0.48);
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.pass-route-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.pass-route-card__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-inline-size: 0;
+}
+
+.pass-route-card__copy strong {
+  font-family: var(--rg-font-display);
+  font-size: 1.12rem;
+  font-weight: 700;
+  color: #7c0c0f;
+  line-height: 1.15;
+}
+
+.pass-route-card__copy span {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #604535;
+  line-height: 1.25;
+}
+
+.pass-route-card__toggle {
+  flex: none;
+  min-block-size: 34px;
+  padding: 0.28rem 0.68rem;
+  border-radius: 999px;
+  border: 1px solid rgba(200, 146, 42, 0.55);
+  background: #f3ead6;
+  color: #7c0c0f;
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pass-route-card__toggle:hover {
+  background: #fff9eb;
+}
+
+.pass-route-card__body {
+  min-inline-size: 0;
 }
 
 /* Goal-Driven Viral WhatsApp Friend Challenge Card */

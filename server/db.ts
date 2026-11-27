@@ -55,6 +55,9 @@ import {
 } from '../src/types.ts';
 import {
   KING_OF_GLORY_INVITE,
+  VENUE_ADDRESS_LABEL,
+  VENUE_FULL_LABEL,
+  VENUE_NAV_LINKS,
   buildGuestConfirmationMessage,
 } from '../src/invite/kingOfGloryInvite.ts';
 import { RUN_EXPIRY_MS, isPlausibleScore, type RoundEndReason } from '../src/games/rules.ts';
@@ -97,19 +100,19 @@ const LEGACY_GAMES: GameId[] = ['claw-machine', 'gift-rush', 'tap-duel', 'starli
 
 export const DEFAULT_EVENT_SETTINGS: EventSettings = {
   churchName: 'CCC JB Bilingual',
-  eventTitle: 'Christmas Night of Wonder',
-  eventSubtitle: 'Live Acoustic Carols, Hot Cocoa, Festive Games & A Story of Hope',
+  eventTitle: 'Jesus, the King of Glory · Christmas Celebration',
+  eventSubtitle: 'You’re warmly invited to a Christmas Eve evening with us.',
   eventDateIso: '2026-12-24T19:30',
   timezoneOffset: '+08:00',
   durationMinutes: 120,
-  venueName: 'Starlight Atrium Hall, Level 3',
-  venueAddress: '18 Central Walk (2 mins from Central Station)',
-  mapsUrl: 'https://maps.google.com',
-  wazeUrl: '',
+  venueName: VENUE_FULL_LABEL,
+  venueAddress: VENUE_ADDRESS_LABEL,
+  mapsUrl: VENUE_NAV_LINKS.googleMaps,
+  wazeUrl: VENUE_NAV_LINKS.waze,
   defaultCountryCode: '60',
   giftDescription: 'Christmas Blessing Gift',
   whatsappTemplate:
-    'Hey {name}! 🎄 So fun playing the Christmas Arcade with you earlier ({volunteer} here!).\n\nHere is your personal invite to *{eventTitle}*:\n📅 {eventDate}\n📍 {venueName} ({venueAddress})\n\n🎟 Open your E-Ticket & play more games anytime: {inviteUrl}\n\nBring a friend along—we would love to host you! ✨',
+    'Hey {name}! 🎄 So fun playing the Christmas Arcade with you earlier ({volunteer} here!).\n\nHere is your personal invite to *{eventTitle}*:\n📅 {eventDate} (Please arrive by 7:15 PM)\n📍 {venueName}\n{venueAddress}\n\n🎟 Open your VIP Invitation & Menara Zurich route guide anytime: {inviteUrl}\n\nBring your loved ones along—we would love to host you! ✨',
   reminderTemplate: DEFAULT_REMINDER_TEMPLATE,
   campaignTargets: { ...DEFAULT_CAMPAIGN_TARGETS },
   crownTargetSouls: 500,
@@ -765,6 +768,18 @@ export class ArcadeDatabase {
         }
         if (parsed.churchName === 'Hope Community') {
           parsed.churchName = 'CCC JB Bilingual';
+          changed = true;
+        }
+        if (parsed.eventTitle === 'Christmas Night of Wonder') {
+          parsed.eventTitle = DEFAULT_EVENT_SETTINGS.eventTitle;
+          parsed.eventSubtitle = DEFAULT_EVENT_SETTINGS.eventSubtitle;
+          changed = true;
+        }
+        if (parsed.venueName === 'Starlight Atrium Hall, Level 3') {
+          parsed.venueName = DEFAULT_EVENT_SETTINGS.venueName;
+          parsed.venueAddress = DEFAULT_EVENT_SETTINGS.venueAddress;
+          parsed.mapsUrl = DEFAULT_EVENT_SETTINGS.mapsUrl;
+          parsed.wazeUrl = DEFAULT_EVENT_SETTINGS.wazeUrl;
           changed = true;
         }
         if (!parsed.campaignTargets) {

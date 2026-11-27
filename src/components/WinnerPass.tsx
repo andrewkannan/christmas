@@ -6,9 +6,16 @@ import {
   type GameLeaderboard,
   type PublicClaimResult,
 } from '../types.ts';
+import {
+  KING_OF_GLORY_INVITE,
+  VENUE_ADDRESS_LABEL,
+  VENUE_FULL_LABEL,
+  VENUE_NAV_LINKS,
+} from '../invite/kingOfGloryInvite.ts';
 import { fetchLeaderboards, markGiftClaimedPublic } from '../lib/api.ts';
 import { savePassLocally, trackArcadeEvent } from '../lib/playerSession.ts';
 import { renderPersonalizedETicketBlob } from '../lib/ticketCanvas.ts';
+import { VenueMap } from '../register/VenueMap.tsx';
 import { ConfettiBurst } from './ConfettiBurst.tsx';
 import { FullLeaderboardModal } from './FullLeaderboardModal.tsx';
 import {
@@ -23,12 +30,48 @@ import {
   MapPinIcon,
   PlayTriangleIcon,
   SparkleIcon,
-  StarMarkIcon,
   TimerClockIcon,
   TrophyBoardIcon,
   WazeIcon,
   WhatsAppIcon,
 } from './Icons.tsx';
+
+function InviteCornerFlourish({ className }: { className: string }) {
+  return (
+    <svg className={`rg-flourish ${className}`} viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <g fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+        <path d="M4 60 C4 30 12 14 34 6" />
+        <path d="M4 60 C30 60 48 52 58 30" />
+        <path d="M14 46 c-6 -6 -2 -16 7 -14 c6 1 6 9 1 10 c-3 1 -5 -2 -3 -4" />
+        <path d="M24 38 c4 -10 16 -12 20 -4" />
+      </g>
+      <circle cx="4" cy="60" r="2.4" fill="currentColor" />
+    </svg>
+  );
+}
+
+function InviteMangerCrownMark({ className = '' }: { className?: string }) {
+  return (
+    <svg className={`rg-manger ${className}`} viewBox="0 0 120 92" aria-hidden="true" focusable="false">
+      <g className="rg-manger__crown">
+        <path d="M38 30 L34 8 L48 20 L60 4 L72 20 L86 8 L82 30 Z" />
+        <circle cx="34" cy="7" r="3" />
+        <circle cx="60" cy="3.5" r="3" />
+        <circle cx="86" cy="7" r="3" />
+        <rect x="37" y="29" width="46" height="5" rx="1.5" />
+      </g>
+      <path
+        className="rg-manger__straw"
+        d="M18 46 L24 36 L28 44 L34 33 L40 43 L46 34 L52 43 L58 33 L64 43 L70 34 L76 43 L82 33 L88 44 L94 36 L100 46 Z"
+      />
+      <g className="rg-manger__wood">
+        <path d="M14 45 H106 L96 66 H24 Z" />
+        <path d="M30 64 L44 64 L30 90 L20 90 Z" />
+        <path d="M76 64 L90 64 L100 90 L90 90 Z" />
+      </g>
+    </svg>
+  );
+}
 
 interface WinnerPassProps {
   claim: PublicClaimResult;
@@ -56,6 +99,27 @@ function formatReadableDate(iso: string): string {
   return `${weekday}, ${Number(day)} ${monthName} ${year} · ${h12}:${minStr} ${period}`;
 }
 
+function formatDateAndTimeParts(iso: string): { dateText: string; timeText: string } {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso);
+  if (!match) {
+    return {
+      dateText: KING_OF_GLORY_INVITE.dateLabel,
+      timeText: KING_OF_GLORY_INVITE.timeLabel,
+    };
+  }
+  const [, year, month, day, hourStr, minStr] = match;
+  const dateObj = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  const weekday = dateObj.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+  const monthName = dateObj.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
+  const h24 = Number(hourStr);
+  const period = h24 >= 12 ? 'PM' : 'AM';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return {
+    dateText: `${weekday}, ${Number(day)} ${monthName} ${year}`,
+    timeText: `${h12}:${minStr} ${period}`,
+  };
+}
+
 function prefersAppleCalendar(): boolean {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent || '';
@@ -69,20 +133,32 @@ function resolveDirectionsUrls(settings: EventSettings): {
   googleMapsHref: string;
   wazeHref: string;
 } {
-  const query =
-    [settings.venueName, settings.venueAddress].filter(Boolean).join(', ') || settings.churchName;
+  const venueLabel = (settings.venueName || '').trim();
+  const isDefaultVenue =
+    !venueLabel ||
+    /Menara Zurich/i.test(venueLabel) ||
+    /Starlight Atrium/i.test(venueLabel);
+
+  const query = isDefaultVenue
+    ? `${KING_OF_GLORY_INVITE.venue.building}, Jalan Dato Abdullah Tahir, Johor Bahru`
+    : [settings.venueName, settings.venueAddress].filter(Boolean).join(', ') || settings.churchName;
+
   const rawMaps = (settings.mapsUrl || '').trim();
   const isGenericMaps =
     !rawMaps || /^https?:\/\/(www\.)?maps\.google\.com\/?$/i.test(rawMaps);
 
   const googleMapsHref = isGenericMaps
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+    ? isDefaultVenue
+      ? VENUE_NAV_LINKS.googleMaps
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
     : rawMaps;
 
   const rawWaze = (settings.wazeUrl || '').trim();
   const wazeHref = rawWaze
     ? rawWaze
-    : `https://waze.com/ul?q=${encodeURIComponent(query)}&navigate=yes`;
+    : isDefaultVenue
+      ? VENUE_NAV_LINKS.waze
+      : `https://waze.com/ul?q=${encodeURIComponent(query)}&navigate=yes`;
 
   return { googleMapsHref, wazeHref };
 }
@@ -141,6 +217,7 @@ export function WinnerPass({
   const [markingClaim, setMarkingClaim] = useState(false);
   const [savingPass, setSavingPass] = useState(false);
   const [passSavedNotice, setPassSavedNotice] = useState(false);
+  const [showRouteMap, setShowRouteMap] = useState(true);
   const [nowDate, setNowDate] = useState(() => new Date());
   const [boards, setBoards] = useState<GameLeaderboard[] | null>(null);
   const [boardsError, setBoardsError] = useState(false);
@@ -179,6 +256,23 @@ export function WinnerPass({
     () => resolveDirectionsUrls(settings),
     [settings]
   );
+
+  const { dateText, timeText } = useMemo(
+    () => formatDateAndTimeParts(settings.eventDateIso),
+    [settings.eventDateIso]
+  );
+
+  const displayVenueName = useMemo(() => {
+    const raw = (settings.venueName || '').trim();
+    if (!raw || /Starlight Atrium/i.test(raw)) return VENUE_FULL_LABEL;
+    return raw;
+  }, [settings.venueName]);
+
+  const displayVenueAddress = useMemo(() => {
+    const raw = (settings.venueAddress || '').trim();
+    if (!raw || /Central Walk/i.test(raw)) return VENUE_ADDRESS_LABEL;
+    return raw;
+  }, [settings.venueAddress]);
 
   const countdown = useMemo(
     () =>
@@ -231,16 +325,16 @@ export function WinnerPass({
               ? ` (Rank #${bestGameSummary.topRank} 🏆)`
               : ''
           } on *${bestGameSummary.topGame.title}*?\n\n` +
-          `Play the 45s Christmas Arcade, try to beat my record & unlock your free *${giftTitle}* + VIP Invitation to *${settings.eventTitle}*!\n` +
-          `📅 ${readableDate} · ${settings.venueName}\n\n` +
+          `Play the Christmas Arcade, try to beat my record & unlock your free *${giftTitle}* + VIP Invitation to *${KING_OF_GLORY_INVITE.title}* (${KING_OF_GLORY_INVITE.tagline})!\n` +
+          `📅 ${readableDate} · ${displayVenueName}\n\n` +
           `🎮 Tap to play & challenge me: ${challengeLink}`
         : `🎄 Come play the Christmas Arcade & beat my challenge!\n\n` +
-          `Play any 45s game to win a free *${giftTitle}* + unlock your VIP Invitation to *${settings.eventTitle}*!\n` +
-          `📅 ${readableDate} · ${settings.venueName}\n\n` +
+          `Play any game to win a free *${giftTitle}* + unlock your VIP Invitation to *${KING_OF_GLORY_INVITE.title}* (${KING_OF_GLORY_INVITE.tagline})!\n` +
+          `📅 ${readableDate} · ${displayVenueName}\n\n` +
           `🎮 Tap to play now: ${challengeLink}`;
 
     return `https://wa.me/?text=${encodeURIComponent(shareText)}`;
-  }, [claim.name, bestGameSummary, giftTitle, settings]);
+  }, [claim.name, bestGameSummary, giftTitle, settings.eventDateIso, displayVenueName]);
 
   const emitAction = (
     eventType:
@@ -304,7 +398,7 @@ export function WinnerPass({
           try {
             await navigator.share({
               files: [file],
-              title: `${settings.eventTitle} · VIP Invitation`,
+              title: `${KING_OF_GLORY_INVITE.title} · VIP Invitation`,
             });
             setPassSavedNotice(true);
             window.setTimeout(() => setPassSavedNotice(false), 2600);
@@ -399,7 +493,7 @@ export function WinnerPass({
     const unplayed = gameRows.find((r) => !r.me && r.fallbackScore === 0);
     if (unplayed) {
       return {
-        headline: `${rankedCount}/5 Cabinets Ranked — Try ${unplayed.game.title}!`,
+        headline: `${rankedCount}/5 Games Ranked — Try ${unplayed.game.title}!`,
         sub: `Complete all 5 games to build your all-time trophy record.`,
         cta: `Play Next`,
         targetGameId: unplayed.game.id,
@@ -443,16 +537,16 @@ export function WinnerPass({
         <div className="wallet-pass__header" aria-live="off">
           <div className="wallet-pass__live">
             <span className="live-dot" aria-hidden="true" />
-            <span>VIP PASS · {nowDate.toLocaleTimeString()}</span>
+            <span>VIP INVITATION · {nowDate.toLocaleTimeString()}</span>
           </div>
           <div className="wallet-pass__org">
-            <StarMarkIcon size={14} />
-            <span>{settings.churchName}</span>
+            <img src="/favicon.svg" alt="" width="18" height="18" className="wallet-pass__org-icon" />
+            <span>{KING_OF_GLORY_INVITE.churchShortName} · {KING_OF_GLORY_INVITE.churchFullName}</span>
           </div>
         </div>
 
         <div className="wallet-pass__top">
-          <div className="wallet-pass__eyebrow">Official Winner &amp; VIP Guest</div>
+          <div className="wallet-pass__eyebrow">Personal Christmas Invitation &amp; Winner Pass</div>
           <h1 id="winner-pass-heading" className="wallet-pass__guest">
             {claim.name}
           </h1>
@@ -495,70 +589,103 @@ export function WinnerPass({
         </div>
 
         <div className="wallet-pass__body">
-          {/* HERO EYE-PULLING VIP CELEBRATION INVITATION */}
+          {/* CANVA INVITATION CARD THEME: ROYAL CRIMSON POSTAGE STAMP, GOLD FILIGREE & MANGER CROWN */}
           <div className="vip-invitation-wrap">
-            <article className="vip-invitation" aria-label="VIP Celebration Service Invitation">
-              <div className="vip-invitation__aura" aria-hidden="true" />
-              <div className="vip-invitation__sheen" aria-hidden="true" />
+            <div className="rg-stamp rg-stamp--red vip-stamp-card">
+              <div className="rg-stamp__paper">
+                <article className="vip-invitation" aria-label="Christmas Celebration Invitation">
+                  <div className="vip-invitation__aura" aria-hidden="true" />
+                  <div className="vip-invitation__sheen" aria-hidden="true" />
+                  <InviteCornerFlourish className="rg-flourish--tl" />
+                  <InviteCornerFlourish className="rg-flourish--tr" />
+                  <InviteCornerFlourish className="rg-flourish--bl" />
+                  <InviteCornerFlourish className="rg-flourish--br" />
 
-              <div className="vip-invitation__crest-row">
-                <span className="vip-invitation__badge">
-                  <StarMarkIcon size={12} />
-                  <span>VIP Invitation · {settings.churchName}</span>
-                </span>
-                <span className="vip-invitation__free-tag">Free Entry</span>
+                  <div className="vip-invitation__crest-row">
+                    <span className="vip-invitation__badge">
+                      <span>{KING_OF_GLORY_INVITE.tagline}</span>
+                    </span>
+                    <span className="vip-invitation__free-tag">Christmas Eve · Free Entry</span>
+                  </div>
+
+                  <div className="vip-invitation__manger-row" aria-hidden="true">
+                    <InviteMangerCrownMark className="vip-invitation__manger" />
+                  </div>
+
+                  <h2 className="vip-invitation__title">Come celebrate Christmas with us</h2>
+                  <p className="vip-invitation__subtitle">
+                    You’re warmly invited to a Christmas Eve evening with us. Bring your loved ones — we’ll
+                    save a place for you!
+                  </p>
+
+                  <div className="vip-invitation__promise">
+                    <SparkleIcon size={15} />
+                    <span>
+                      Join our <strong>Celebration Service</strong> &amp; receive the{' '}
+                      <strong>Greatest Gift</strong> there.
+                    </span>
+                  </div>
+
+                  <dl className="vip-invitation__facts">
+                    <div className="vip-invitation__fact-row">
+                      <dt>
+                        <CalendarIcon size={17} />
+                        <span className="visually-hidden">Date</span>
+                      </dt>
+                      <dd>
+                        <strong>{dateText}</strong>
+                        <span>Christmas Eve</span>
+                      </dd>
+                    </div>
+
+                    <div className="vip-invitation__fact-row">
+                      <dt>
+                        <TimerClockIcon size={17} />
+                        <span className="visually-hidden">Time</span>
+                      </dt>
+                      <dd>
+                        <strong>{timeText}</strong>
+                        <span>Please arrive by {KING_OF_GLORY_INVITE.arriveByLabel}</span>
+                      </dd>
+                    </div>
+
+                    <div className="vip-invitation__fact-row">
+                      <dt>
+                        <MapPinIcon size={17} />
+                        <span className="visually-hidden">Venue</span>
+                      </dt>
+                      <dd>
+                        <strong>{displayVenueName}</strong>
+                        <span>{displayVenueAddress}</span>
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className="vip-invitation__directions">
+                    <a
+                      href={googleMapsHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => emitAction('maps_click')}
+                      className="direction-pill"
+                    >
+                      <MapPinIcon size={15} />
+                      <span>Google Maps</span>
+                    </a>
+                    <a
+                      href={wazeHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => emitAction('waze_click')}
+                      className="direction-pill direction-pill--waze"
+                    >
+                      <WazeIcon size={16} />
+                      <span>Open in Waze</span>
+                    </a>
+                  </div>
+                </article>
               </div>
-
-              <h2 className="vip-invitation__title">{settings.eventTitle}</h2>
-              {settings.eventSubtitle && (
-                <p className="vip-invitation__subtitle">{settings.eventSubtitle}</p>
-              )}
-
-              <div className="vip-invitation__promise">
-                <SparkleIcon size={15} />
-                <span>
-                  Join our <strong>Celebration Service</strong> &amp; receive the{' '}
-                  <strong>Greatest Gift</strong> there.
-                </span>
-              </div>
-
-              <div className="vip-invitation__details">
-                <div className="vip-invitation__detail-row">
-                  <CalendarIcon size={16} />
-                  <span>{formatReadableDate(settings.eventDateIso)}</span>
-                </div>
-                <div className="vip-invitation__detail-row">
-                  <MapPinIcon size={16} />
-                  <span>
-                    {settings.venueName}
-                    {settings.venueAddress ? ` · ${settings.venueAddress}` : ''}
-                  </span>
-                </div>
-              </div>
-
-              <div className="vip-invitation__directions">
-                <a
-                  href={googleMapsHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => emitAction('maps_click')}
-                  className="direction-pill"
-                >
-                  <MapPinIcon size={15} />
-                  <span>Google Maps</span>
-                </a>
-                <a
-                  href={wazeHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => emitAction('waze_click')}
-                  className="direction-pill direction-pill--waze"
-                >
-                  <WazeIcon size={16} />
-                  <span>Waze</span>
-                </a>
-              </div>
-            </article>
+            </div>
 
             {/* SMALL LIVE EVENT COUNTDOWN TAB */}
             <div className="invite-countdown-tab" role="timer" aria-live="off">
@@ -566,10 +693,10 @@ export function WinnerPass({
                 <TimerClockIcon size={13} />
                 <span>
                   {countdown.state === 'upcoming'
-                    ? 'Celebration In'
+                    ? 'Christmas Eve In'
                     : countdown.state === 'live'
                       ? 'Happening Live Now!'
-                      : 'Celebration Service'}
+                      : 'Christmas Celebration'}
                 </span>
               </span>
 
@@ -620,6 +747,32 @@ export function WinnerPass({
               {passSavedNotice ? <CheckCircleIcon size={16} /> : <DownloadPassIcon size={16} />}
               <span>{passSavedNotice ? 'Invitation Saved' : 'Save Invitation'}</span>
             </button>
+          </div>
+
+          {/* INTERACTIVE 3D ARRIVAL ROUTE TO MENARA ZURICH */}
+          <div className="pass-route-card">
+            <div className="pass-route-card__head">
+              <div className="pass-route-card__copy">
+                <strong>Your way to {KING_OF_GLORY_INVITE.venue.building}</strong>
+                <span>
+                  Step-by-step 3D map guide to {KING_OF_GLORY_INVITE.venue.floor},{' '}
+                  {KING_OF_GLORY_INVITE.venue.room}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="pass-route-card__toggle"
+                aria-expanded={showRouteMap}
+                onClick={() => setShowRouteMap((prev) => !prev)}
+              >
+                {showRouteMap ? 'Hide Map' : '3D Route Guide'}
+              </button>
+            </div>
+            {showRouteMap && (
+              <div className="pass-route-card__body">
+                <VenueMap />
+              </div>
+            )}
           </div>
 
           {/* GOAL-DRIVEN WHATSAPP FRIEND CHALLENGE */}

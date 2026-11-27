@@ -74,21 +74,27 @@ const PLAYFIELDS: Record<ActiveGameId, ComponentType<PlayfieldProps>> = {
   'candy-match': CandyMatchGame,
 };
 
+import {
+  VENUE_ADDRESS_LABEL,
+  VENUE_FULL_LABEL,
+  VENUE_NAV_LINKS,
+} from './invite/kingOfGloryInvite.ts';
+
 const FALLBACK_SETTINGS: EventSettings = {
   churchName: 'CCC JB Bilingual',
-  eventTitle: 'Christmas Night of Wonder',
-  eventSubtitle: 'Live Acoustic Carols, Hot Cocoa, Festive Games & A Story of Hope',
+  eventTitle: 'Jesus, the King of Glory · Christmas Celebration',
+  eventSubtitle: 'You’re warmly invited to a Christmas Eve evening with us.',
   eventDateIso: '2026-12-24T19:30',
   timezoneOffset: '+08:00',
   durationMinutes: 120,
-  venueName: 'Starlight Atrium Hall, Level 3',
-  venueAddress: '18 Central Walk (2 mins from Central Station)',
-  mapsUrl: 'https://maps.google.com',
-  wazeUrl: '',
+  venueName: VENUE_FULL_LABEL,
+  venueAddress: VENUE_ADDRESS_LABEL,
+  mapsUrl: VENUE_NAV_LINKS.googleMaps,
+  wazeUrl: VENUE_NAV_LINKS.waze,
   defaultCountryCode: '60',
   giftDescription: 'Christmas Blessing Gift',
   whatsappTemplate:
-    'Hey {name}! 🎄 So fun playing the Christmas Arcade with you earlier ({volunteer} here!).\n\nHere is your personal invite to *{eventTitle}*:\n📅 {eventDate}\n📍 {venueName} ({venueAddress})\n\n🎟 Open your E-Ticket & play more games anytime: {inviteUrl}\n\nBring a friend along—we would love to host you! ✨',
+    'Hey {name}! 🎄 So fun playing the Christmas Arcade with you earlier ({volunteer} here!).\n\nHere is your personal invite to *{eventTitle}*:\n📅 {eventDate} (Please arrive by 7:15 PM)\n📍 {venueName}\n{venueAddress}\n\n🎟 Open your VIP Invitation & Menara Zurich route guide anytime: {inviteUrl}\n\nBring your loved ones along—we would love to host you! ✨',
 };
 
 type PlayerStep =

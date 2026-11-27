@@ -164,8 +164,8 @@ export function ClaimForm({
               <strong>{settings.eventTitle} · VIP Invitation</strong>
               <span>
                 {projectedRank !== null
-                  ? `Lock Rank #${projectedRank} + Join our Celebration Service`
-                  : 'Join our Celebration Service & receive the Greatest Gift'}
+                  ? `Lock Rank #${projectedRank} · Thu, 24 Dec 7:30 PM · ${settings.venueName}`
+                  : `Thu, 24 Dec 7:30 PM · ${settings.venueName} + 3D Route Guide`}
               </span>
             </div>
           </div>
