@@ -9985,142 +9985,13 @@ body:has(.app-shell--invite) {
 }
 
 /* ==========================================================================
-   Christmas Castle Doors 3D Entrance Reveal & Living Page Magic
+   Full-Screen Royal King's Double Door ("King of Glory")
+   - Covers 100vw x 100vh with 3D 24k Gold Door Knobs in the center
+   - On click: Knobs turn, doors swing open in 3D, shining pure clean white (#ffffff)
+   - Then the pure clean white smoothly fades out so the page fades in
    ========================================================================== */
 
-/* 1. Ambient 60fps Golden Snow, Bokeh & Touch-Sparkle Canvas */
-.castle-ambient-canvas {
-  position: fixed;
-  inset: 0;
-  inline-size: 100%;
-  block-size: 100%;
-  pointer-events: none;
-  z-index: 40;
-}
-
-/* 2. Floating "Castle Doors" Replay Button */
-.castle-replay-pill {
-  position: fixed;
-  inset-block-end: max(0.85rem, env(safe-area-inset-bottom));
-  inset-inline-end: max(0.85rem, env(safe-area-inset-right));
-  z-index: 45;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-block-size: 2.3rem;
-  padding: 0.32rem 0.78rem;
-  border-radius: 999px;
-  border: 1.5px solid rgba(233, 182, 92, 0.78);
-  background: linear-gradient(145deg, #7c0c0f 0%, #5c0709 100%);
-  color: #f5d27b;
-  font-family: var(--font-sans);
-  font-size: 0.74rem;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  box-shadow:
-    0 6px 18px rgba(42, 16, 11, 0.28),
-    inset 0 0 0 1px rgba(245, 210, 123, 0.22);
-  cursor: pointer;
-  transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
-}
-
-.castle-replay-pill:hover {
-  transform: translateY(-2px);
-  box-shadow:
-    0 10px 22px rgba(42, 16, 11, 0.36),
-    inset 0 0 0 1px rgba(245, 210, 123, 0.45);
-}
-
-.castle-replay-pill:active {
-  transform: translateY(0);
-}
-
-.castle-replay-pill__spark {
-  display: inline-block;
-  animation: castleStarPulse 2.2s ease-in-out infinite;
-}
-
-/* 3. Enchanted Castle Skyline Header Banner */
-.castle-crest-banner {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  margin-block-end: 0.35rem;
-  inline-size: 100%;
-  overflow: hidden;
-  user-select: none;
-}
-
-.castle-crest-banner__svg {
-  display: block;
-  inline-size: min(100%, 28rem);
-  block-size: auto;
-  max-block-size: 4.5rem;
-  filter: drop-shadow(0 4px 12px rgba(92, 7, 9, 0.14));
-}
-
-.castle-crest-banner__north-star {
-  transform-origin: 340px 24px;
-  animation: castleStarPulse 2.8s ease-in-out infinite;
-}
-
-.castle-crest-banner__windows rect,
-.castle-crest-banner__windows circle {
-  animation: castleWindowTwinkle 3.2s ease-in-out infinite alternate;
-}
-
-.castle-crest-banner__windows rect:nth-child(2n) {
-  animation-delay: 1.1s;
-}
-
-.castle-crest-banner__stars circle {
-  animation: castleStarPulse 2.4s ease-in-out infinite alternate;
-}
-
-.castle-crest-banner__stars circle:nth-child(2n) {
-  animation-delay: 0.9s;
-}
-
-.castle-crest-banner__tag {
-  margin-block-start: -0.25rem;
-  padding: 0.16rem 0.72rem;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #7c0c0f, #5c0709);
-  border: 1px solid rgba(233, 182, 92, 0.7);
-  color: #f5d27b;
-  font-size: 0.66rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  box-shadow: 0 3px 10px rgba(92, 7, 9, 0.18);
-}
-
-@keyframes castleStarPulse {
-  0%,
-  100% {
-    opacity: 0.82;
-    transform: scale(0.95);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.1);
-  }
-}
-
-@keyframes castleWindowTwinkle {
-  0% {
-    opacity: 0.65;
-    fill: #f5d27b;
-  }
-  100% {
-    opacity: 1;
-    fill: #fffbeb;
-  }
-}
-
-/* 4. 24k Gold-Foil Shimmer Sweep on Cards */
+/* Keep card gold-foil shimmer & seat candle tokens */
 .rg-hero__panel,
 .rg-ticket {
   position: relative;
@@ -10144,7 +10015,6 @@ body:has(.app-shell--invite) {
   animation: vipFoilSweep 5.4s ease-in-out infinite;
 }
 
-/* 5. Magical Lit Candle Flame above Seat Glyphs on /register */
 .rg-people__seat-token {
   display: inline-flex;
   flex-direction: column;
@@ -10172,465 +10042,459 @@ body:has(.app-shell--invite) {
   }
 }
 
-/* 6. Cinematic Disney-Inspired Fairytale Christmas Castle Intro */
-.disney-castle-intro {
+/* Full-Viewport Royal King's Door Overlay */
+.royal-door-overlay {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  z-index: 200;
+  inline-size: 100vw;
+  block-size: 100dvh;
   overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  background: #ffffff;
+  transition: opacity 640ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.royal-door-overlay--opening {
+  pointer-events: none;
+}
+
+.royal-door-overlay--white-fade {
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* Pure Clean White (#ffffff) Light Behind & Flooding Through the Doors */
+.royal-door-overlay__white-shine {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: #ffffff;
+}
+
+/* Center Seam Pure White Light Beam that expands to full clean white as doors swing open */
+.royal-door-overlay__seam-beam {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 50%;
+  inline-size: 4px;
+  transform: translateX(-50%) scaleX(1);
+  z-index: 5;
+  pointer-events: none;
+  background: #ffffff;
+  box-shadow:
+    0 0 35px 12px rgba(255, 255, 255, 0.95),
+    0 0 90px 36px rgba(255, 255, 255, 0.7);
+  opacity: 0;
+  transition:
+    opacity 180ms ease,
+    transform 820ms cubic-bezier(0.22, 1, 0.36, 1) 80ms;
+}
+
+.royal-door-overlay--opening .royal-door-overlay__seam-beam,
+.royal-door-overlay--white-fade .royal-door-overlay__seam-beam {
+  opacity: 1;
+  transform: translateX(-50%) scaleX(650);
+}
+
+/* 3D Perspective Stage holding Left & Right Full-Screen Doors */
+.royal-door-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  perspective: 1800px;
+  overflow: hidden;
+}
+
+.royal-door {
+  position: relative;
+  inline-size: 100%;
+  block-size: 100%;
+  padding: clamp(0.85rem, 2.5vmin, 2rem);
+  background:
+    radial-gradient(rgba(0, 0, 0, 0.14) 0.7px, transparent 1px) 0 0 / 5px 5px,
+    linear-gradient(160deg, #8b1014 0%, #6d090d 48%, #470407 100%);
+  box-shadow:
+    inset 0 0 60px rgba(18, 1, 3, 0.72),
+    0 0 40px rgba(0, 0, 0, 0.55);
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: transform 940ms cubic-bezier(0.32, 0.04, 0.18, 1) 70ms;
+}
+
+.royal-door--left {
+  transform-origin: left center;
+  border-inline-start: 6px solid #c8922a;
+  border-inline-end: 3px solid #f5d27b;
+  border-block: 6px solid #c8922a;
+}
+
+.royal-door--right {
+  transform-origin: right center;
+  border-inline-end: 6px solid #c8922a;
+  border-inline-start: 3px solid #f5d27b;
+  border-block: 6px solid #c8922a;
+}
+
+.royal-door-overlay--opening .royal-door--left,
+.royal-door-overlay--white-fade .royal-door--left {
+  transform: rotateY(-106deg);
+}
+
+.royal-door-overlay--opening .royal-door--right,
+.royal-door-overlay--white-fade .royal-door--right {
+  transform: rotateY(106deg);
+}
+
+/* Outer Gold Hinge Plates */
+.royal-door__hinge {
+  position: absolute;
+  inline-size: clamp(0.55rem, 1.2vmin, 0.85rem);
+  block-size: clamp(3.2rem, 7vh, 5rem);
+  border-radius: 4px;
+  background: linear-gradient(180deg, #fffbeb 0%, #f5d27b 48%, #9e6b14 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+  z-index: 3;
+}
+
+.royal-door--left .royal-door__hinge {
+  inset-inline-start: 0.2rem;
+}
+
+.royal-door--right .royal-door__hinge {
+  inset-inline-end: 0.2rem;
+}
+
+.royal-door__hinge--top {
+  inset-block-start: 12%;
+}
+
+.royal-door__hinge--mid {
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+}
+
+.royal-door__hinge--bot {
+  inset-block-end: 12%;
+}
+
+/* Inner Carved Coffered Door Frame & Recessed Panels */
+.royal-door__inner-frame {
+  position: relative;
+  inline-size: 100%;
+  block-size: 100%;
+  border-radius: 0.75rem;
+  border: 2.5px solid #e9b65c;
+  box-shadow:
+    inset 0 0 0 5px rgba(245, 210, 123, 0.16),
+    0 6px 20px rgba(0, 0, 0, 0.45);
+  padding: clamp(0.75rem, 2.2vmin, 1.75rem);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.75rem, 2vmin, 1.5rem);
+}
+
+.royal-door__panel {
+  position: relative;
+  border-radius: 0.55rem;
+  border: 2px solid rgba(245, 210, 123, 0.62);
+  background:
+    radial-gradient(circle at 50% 45%, rgba(155, 20, 24, 0.45), rgba(38, 2, 5, 0.65));
+  box-shadow:
+    inset 0 4px 18px rgba(0, 0, 0, 0.65),
+    0 1px 0 rgba(255, 251, 235, 0.25);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.royal-door__panel--upper {
+  flex: 1.25;
+}
+
+.royal-door__panel--lower {
+  flex: 0.95;
+}
+
+.royal-door__rail {
+  block-size: clamp(2.2rem, 5vh, 3.6rem);
+  flex: none;
+  border-radius: 0.35rem;
+  border: 1.5px solid rgba(245, 210, 123, 0.45);
+  background: linear-gradient(180deg, rgba(245, 210, 123, 0.14), rgba(0, 0, 0, 0.25));
+}
+
+.royal-door__medallion-ring {
+  inline-size: clamp(3.6rem, 11vmin, 6.8rem);
+  block-size: clamp(3.6rem, 11vmin, 6.8rem);
+  border-radius: 50%;
+  border: 2px solid rgba(245, 210, 123, 0.55);
+  box-shadow:
+    inset 0 0 0 6px rgba(245, 210, 123, 0.15),
+    0 0 24px rgba(245, 210, 123, 0.18);
+}
+
+/* Gold Corner Filigree inside Door Panels */
+.royal-door__filigree {
+  position: absolute;
+  inline-size: clamp(1.6rem, 4.5vmin, 2.8rem);
+  block-size: clamp(1.6rem, 4.5vmin, 2.8rem);
+  color: #f5d27b;
+  opacity: 0.85;
+}
+
+.royal-door__filigree--tl {
+  inset-block-start: 0.45rem;
+  inset-inline-start: 0.45rem;
+}
+
+.royal-door__filigree--tr {
+  inset-block-start: 0.45rem;
+  inset-inline-end: 0.45rem;
+  transform: scaleX(-1);
+}
+
+.royal-door__filigree--bl {
+  inset-block-end: 0.45rem;
+  inset-inline-start: 0.45rem;
+  transform: scaleY(-1);
+}
+
+.royal-door__filigree--br {
+  inset-block-end: 0.45rem;
+  inset-inline-end: 0.45rem;
+  transform: scale(-1);
+}
+
+/* ============================================================
+   3D 24k Gold Door Knob & Escutcheon Backplate Assembly
+   ============================================================ */
+.royal-door__knob-assembly {
+  position: absolute;
+  inset-block-start: 52%;
+  transform: translateY(-50%);
+  z-index: 6;
+}
+
+.royal-door__knob-assembly--left {
+  inset-inline-end: clamp(0.45rem, 1.8vw, 1.35rem);
+}
+
+.royal-door__knob-assembly--right {
+  inset-inline-start: clamp(0.45rem, 1.8vw, 1.35rem);
+}
+
+.royal-door__backplate {
+  position: relative;
+  inline-size: clamp(2.35rem, 6.2vw, 3.25rem);
+  block-size: clamp(6.4rem, 15vh, 8.8rem);
+  border-radius: 999px;
+  border: 2px solid #fffbeb;
+  background: linear-gradient(135deg, #fffbeb 0%, #f5d27b 38%, #c8922a 78%, #7c530d 100%);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.65),
+    inset 0 2px 4px rgba(255, 255, 255, 0.8);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  padding: clamp(0.85rem, 2.2vh, 1.5rem) 1rem clamp(1.1rem, 2.8vh, 1.85rem);
-  background:
-    radial-gradient(circle at 50% 34%, rgba(138, 16, 20, 0.52) 0%, transparent 58%),
-    radial-gradient(circle at 50% 18%, #2e060b 0%, #160205 58%, #0b0103 100%);
-  color: #fbf6e8;
-  cursor: pointer;
-  user-select: none;
-  transition: opacity 520ms cubic-bezier(0.22, 1, 0.36, 1) 1180ms;
+  padding: 0.55rem 0;
 }
 
-.disney-castle-intro--opening {
-  pointer-events: none;
-  opacity: 0;
+.royal-door__screw {
+  inline-size: 0.36rem;
+  block-size: 0.36rem;
+  border-radius: 50%;
+  background: #6b4508;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
-/* Night Sky Aurora & Subtle Starlight Fireworks */
-.disney-castle-intro__sky {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.disney-castle-intro__aurora {
-  position: absolute;
-  inset: -15% -20% auto -20%;
-  block-size: 65%;
-  background:
-    radial-gradient(ellipse at 32% 42%, rgba(245, 210, 123, 0.18), transparent 62%),
-    radial-gradient(ellipse at 68% 36%, rgba(215, 0, 21, 0.22), transparent 64%);
-  filter: blur(18px);
-  animation: castleAuroraFloat 6s ease-in-out infinite alternate;
-}
-
-.disney-castle-intro__firework {
-  position: absolute;
-  inline-size: 9rem;
-  block-size: 9rem;
+/* Spherical 3D 24k Gold Door Knob */
+.royal-door__knob {
+  position: relative;
+  inline-size: clamp(2.85rem, 7.6vw, 3.9rem);
+  block-size: clamp(2.85rem, 7.6vw, 3.9rem);
   border-radius: 50%;
   background: radial-gradient(
-    circle,
-    rgba(255, 251, 235, 0.38) 0%,
-    rgba(245, 210, 123, 0.16) 35%,
-    transparent 70%
-  );
-  animation: castleStarPulse 3.2s ease-in-out infinite;
-}
-
-.disney-castle-intro__firework--left {
-  inset-block-start: 16%;
-  inset-inline-start: 12%;
-}
-
-.disney-castle-intro__firework--right {
-  inset-block-start: 20%;
-  inset-inline-end: 12%;
-  animation-delay: 1.4s;
-}
-
-@keyframes castleAuroraFloat {
-  0% {
-    transform: translateY(0) scale(1);
-  }
-  100% {
-    transform: translateY(10px) scale(1.06);
-  }
-}
-
-/* Top Church Title Header */
-.disney-castle-intro__header {
-  position: relative;
-  z-index: 3;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.18rem;
-  max-inline-size: 30rem;
-  transition: opacity 420ms ease, transform 520ms ease;
-}
-
-.disney-castle-intro--opening .disney-castle-intro__header {
-  opacity: 0;
-  transform: translateY(-18px);
-}
-
-.disney-castle-intro__eyebrow {
-  display: inline-block;
-  padding: 0.18rem 0.72rem;
-  border-radius: 999px;
-  background: rgba(245, 210, 123, 0.14);
-  border: 1px solid rgba(245, 210, 123, 0.48);
-  color: #f5d27b;
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
-.disney-castle-intro__title {
-  margin: 0.1rem 0 0;
-  font-family: var(--rg-font-display);
-  font-size: clamp(1.65rem, 1.35rem + 1.6vw, 2.35rem);
-  font-weight: 700;
-  line-height: 1.06;
-  color: #fffbeb;
-  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
-}
-
-.disney-castle-intro__sub {
-  margin: 0;
-  font-size: clamp(0.78rem, 0.72rem + 0.25vw, 0.9rem);
-  font-weight: 600;
-  color: rgba(245, 210, 123, 0.92);
-}
-
-/* Centerpiece Disney Fairytale Christmas Castle Stage */
-.disney-castle-stage {
-  position: relative;
-  z-index: 2;
-  flex: 1;
-  inline-size: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-block-size: 0;
-}
-
-.disney-castle-stage__figure {
-  position: relative;
-  inline-size: min(88vw, 56vh, 30rem);
-  aspect-ratio: 800 / 760;
-  transform-origin: 50% 61%;
-  will-change: transform;
-  filter: drop-shadow(0 20px 44px rgba(0, 0, 0, 0.65));
-  transition: transform 1380ms cubic-bezier(0.38, 0.04, 0.18, 1) 140ms;
-}
-
-.disney-castle-intro--opening .disney-castle-stage__figure {
-  transform: scale(2.95);
-}
-
-.disney-castle-svg {
-  display: block;
-  inline-size: 100%;
-  block-size: 100%;
-}
-
-.disney-castle-svg__arc {
-  stroke-dasharray: 900;
-  stroke-dashoffset: 900;
-  animation: disneyArcSweep 1.6s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
-}
-
-@keyframes disneyArcSweep {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-.disney-castle-svg__crown-star,
-.disney-castle-svg__arc-star {
-  animation: castleStarPulse 2.4s ease-in-out infinite;
-}
-
-.disney-castle-svg__twinkles circle,
-.disney-castle-svg__twinkles path {
-  animation: castleStarPulse 2.2s ease-in-out infinite alternate;
-}
-
-/* 3D Double Palace Doors inside the Castle Archway (x: 41%..59%, y: 48.16%..73.42%) */
-.disney-castle-doorway {
-  position: absolute;
-  inset-inline-start: 41%;
-  inset-block-start: 48.16%;
-  inline-size: 18%;
-  block-size: 25.26%;
-  border-radius: 999px 999px 0 0;
-  perspective: 900px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  overflow: visible;
-}
-
-.disney-castle-doorway__light-core {
-  position: absolute;
-  inset: 0;
-  border-radius: 999px 999px 0 0;
-  background: radial-gradient(
-    circle at 50% 55%,
+    circle at 32% 28%,
     #ffffff 0%,
-    #fffbeb 42%,
-    #fde047 78%,
-    #f59e0b 100%
+    #fffbeb 22%,
+    #fde047 48%,
+    #d99b26 76%,
+    #6b4508 100%
   );
+  border: 2px solid #fffbeb;
   box-shadow:
-    0 0 38px 14px rgba(255, 251, 235, 0.85),
-    0 0 80px 30px rgba(245, 210, 123, 0.55);
-  opacity: 0.35;
-  transition: opacity 420ms ease, transform 900ms ease;
-}
-
-.disney-castle-intro--opening .disney-castle-doorway__light-core {
-  opacity: 1;
-  transform: scale(1.12);
-}
-
-.disney-door {
-  position: relative;
-  z-index: 2;
-  block-size: 100%;
-  background: linear-gradient(165deg, #8e1116 0%, #68080c 55%, #460407 100%);
-  border-block-start: 2px solid #f5d27b;
-  border-block-end: 2px solid #c8922a;
-  box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.6);
-  transform-style: preserve-3d;
-  will-change: transform;
-  transition: transform 880ms cubic-bezier(0.24, 0.94, 0.32, 1);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 16% 14% 12%;
-}
-
-.disney-door--left {
-  border-radius: 999px 0 0 0;
-  border-inline-start: 2px solid #f5d27b;
-  border-inline-end: 1.5px solid #f5d27b;
-  transform-origin: left center;
-}
-
-.disney-door--right {
-  border-radius: 0 999px 0 0;
-  border-inline-end: 2px solid #f5d27b;
-  border-inline-start: 1.5px solid #f5d27b;
-  transform-origin: right center;
-}
-
-.disney-castle-intro--opening .disney-door--left {
-  transform: rotateY(-118deg);
-}
-
-.disney-castle-intro--opening .disney-door--right {
-  transform: rotateY(118deg);
-}
-
-.disney-door__filigree {
-  inline-size: 100%;
-  block-size: 72%;
-  border-radius: 999px 999px 4px 4px;
-  border: 1.5px solid rgba(245, 210, 123, 0.68);
-  background: radial-gradient(circle at 50% 45%, rgba(245, 210, 123, 0.24), transparent 72%);
-}
-
-.disney-door__ring {
-  margin-block-start: 10%;
-  inline-size: 0.55rem;
-  block-size: 0.55rem;
-  border-radius: 50%;
-  border: 1.8px solid #fffbeb;
-  background: #f5d27b;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
-}
-
-/* Glowing Manger & Crown Medallion Seal on the Castle Doors */
-.disney-doorway-seal {
-  position: absolute;
-  inset-block-start: 54%;
-  inset-inline-start: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 4;
-  inline-size: 2.85rem;
-  block-size: 2.85rem;
-  border-radius: 50%;
-  padding: 0.16rem;
-  background: linear-gradient(135deg, #fffbeb 0%, #f5d27b 50%, #c8922a 100%);
-  box-shadow:
-    0 0 0 3px rgba(245, 210, 123, 0.38),
-    0 0 22px rgba(254, 240, 138, 0.75),
-    0 6px 16px rgba(0, 0, 0, 0.55);
+    0 0 0 4px rgba(245, 210, 123, 0.38),
+    0 0 26px rgba(254, 240, 138, 0.85),
+    0 10px 22px rgba(0, 0, 0, 0.75);
   display: grid;
   place-items: center;
-  animation: sealGentlePulse 1.8s ease-in-out infinite;
-  transition: opacity 320ms ease, transform 460ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: doorKnobPulse 1.8s ease-in-out infinite;
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.disney-doorway-seal img {
+.royal-door-overlay--opening .royal-door__knob {
+  animation: none;
+  transform: rotate(38deg) scale(0.95);
+}
+
+.royal-door__knob-cap {
+  inline-size: 62%;
+  block-size: 62%;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 251, 235, 0.85);
+  background: radial-gradient(
+    circle at 36% 32%,
+    #ffffff 0%,
+    #fef08a 45%,
+    #b47b1c 100%
+  );
+  box-shadow: inset 0 2px 5px rgba(255, 255, 255, 0.8);
+}
+
+.royal-door__keyhole {
+  inline-size: 0.42rem;
+  block-size: 0.82rem;
+  border-radius: 999px 999px 2px 2px;
+  background: #260204;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+@keyframes doorKnobPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 0 0 4px rgba(245, 210, 123, 0.38),
+      0 0 22px rgba(254, 240, 138, 0.72),
+      0 10px 22px rgba(0, 0, 0, 0.75);
+  }
+  50% {
+    transform: scale(1.07);
+    box-shadow:
+      0 0 0 7px rgba(245, 210, 123, 0.52),
+      0 0 36px rgba(255, 255, 255, 0.98),
+      0 12px 26px rgba(0, 0, 0, 0.8);
+  }
+}
+
+/* Top Royal Crest Plaque above the Door Knobs */
+.royal-door-overlay__crest {
+  position: absolute;
+  inset-block-start: clamp(8%, 12vh, 15%);
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  text-align: center;
+  inline-size: min(90vw, 24rem);
+  padding: 0.8rem 1.15rem;
+  border-radius: 1.1rem;
+  background: rgba(58, 4, 7, 0.92);
+  border: 2px solid #f5d27b;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  transition: opacity 260ms ease, transform 360ms ease;
+}
+
+.royal-door-overlay--opening .royal-door-overlay__crest,
+.royal-door-overlay--white-fade .royal-door-overlay__crest {
+  opacity: 0;
+  transform: translateX(-50%) scale(1.08);
+}
+
+.royal-door-overlay__seal {
+  inline-size: 3.9rem;
+  block-size: 3.9rem;
+  border-radius: 50%;
+  padding: 0.2rem;
+  background: linear-gradient(135deg, #fffbeb 0%, #f5d27b 50%, #c8922a 100%);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  display: grid;
+  place-items: center;
+}
+
+.royal-door-overlay__seal img {
   inline-size: 100%;
   block-size: 100%;
   border-radius: 50%;
   display: block;
 }
 
-.disney-castle-intro--opening .disney-doorway-seal {
-  animation: none;
-  opacity: 0;
-  transform: translate(-50%, -50%) scale(1.65);
+.royal-door-overlay__church {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f5d27b;
 }
 
-@keyframes sealGentlePulse {
-  0%,
-  100% {
-    transform: translate(-50%, -50%) scale(1);
-    box-shadow:
-      0 0 0 3px rgba(245, 210, 123, 0.38),
-      0 0 18px rgba(254, 240, 138, 0.65),
-      0 6px 16px rgba(0, 0, 0, 0.55);
-  }
-  50% {
-    transform: translate(-50%, -50%) scale(1.08);
-    box-shadow:
-      0 0 0 6px rgba(245, 210, 123, 0.48),
-      0 0 30px rgba(255, 251, 235, 0.95),
-      0 8px 20px rgba(0, 0, 0, 0.55);
-  }
+.royal-door-overlay__title {
+  font-family: var(--rg-font-display);
+  font-size: clamp(1.45rem, 1.25rem + 1vw, 1.85rem);
+  font-weight: 700;
+  color: #fffbeb;
+  line-height: 1.08;
 }
 
-/* Volumetric God-Rays & Movie Light Bloom when Doors Open */
-.disney-castle-stage__godrays {
+/* Bottom Click-to-Open Prompt below the Door Knobs */
+.royal-door-overlay__prompt {
   position: absolute;
+  inset-block-end: clamp(8%, 11vh, 14%);
   inset-inline-start: 50%;
-  inset-block-start: 58%;
-  inline-size: 135vmax;
-  block-size: 135vmax;
-  transform: translate(-50%, -50%) scale(0.15) rotate(0deg);
-  border-radius: 50%;
-  background: repeating-conic-gradient(
-    from 0deg,
-    rgba(255, 251, 235, 0.45) 0deg 10deg,
-    rgba(245, 210, 123, 0.08) 10deg 24deg
-  );
-  mask-image: radial-gradient(circle, #000 0%, rgba(0, 0, 0, 0.6) 35%, transparent 68%);
-  -webkit-mask-image: radial-gradient(circle, #000 0%, rgba(0, 0, 0, 0.6) 35%, transparent 68%);
-  opacity: 0;
-  pointer-events: none;
+  transform: translateX(-50%);
   z-index: 4;
-  transition:
-    opacity 480ms ease 80ms,
-    transform 1450ms cubic-bezier(0.16, 1, 0.3, 1) 80ms;
+  inline-size: max-content;
+  max-inline-size: 92vw;
+  transition: opacity 240ms ease, transform 320ms ease;
 }
 
-.disney-castle-intro--opening .disney-castle-stage__godrays {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1.25) rotate(28deg);
-}
-
-.disney-castle-stage__light-bloom {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  pointer-events: none;
-  background: radial-gradient(
-    circle at 50% 58%,
-    #ffffff 0%,
-    #fffdf7 34%,
-    #fef3c7 68%,
-    rgba(251, 246, 232, 0.96) 100%
-  );
+.royal-door-overlay--opening .royal-door-overlay__prompt,
+.royal-door-overlay--white-fade .royal-door-overlay__prompt {
   opacity: 0;
-  transform: scale(0.18);
-  transform-origin: 50% 58%;
-  transition:
-    opacity 760ms cubic-bezier(0.22, 1, 0.36, 1) 360ms,
-    transform 1150ms cubic-bezier(0.16, 1, 0.3, 1) 260ms;
+  transform: translateX(-50%) translateY(10px);
 }
 
-.disney-castle-intro--opening .disney-castle-stage__light-bloom {
-  opacity: 1;
-  transform: scale(2.4);
-}
-
-/* Bottom Call-to-Action Button Waiting for User Click */
-.disney-castle-intro__footer {
-  position: relative;
-  z-index: 5;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  transition: opacity 320ms ease, transform 380ms ease;
-}
-
-.disney-castle-intro--opening .disney-castle-intro__footer {
-  opacity: 0;
-  transform: translateY(14px);
-}
-
-.disney-castle-intro__open-btn {
+.royal-door-overlay__btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.55rem;
-  min-block-size: 3.25rem;
-  padding: 0.72rem 1.55rem;
+  min-block-size: 3.1rem;
+  padding: 0.68rem 1.45rem;
   border-radius: 999px;
   border: 2px solid #fffbeb;
-  background: linear-gradient(135deg, #f5d27b 0%, #d99b26 52%, #b47b1c 100%);
+  background: linear-gradient(135deg, #fffbeb 0%, #f5d27b 45%, #c8922a 100%);
   color: #2a1008;
   font-family: var(--font-sans);
-  font-size: clamp(0.92rem, 0.86rem + 0.25vw, 1.04rem);
+  font-size: clamp(0.86rem, 0.8rem + 0.25vw, 0.98rem);
   font-weight: 900;
   letter-spacing: 0.02em;
   box-shadow:
-    0 0 0 4px rgba(245, 210, 123, 0.28),
-    0 12px 30px rgba(0, 0, 0, 0.55);
+    0 0 0 4px rgba(245, 210, 123, 0.3),
+    0 12px 28px rgba(0, 0, 0, 0.65);
   cursor: pointer;
-  animation: openBtnFloat 2.2s ease-in-out infinite;
-  transition: transform 140ms ease, box-shadow 140ms ease;
 }
 
-.disney-castle-intro__open-btn:hover {
-  transform: translateY(-2px) scale(1.03);
-  box-shadow:
-    0 0 0 6px rgba(245, 210, 123, 0.42),
-    0 16px 36px rgba(0, 0, 0, 0.65);
-}
-
-.disney-castle-intro__open-btn:active {
-  transform: translateY(0) scale(0.98);
-}
-
-.disney-castle-intro__open-spark {
-  font-size: 1.15rem;
-}
-
-@keyframes openBtnFloat {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-4px);
-  }
+.royal-door-overlay__btn:hover {
+  transform: translateY(-2px);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .castle-ambient-canvas,
-  .disney-castle-intro,
+  .royal-door-overlay,
   .rg-foil-sheen {
     display: none !important;
   }
-  .castle-crest-banner__north-star,
-  .castle-crest-banner__windows rect,
-  .castle-crest-banner__windows circle,
-  .castle-crest-banner__stars circle,
-  .rg-people__flame,
-  .castle-replay-pill__spark {
+  .rg-people__flame {
     animation: none !important;
   }
 }
+
 
 

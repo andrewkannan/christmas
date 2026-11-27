@@ -20,7 +20,7 @@ import {
   WazeIcon,
 } from '../components/Icons.tsx';
 import { ConfettiBurst } from '../components/ConfettiBurst.tsx';
-import { CastleSkylineCrest, ChristmasCastleMagic } from '../components/ChristmasCastleMagic.tsx';
+import { ChristmasCastleMagic } from '../components/ChristmasCastleMagic.tsx';
 import { VenueMap } from './VenueMap.tsx';
 
 const PASS_STORAGE_KEY = 'ccc_kog_guest_pass_v1';
@@ -360,7 +360,6 @@ export function GuestSignupPage() {
   return (
     <div className="rg">
       <ChristmasCastleMagic variant="register" />
-      <CastleSkylineCrest label={`${venue.building}, ${venue.floor} · Christmas Eve ${KING_OF_GLORY_INVITE.timeLabel}`} />
       <BrandBar />
 
       {completed ? (
