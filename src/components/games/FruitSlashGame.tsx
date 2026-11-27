@@ -50,7 +50,7 @@ const PINE = '#0f6840';
 const GOLD = '#f5b942';
 const GINGER = '#b8692e';
 const FONT_STACK = '-apple-system, BlinkMacSystemFont, "SF Pro Rounded", system-ui, sans-serif';
-const FROST_COLORS = ['#ffffff', '#dbeafe', '#93c5fd'] as const;
+const FROST_COLORS = ['#18181b', '#dc2626', '#f97316', '#fde047'] as const;
 const ORNAMENT_TINTS = [CRIMSON, GOLD, PINE] as const;
 
 /* ------------------------------------------------------------------ */
@@ -486,10 +486,10 @@ function registerSwipeHit(state: GameState, api: PlayfieldApi, swipe: Swipe, x: 
   if (swipe.hits === COMBO_MIN) playArcadeTone('star');
 }
 
-/** A sliced frost bomb costs one life and freezes everything on screen. */
+/** A sliced black BOOM bomb costs one life and blasts the stage. */
 function detonate(state: GameState, api: PlayfieldApi, bomb: Item): void {
   for (const item of state.items) {
-    spawnParticles(state, item.x, item.y, item === bomb ? 26 : 7, FROST_COLORS, item === bomb ? 260 : 120);
+    spawnParticles(state, item.x, item.y, item === bomb ? 28 : 8, FROST_COLORS, item === bomb ? 260 : 120);
   }
   state.items = [];
   state.swipe = null;
@@ -498,11 +498,11 @@ function detonate(state: GameState, api: PlayfieldApi, bomb: Item): void {
   state.popups.push({
     x: clamp(bomb.x, 70, STAGE_W - 70),
     y: clamp(bomb.y, 50, STAGE_H - 50),
-    text: 'FROSTED!',
+    text: 'BOOM!',
     sub: null,
-    size: 24,
-    fill: '#1e3a8a',
-    outline: '#ffffff',
+    size: 28,
+    fill: '#fde047',
+    outline: '#18181b',
     life: 1,
     decay: 0.9,
   });
@@ -715,63 +715,98 @@ function drawBerries(ctx: CanvasRenderingContext2D, r: number): void {
 }
 
 function drawBomb(ctx: CanvasRenderingContext2D, r: number, clock: number, animate: boolean): void {
-  const fuseX = r * 0.45;
-  const fuseY = -r - 9;
-  ctx.strokeStyle = '#64748b';
-  ctx.lineWidth = 3;
+  const pulse = animate ? 0.5 + 0.5 * Math.sin(clock * 14) : 0.7;
+
+  // Outer crimson warning danger ring so it never looks like a Christmas ornament treat
+  ctx.beginPath();
+  ctx.arc(0, 0, r + 4.5, 0, TAU);
+  ctx.strokeStyle = `rgba(220, 38, 38, ${0.35 + pulse * 0.35})`;
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([5, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Braided bomb fuse cord
+  const fuseX = r * 0.52;
+  const fuseY = -r - 10;
+  ctx.strokeStyle = '#a16207';
+  ctx.lineWidth = 3.4;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(0, -r + 2);
-  ctx.quadraticCurveTo(r * 0.1, -r - 10, fuseX, fuseY);
+  ctx.moveTo(0, -r - 2);
+  ctx.quadraticCurveTo(r * 0.14, -r - 12, fuseX, fuseY);
   ctx.stroke();
 
-  const flicker = animate ? 0.75 + 0.25 * Math.sin(clock * 30) : 1;
-  ctx.strokeStyle = GOLD;
-  ctx.lineWidth = 1.6;
+  // Iron fuse neck / collar on top of the black bomb
+  ctx.fillStyle = '#27272a';
+  ctx.strokeStyle = '#52525b';
+  ctx.lineWidth = 1.4;
   ctx.beginPath();
-  for (let i = 0; i < 4; i += 1) {
-    const a = (i * Math.PI) / 2 + Math.PI / 4;
-    ctx.moveTo(fuseX + Math.cos(a) * 4, fuseY + Math.sin(a) * 4);
-    ctx.lineTo(fuseX + Math.cos(a) * 8 * flicker, fuseY + Math.sin(a) * 8 * flicker);
+  ctx.roundRect(-r * 0.28, -r - 4, r * 0.56, 7, 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Sizzling red-orange-yellow fuse spark
+  const flicker = animate ? 0.75 + 0.28 * Math.sin(clock * 32) : 1;
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i += 1) {
+    const a = (i * Math.PI) / 3 + (animate ? clock * 6 : 0);
+    ctx.moveTo(fuseX + Math.cos(a) * 3, fuseY + Math.sin(a) * 3);
+    ctx.lineTo(fuseX + Math.cos(a) * 9.5 * flicker, fuseY + Math.sin(a) * 9.5 * flicker);
   }
   ctx.stroke();
-  ctx.fillStyle = GOLD;
+  ctx.fillStyle = '#f97316';
   ctx.beginPath();
-  ctx.arc(fuseX, fuseY, 4 * flicker, 0, TAU);
+  ctx.arc(fuseX, fuseY, 5 * flicker, 0, TAU);
   ctx.fill();
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = '#fef08a';
   ctx.beginPath();
-  ctx.arc(fuseX, fuseY, 1.8, 0, TAU);
+  ctx.arc(fuseX, fuseY, 2.4, 0, TAU);
   ctx.fill();
 
-  const body = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
-  body.addColorStop(0, '#3b5bab');
-  body.addColorStop(1, '#0b1f4d');
+  // Jet-black cast-iron bomb sphere
+  const body = ctx.createRadialGradient(-r * 0.32, -r * 0.34, r * 0.08, 0, 0, r);
+  body.addColorStop(0, '#52525b');
+  body.addColorStop(0.28, '#18181b');
+  body.addColorStop(0.75, '#09090b');
+  body.addColorStop(1, '#000000');
   ctx.fillStyle = body;
   ctx.beginPath();
   ctx.arc(0, 0, r, 0, TAU);
   ctx.fill();
-  ctx.strokeStyle = '#bfdbfe';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 2.2;
   ctx.stroke();
 
-  // Snowflake emblem.
-  const arm = r * 0.62;
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2.2;
+  // Specular metallic glint on top-left of black iron shell
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
   ctx.beginPath();
-  for (let k = 0; k < 6; k += 1) {
-    const a = (k * Math.PI) / 3;
-    const bx = Math.cos(a) * arm * 0.6;
-    const by = Math.sin(a) * arm * 0.6;
-    ctx.moveTo(0, 0);
-    ctx.lineTo(Math.cos(a) * arm, Math.sin(a) * arm);
-    for (const spread of [-0.6, 0.6]) {
-      ctx.moveTo(bx, by);
-      ctx.lineTo(bx + Math.cos(a + spread) * arm * 0.28, by + Math.sin(a + spread) * arm * 0.28);
-    }
-  }
+  ctx.ellipse(-r * 0.36, -r * 0.36, r * 0.22, r * 0.11, -0.7, 0, TAU);
+  ctx.fill();
+
+  // Red danger X behind "BOOM" badge on the black bomb face
+  const xSpan = r * 0.46;
+  ctx.strokeStyle = 'rgba(239, 68, 68, 0.72)';
+  ctx.lineWidth = 3.2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-xSpan, -xSpan);
+  ctx.lineTo(xSpan, xSpan);
+  ctx.moveTo(xSpan, -xSpan);
+  ctx.lineTo(-xSpan, xSpan);
   ctx.stroke();
+
+  // Bold "BOOM" emblem across the black bomb so players instantly recognize it
+  ctx.font = `900 ${Math.round(r * 0.48)}px ${FONT_STACK}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3.2;
+  ctx.strokeStyle = '#000000';
+  ctx.strokeText('BOOM', 0, 1);
+  ctx.fillStyle = '#fde047';
+  ctx.fillText('BOOM', 0, 1);
 }
 
 function drawItemArt(ctx: CanvasRenderingContext2D, kind: ItemKind, tint: string, r: number, state: GameState): void {
@@ -904,8 +939,8 @@ function render(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, state:
   drawParticles(ctx, state);
   drawTrail(ctx, state);
   if (state.flash > 0) {
-    const peak = state.reducedMotion ? 0.35 : 0.6;
-    ctx.fillStyle = `rgba(214, 232, 255, ${state.flash * peak})`;
+    const peak = state.reducedMotion ? 0.3 : 0.5;
+    ctx.fillStyle = `rgba(239, 68, 68, ${state.flash * peak})`;
     ctx.fillRect(0, 0, STAGE_W, STAGE_H);
   }
   drawPopups(ctx, state);
@@ -1010,7 +1045,7 @@ export function FruitSlashGame({ api }: PlayfieldProps) {
           ref={canvasRef}
           className="game-canvas"
           role="img"
-          aria-label="Berry Slash: Christmas treats are tossed up from the bottom. Swipe across them to slice them, don't let any fall, and avoid the dark blue frost bombs."
+          aria-label="Berry Slash: Christmas treats are tossed up from the bottom. Swipe across them to slice them, don't let any fall, and avoid the black BOOM bombs."
           aria-describedby={hintId}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}

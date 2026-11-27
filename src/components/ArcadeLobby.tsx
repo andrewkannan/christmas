@@ -87,14 +87,14 @@ export function ArcadeLobby({
 
         <p className="hero-marquee__subtitle">
           {savedPass
-            ? `Welcome back, ${savedPass.name}. Defend your Top 3 trophies or conquer a new cabinet!`
+            ? `Welcome back, ${savedPass.name}. Defend your Top 3 trophies or conquer a new game!`
             : vipFriendName
               ? `Welcome, ${vipFriendName}! ${
                   invitedByMember || 'Your friend'
                 } won a Reserved VIP Seat & ${
                   settings.giftDescription
                 } for you at our church booth. Play any game below to claim your pass!`
-              : 'Pick any cabinet, chase the #1 trophy & unlock your gift in 45 seconds.'}
+              : 'Pick any game, chase the #1 trophy & unlock your gift in 45 seconds.'}
         </p>
 
         {savedPass ? (

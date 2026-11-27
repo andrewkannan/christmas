@@ -22,16 +22,6 @@ export interface ArcadeGameMeta {
 
 export const ACTIVE_ARCADE_GAMES: readonly ArcadeGameMeta[] = [
   {
-    id: 'ice-hockey',
-    title: 'Starlight Hockey',
-    shortTag: '2P Versus · 1P',
-    durationLabel: '4-Digit Duel',
-    controlHint: 'Drag Striker · Smash Puck Across Phones!',
-    emoji: '🏒',
-    accentBg: 'linear-gradient(135deg, #d70015, #99000f)',
-    accentFg: '#ffffff',
-  },
-  {
     id: 'santa-dash',
     title: 'Santa Dash',
     shortTag: '3-Lane Run',
@@ -69,6 +59,16 @@ export const ACTIVE_ARCADE_GAMES: readonly ArcadeGameMeta[] = [
     controlHint: 'Swap 3 Candies',
     emoji: '🍬',
     accentBg: 'linear-gradient(135deg, #0284c7, #0369a1)',
+    accentFg: '#ffffff',
+  },
+  {
+    id: 'ice-hockey',
+    title: 'Starlight Hockey',
+    shortTag: '2P Versus · 1P',
+    durationLabel: '4-Digit Duel',
+    controlHint: 'Drag Striker · Smash Puck Across Phones!',
+    emoji: '🏒',
+    accentBg: 'linear-gradient(135deg, #d70015, #99000f)',
     accentFg: '#ffffff',
   },
 ] as const;
