@@ -630,3 +630,189 @@ export function playArcadeTone(kind: 'pickup' | 'star' | 'hit' | 'tap' | 'win' |
       break;
   }
 }
+
+/**
+ * Synthesizes a multi-layered cinematic "King's Palace Door" sound effect synchronized with the
+ * 2.5s 3D palace door opening animation:
+ * 1. (0.00s - 0.26s) Heavy 24k Gold Brass Knob Turn & Royal Lock Bolt Release
+ * 2. (0.22s - 2.15s) Deep Palace Oak & Bronze Hinge Swing Resonance
+ * 3. (0.32s - 2.85s) Majestic Royal Brass & Cathedral Organ Herald Fanfare ("King of Glory")
+ * 4. (1.40s - 2.95s) Celestial Golden Harp Glissando & Tubular Bell Shimmer as white light shines
+ */
+export function playPalaceDoorSound(): void {
+  const ctx = ensureAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+
+  // Master compressor/limiter node for rich, distortion-free orchestral dynamics
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(0.88, now);
+  master.connect(ctx.destination);
+
+  // ---------------------------------------------------------------------------
+  // 1. Heavy Brass Door Knob Turn & Lock Bolt Release (0.00s - 0.26s)
+  // ---------------------------------------------------------------------------
+  const playMetallicClick = (freq: number, offset: number, dur: number, gainVal: number) => {
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, now + offset);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.58, now + offset + dur);
+    g.gain.setValueAtTime(0.0001, now + offset);
+    g.gain.linearRampToValueAtTime(gainVal, now + offset + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + offset + dur);
+    osc.connect(g);
+    g.connect(master);
+    osc.start(now + offset);
+    osc.stop(now + offset + dur + 0.01);
+  };
+
+  // Golden latch unclick + heavy bolt thud
+  playMetallicClick(1480, 0.0, 0.055, 0.08);
+  playMetallicClick(2240, 0.015, 0.045, 0.055);
+  playMetallicClick(980, 0.11, 0.08, 0.09);
+  playMetallicClick(142, 0.12, 0.18, 0.16);
+
+  // ---------------------------------------------------------------------------
+  // 2. Heavy Palace Doors Swinging on Bronze Hinges (0.22s - 2.15s)
+  // ---------------------------------------------------------------------------
+  const rumbleOsc = ctx.createOscillator();
+  const rumbleSub = ctx.createOscillator();
+  const rumbleFilter = ctx.createBiquadFilter();
+  const rumbleGain = ctx.createGain();
+
+  rumbleOsc.type = 'sawtooth';
+  rumbleOsc.frequency.setValueAtTime(54, now + 0.22);
+  rumbleOsc.frequency.linearRampToValueAtTime(72, now + 1.05);
+  rumbleOsc.frequency.linearRampToValueAtTime(48, now + 2.15);
+
+  rumbleSub.type = 'sine';
+  rumbleSub.frequency.setValueAtTime(42, now + 0.22);
+  rumbleSub.frequency.linearRampToValueAtTime(56, now + 1.1);
+  rumbleSub.frequency.linearRampToValueAtTime(38, now + 2.15);
+
+  rumbleFilter.type = 'lowpass';
+  rumbleFilter.frequency.setValueAtTime(135, now + 0.22);
+  rumbleFilter.frequency.linearRampToValueAtTime(210, now + 1.1);
+  rumbleFilter.frequency.linearRampToValueAtTime(95, now + 2.15);
+
+  rumbleGain.gain.setValueAtTime(0.0001, now + 0.22);
+  rumbleGain.gain.linearRampToValueAtTime(0.075, now + 0.55);
+  rumbleGain.gain.setValueAtTime(0.07, now + 1.45);
+  rumbleGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.2);
+
+  rumbleOsc.connect(rumbleFilter);
+  rumbleSub.connect(rumbleFilter);
+  rumbleFilter.connect(rumbleGain);
+  rumbleGain.connect(master);
+
+  rumbleOsc.start(now + 0.22);
+  rumbleSub.start(now + 0.22);
+  rumbleOsc.stop(now + 2.25);
+  rumbleSub.stop(now + 2.25);
+
+  // ---------------------------------------------------------------------------
+  // 3. Royal King's Brass Ensemble & Cathedral Organ Fanfare (0.30s - 2.85s)
+  // ---------------------------------------------------------------------------
+  const scheduleBrassVoice = (
+    freq: number,
+    startOffset: number,
+    duration: number,
+    peakGain: number,
+    detuneCents = 5
+  ) => {
+    const t0 = now + startOffset;
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const filter = ctx.createBiquadFilter();
+    const env = ctx.createGain();
+
+    // Dual detuned oscillators (sawtooth + triangle) for warm royal horn timbre
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(freq, t0);
+    osc1.detune.setValueAtTime(-detuneCents, t0);
+
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(freq, t0);
+    osc2.detune.setValueAtTime(detuneCents, t0);
+
+    // Brass swell formant filter (opens brightly on attack, settles warmly)
+    filter.type = 'lowpass';
+    filter.Q.setValueAtTime(1.3, t0);
+    filter.frequency.setValueAtTime(Math.min(450, freq * 1.4), t0);
+    filter.frequency.exponentialRampToValueAtTime(Math.min(3400, freq * 5.2), t0 + 0.14);
+    filter.frequency.exponentialRampToValueAtTime(Math.min(2200, freq * 3.4), t0 + duration);
+
+    env.gain.setValueAtTime(0.0001, t0);
+    env.gain.linearRampToValueAtTime(peakGain, t0 + 0.08);
+    env.gain.setValueAtTime(peakGain * 0.92, t0 + Math.max(0.1, duration - 0.32));
+    env.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+
+    osc1.connect(filter);
+    osc2.connect(filter);
+    filter.connect(env);
+    env.connect(master);
+
+    osc1.start(t0);
+    osc2.start(t0);
+    osc1.stop(t0 + duration + 0.04);
+    osc2.stop(t0 + duration + 0.04);
+  };
+
+  // Herald Call 1 (0.30s): Royal Fifth (G3 + D4 + G4)
+  scheduleBrassVoice(196.0, 0.30, 0.34, 0.045); // G3
+  scheduleBrassVoice(293.66, 0.30, 0.34, 0.042); // D4
+  scheduleBrassVoice(392.0, 0.30, 0.34, 0.052); // G4
+
+  // Herald Call 2 (0.62s): First Majestic C-Major Fanfare Step (C3 +C4 + E4 + G4 + C5)
+  scheduleBrassVoice(130.81, 0.62, 0.38, 0.055); // C3
+  scheduleBrassVoice(261.63, 0.62, 0.38, 0.048); // C4
+  scheduleBrassVoice(329.63, 0.62, 0.38, 0.046); // E4
+  scheduleBrassVoice(392.0, 0.62, 0.38, 0.05); // G4
+  scheduleBrassVoice(523.25, 0.62, 0.38, 0.058); // C5
+
+  // Herald Call 3 (0.98s): Uplifting Royal Subdominant / Dominant Rise (F3 + A4 + C5 + D5)
+  scheduleBrassVoice(174.61, 0.98, 0.36, 0.052); // F3
+  scheduleBrassVoice(349.23, 0.98, 0.36, 0.046); // F4
+  scheduleBrassVoice(440.0, 0.98, 0.36, 0.05); // A4
+  scheduleBrassVoice(587.33, 0.98, 0.36, 0.062); // D5
+
+  // Grand Coronation Swell (1.34s - 2.85s): Full Cathedral C-Major Chord as Doors Open Wide into White Light
+  scheduleBrassVoice(65.41, 1.34, 1.5, 0.065, 3); // C2 Deep Cathedral Pedal
+  scheduleBrassVoice(130.81, 1.34, 1.5, 0.06, 4); // C3
+  scheduleBrassVoice(196.0, 1.34, 1.5, 0.052, 5); // G3
+  scheduleBrassVoice(261.63, 1.34, 1.5, 0.052, 6); // C4
+  scheduleBrassVoice(329.63, 1.34, 1.5, 0.052, 6); // E4
+  scheduleBrassVoice(392.0, 1.34, 1.5, 0.056, 7); // G4
+  scheduleBrassVoice(523.25, 1.34, 1.5, 0.065, 7); // C5
+  scheduleBrassVoice(659.25, 1.36, 1.48, 0.068, 8); // E5
+  scheduleBrassVoice(783.99, 1.38, 1.46, 0.064, 8); // G5
+
+  // ---------------------------------------------------------------------------
+  // 4. Celestial Palace Harp Glissando & Cathedral Bell Chimes (1.42s - 2.95s)
+  // ---------------------------------------------------------------------------
+  const harpNotes = [
+    523.25, // C5
+    587.33, // D5
+    659.25, // E5
+    783.99, // G5
+    880.0, // A5
+    1046.5, // C6
+    1174.66, // D6
+    1318.51, // E6
+    1567.98, // G6
+    1760.0, // A6
+    2093.0, // C7
+  ];
+
+  harpNotes.forEach((freq, idx) => {
+    const start = 1.42 + idx * 0.055;
+    scheduleCelestaNote(ctx, master, freq, now + start, 0.78, 'sine', 0.044);
+  });
+
+  // Resonant Cathedral Tubular Bell strike at peak white light bloom (1.98s)
+  scheduleCelestaNote(ctx, master, 1046.5, now + 1.98, 1.05, 'triangle', 0.065);
+  scheduleCelestaNote(ctx, master, 1567.98, now + 2.0, 1.0, 'sine', 0.052);
+}
+

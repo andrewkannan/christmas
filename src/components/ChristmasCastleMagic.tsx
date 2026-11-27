@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { playArcadeTone } from '../lib/sound.ts';
+import { playPalaceDoorSound, triggerHaptic } from '../lib/sound.ts';
 
 interface ChristmasCastleMagicProps {
   /** 'arcade' for the main page (/), 'register' for the invitation sign-up page (/register). */
@@ -32,11 +32,12 @@ function DoorCornerFiligree({ className }: { className: string }) {
  * - Zero text or overlays — only the grand carved doors, outer gold hinges, 3D door thickness,
  *   and continuously shining 24k Gold Door Knobs that invite the guest to tap.
  * - On tap/click:
- *   1. The 24k gold door knobs turn (0ms -> 320ms).
- *   2. The heavy palace doors pivot slowly and majestically on their outer hinges in true 3D
- *      perspective (2.4s swing with visible 3D door thickness and foreshortening, never sliding)
+ *   1. Plays the multi-layered King's Palace Door & Royal Brass Fanfare sound effect.
+ *   2. The 24k gold door knobs turn (0ms -> 320ms).
+ *   3. The heavy palace doors pivot slowly and majestically on their outer hinges in true 3D
+ *      perspective (2.25s swing with visible 3D door thickness and foreshortening, never sliding)
  *      revealing pure clean white (#ffffff) shining behind the doors.
- *   3. As the doors open wide, the pure clean white light shines and immediately fades smoothly
+ *   4. As the doors open wide, the pure clean white light shines and immediately fades smoothly
  *      (550ms) into the page so there is no long blank white screen.
  */
 export function ChristmasCastleMagic(_props: ChristmasCastleMagicProps) {
@@ -53,7 +54,8 @@ export function ChristmasCastleMagic(_props: ChristmasCastleMagicProps) {
   const handleOpenDoor = useCallback(() => {
     if (phaseRef.current !== 'closed') return;
     setPhase('opening');
-    playArcadeTone('fanfare');
+    playPalaceDoorSound();
+    triggerHaptic([20, 60, 35]);
   }, []);
 
   // Choreography:
