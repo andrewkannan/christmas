@@ -235,45 +235,9 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (routeMode === 'team') {
-      document.title = `Master Console | ${settings.churchName}`;
-      return;
-    }
-    if (routeMode === 'admin') {
-      document.title = `Unified Soul & Attendance Admin | ${settings.churchName}`;
-      return;
-    }
-    if (routeMode === 'register') {
-      document.title = 'Register · Jesus, the King of Glory | CCCJB Bilingual Christmas';
-      return;
-    }
-    if (routeMode === 'present') {
-      document.title = `King of Glory Christmas Crown | ${settings.churchName}`;
-      return;
-    }
-    if (routeMode === 'storyboard') {
-      document.title = `Promo Video Storyboard | ${settings.churchName}`;
-      return;
-    }
-    if (routeMode === 'winners') {
-      document.title = `Church Member Booth — Win a VIP Seat | ${settings.churchName}`;
-      return;
-    }
-    switch (step.kind) {
-      case 'lobby':
-        document.title = `Christmas Arcade | ${settings.churchName}`;
-        break;
-      case 'playing':
-        document.title = `Playing | Christmas Arcade`;
-        break;
-      case 'claim':
-        document.title = `Unlock Gift & VIP Invitation | ${settings.churchName}`;
-        break;
-      case 'winner':
-        document.title = `VIP Invitation | ${settings.eventTitle}`;
-        break;
-    }
-  }, [routeMode, step, settings.churchName, settings.eventTitle]);
+    document.title =
+      'Jesus, the King of Glory · A Bilingual Christmas Celebration | CCCJB Bilingual';
+  }, [routeMode, step]);
 
   // Background Christmas music on Lobby, Claim, VIP Invitation & Church Booth
   useEffect(() => {
