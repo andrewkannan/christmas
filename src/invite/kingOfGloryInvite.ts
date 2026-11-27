@@ -13,7 +13,7 @@ export interface ArrivalGuideStep {
 
 export const KING_OF_GLORY_INVITE = {
   churchShortName: 'CCCJB Bilingual',
-  churchFullName: 'Calvary Community Church',
+  churchFullName: 'JESUS THE KING OF GLORY',
   tagline: 'A Bilingual Christmas Celebration',
   title: 'Jesus, the King of Glory',
   verse: {

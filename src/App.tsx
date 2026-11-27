@@ -26,7 +26,6 @@ import {
 } from './lib/playerSession.ts';
 import { isSoundMuted, playArcadeTone, setMusicScene, toggleSoundMuted } from './lib/sound.ts';
 import {
-  StarMarkIcon,
   TicketPassIcon,
   VolumeOffIcon,
   VolumeOnIcon,
@@ -412,8 +411,8 @@ export function App() {
             setStep({ kind: 'lobby' });
           }}
         >
-          <span className="brand-badge">
-            <StarMarkIcon size={18} />
+          <span className="brand-badge" aria-hidden="true">
+            <img src="/favicon.svg" alt="" width="34" height="34" />
           </span>
           <span className="brand-copy">
             <span className="brand-copy__name">{settings.churchName}</span>

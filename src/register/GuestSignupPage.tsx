@@ -210,7 +210,7 @@ function InviteHero() {
               Come celebrate Christmas with us
             </h1>
             <p className="rg-hero__lead">
-              You’re warmly invited to a Christmas Eve evening with our church family. Bring your loved ones — we’ll save
+              You’re warmly invited to a Christmas Eve evening with us. Bring your loved ones — we’ll save
               seats for all of you.
             </p>
             <EventFacts variant="hero" />
