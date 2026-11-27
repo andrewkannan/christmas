@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { KING_OF_GLORY_INVITE } from '../invite/kingOfGloryInvite.ts';
 import { playArcadeTone } from '../lib/sound.ts';
 
 interface ChristmasCastleMagicProps {
   /** 'arcade' for the main page (/), 'register' for the invitation sign-up page (/register). */
-  variant: 'arcade' | 'register';
+  variant?: 'arcade' | 'register';
 }
 
 type DoorPhase = 'closed' | 'opening' | 'white-fade' | 'opened';
@@ -29,13 +28,14 @@ function DoorCornerFiligree({ className }: { className: string }) {
 }
 
 /**
- * Full-screen Royal King's Double Door ("King of Glory") covering 100% of the viewport.
- * - Waits for the guest to click/tap the 24k Gold Door Knob (or anywhere on the doors).
- * - On click: the door knobs turn, the full-screen double doors swing open in 3D perspective,
- *   shining pure clean white (#ffffff) across the entire viewport, and then the clean white
- *   smoothly fades out so the page fades in.
+ * Clean, wordless Full-Screen Royal Palace Double Doors covering 100% of the viewport.
+ * - Zero text or overlays — only the grand doors and continuously shining 24k Gold Door Knobs
+ *   that invite the guest to tap.
+ * - On tap/click: the door knobs turn, the heavy palace doors swing open smoothly and
+ *   unhurriedly in 3D perspective (~1.9s) revealing pure clean white (#ffffff), and then
+ *   the clean white gently fades out (~0.95s) so the page fades in smoothly.
  */
-export function ChristmasCastleMagic({ variant }: ChristmasCastleMagicProps) {
+export function ChristmasCastleMagic(_props: ChristmasCastleMagicProps) {
   const [phase, setPhase] = useState<DoorPhase>(() => {
     if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
       return 'opened';
@@ -52,21 +52,22 @@ export function ChristmasCastleMagic({ variant }: ChristmasCastleMagicProps) {
     playArcadeTone('fanfare');
   }, []);
 
-  // Choreography:
-  // 1. 'opening' (0ms -> 980ms): Knobs turn, doors swing open in 3D, pure clean white light shines out to fill screen.
-  // 2. 'white-fade' (980ms -> 1650ms): The pure clean white screen smoothly fades out so the page fades in.
-  // 3. 'opened' (1650ms): Overlay unmounts cleanly.
+  // Choreography (smooth, weighty, unhurried palace door swing):
+  // 1. 'opening' (0ms -> 2150ms): Knobs turn (0-320ms), palace doors swing open smoothly over 1.88s
+  //    as pure clean white (#ffffff) shines behind them.
+  // 2. 'white-fade' (2150ms -> 3100ms): Pure clean white screen gently fades out over 950ms so the page fades in.
+  // 3. 'opened' (3100ms): Overlay unmounts cleanly.
   useEffect(() => {
     if (phase === 'opening') {
       const t = window.setTimeout(() => {
         setPhase('white-fade');
-      }, 980);
+      }, 2150);
       return () => window.clearTimeout(t);
     }
     if (phase === 'white-fade') {
       const t = window.setTimeout(() => {
         setPhase('opened');
-      }, 680);
+      }, 950);
       return () => window.clearTimeout(t);
     }
   }, [phase]);
@@ -88,36 +89,29 @@ export function ChristmasCastleMagic({ variant }: ChristmasCastleMagicProps) {
     return null;
   }
 
-  const subtitle =
-    variant === 'register'
-      ? 'Christmas Eve Invitation · Tap the Door Knob to Enter'
-      : 'Christmas Celebration · Tap the Door Knob to Enter';
-
   return (
     <div
       className={`royal-door-overlay royal-door-overlay--${phase} no-print`}
-      role="dialog"
-      aria-modal="false"
-      aria-label="Royal Christmas Doors — Tap the door knob to open"
+      role="button"
+      tabIndex={0}
+      aria-label="Open palace doors"
       onClick={handleOpenDoor}
     >
-      {/* Pure Clean White Light behind the doors that shines full-screen and then fades out */}
+      {/* Pure Clean White Light behind the doors that shines full-screen and then gently fades out */}
       <div className="royal-door-overlay__white-shine" aria-hidden="true" />
 
-      {/* Center Seam Light Ray that blazes as the doors unlatch */}
+      {/* Center Seam Pure White Light Ray that widens as the palace doors unlatch and swing open */}
       <div className="royal-door-overlay__seam-beam" aria-hidden="true" />
 
-      {/* 3D Full-Viewport Double Doors Stage */}
+      {/* 3D Full-Viewport Palace Double Doors Stage */}
       <div className="royal-door-stage" aria-hidden="true">
-        {/* ==================== LEFT FULL-HEIGHT ROYAL DOOR ==================== */}
+        {/* ==================== LEFT FULL-HEIGHT PALACE DOOR ==================== */}
         <div className="royal-door royal-door--left">
-          {/* Outer Gold Hinge Plates */}
           <span className="royal-door__hinge royal-door__hinge--top" />
           <span className="royal-door__hinge royal-door__hinge--mid" />
           <span className="royal-door__hinge royal-door__hinge--bot" />
 
           <div className="royal-door__inner-frame">
-            {/* Upper Recessed Coffered Panel */}
             <div className="royal-door__panel royal-door__panel--upper">
               <DoorCornerFiligree className="royal-door__filigree--tl" />
               <DoorCornerFiligree className="royal-door__filigree--tr" />
@@ -126,10 +120,8 @@ export function ChristmasCastleMagic({ variant }: ChristmasCastleMagicProps) {
               <div className="royal-door__medallion-ring" />
             </div>
 
-            {/* Middle Lock Rail */}
             <div className="royal-door__rail" />
 
-            {/* Lower Recessed Coffered Panel */}
             <div className="royal-door__panel royal-door__panel--lower">
               <DoorCornerFiligree className="royal-door__filigree--tl" />
               <DoorCornerFiligree className="royal-door__filigree--tr" />
@@ -138,12 +130,21 @@ export function ChristmasCastleMagic({ variant }: ChristmasCastleMagicProps) {
             </div>
           </div>
 
-          {/* Left 24k Gold Door Knob & Escutcheon Backplate */}
+          {/* Left Shining 24k Gold Door Knob & Backplate */}
           <div className="royal-door__knob-assembly royal-door__knob-assembly--left">
+            <div className="royal-door__knob-halo" />
             <div className="royal-door__backplate">
               <span className="royal-door__screw royal-door__screw--top" />
               <div className="royal-door__knob">
-                <div className="royal-door__knob-cap" />
+                <div className="royal-door__knob-cap">
+                  <span className="royal-door__knob-glint" />
+                </div>
+                <svg className="royal-door__knob-spark" viewBox="0 0 32 32">
+                  <path
+                    d="M16 1 L18.2 12.2 L29.5 14.5 L18.2 16.8 L16 28 L13.8 16.8 L2.5 14.5 L13.8 12.2 Z"
+                    fill="#ffffff"
+                  />
+                </svg>
               </div>
               <span className="royal-door__keyhole" />
               <span className="royal-door__screw royal-door__screw--bot" />
@@ -151,15 +152,13 @@ export function ChristmasCastleMagic({ variant }: ChristmasCastleMagicProps) {
           </div>
         </div>
 
-        {/* ==================== RIGHT FULL-HEIGHT ROYAL DOOR ==================== */}
+        {/* ==================== RIGHT FULL-HEIGHT PALACE DOOR ==================== */}
         <div className="royal-door royal-door--right">
-          {/* Outer Gold Hinge Plates */}
           <span className="royal-door__hinge royal-door__hinge--top" />
           <span className="royal-door__hinge royal-door__hinge--mid" />
           <span className="royal-door__hinge royal-door__hinge--bot" />
 
           <div className="royal-door__inner-frame">
-            {/* Upper Recessed Coffered Panel */}
             <div className="royal-door__panel royal-door__panel--upper">
               <DoorCornerFiligree className="royal-door__filigree--tl" />
               <DoorCornerFiligree className="royal-door__filigree--tr" />
@@ -168,10 +167,8 @@ export function ChristmasCastleMagic({ variant }: ChristmasCastleMagicProps) {
               <div className="royal-door__medallion-ring" />
             </div>
 
-            {/* Middle Lock Rail */}
             <div className="royal-door__rail" />
 
-            {/* Lower Recessed Coffered Panel */}
             <div className="royal-door__panel royal-door__panel--lower">
               <DoorCornerFiligree className="royal-door__filigree--tl" />
               <DoorCornerFiligree className="royal-door__filigree--tr" />
@@ -180,43 +177,27 @@ export function ChristmasCastleMagic({ variant }: ChristmasCastleMagicProps) {
             </div>
           </div>
 
-          {/* Right 24k Gold Door Knob & Escutcheon Backplate */}
+          {/* Right Shining 24k Gold Door Knob & Backplate */}
           <div className="royal-door__knob-assembly royal-door__knob-assembly--right">
+            <div className="royal-door__knob-halo" />
             <div className="royal-door__backplate">
               <span className="royal-door__screw royal-door__screw--top" />
               <div className="royal-door__knob">
-                <div className="royal-door__knob-cap" />
+                <div className="royal-door__knob-cap">
+                  <span className="royal-door__knob-glint" />
+                </div>
+                <svg className="royal-door__knob-spark royal-door__knob-spark--delayed" viewBox="0 0 32 32">
+                  <path
+                    d="M16 1 L18.2 12.2 L29.5 14.5 L18.2 16.8 L16 28 L13.8 16.8 L2.5 14.5 L13.8 12.2 Z"
+                    fill="#ffffff"
+                  />
+                </svg>
               </div>
               <span className="royal-door__keyhole" />
               <span className="royal-door__screw royal-door__screw--bot" />
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Royal Crest Plaque above the Door Knobs */}
-      <div className="royal-door-overlay__crest" aria-hidden="true">
-        <div className="royal-door-overlay__seal">
-          <img src="/favicon.svg" alt="" width="58" height="58" />
-        </div>
-        <span className="royal-door-overlay__church">
-          {KING_OF_GLORY_INVITE.churchShortName} · {KING_OF_GLORY_INVITE.churchFullName}
-        </span>
-        <strong className="royal-door-overlay__title">{KING_OF_GLORY_INVITE.title}</strong>
-      </div>
-
-      {/* Interactive Click-to-Open Prompt below the Door Knobs */}
-      <div className="royal-door-overlay__prompt">
-        <button
-          type="button"
-          className="royal-door-overlay__btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleOpenDoor();
-          }}
-        >
-          <span>{subtitle}</span>
-        </button>
       </div>
     </div>
   );
