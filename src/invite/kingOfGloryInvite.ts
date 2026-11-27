@@ -57,37 +57,84 @@ export const VENUE_NAV_LINKS = {
   appleMaps: `https://maps.apple.com/?daddr=${KING_OF_GLORY_INVITE.venue.lat},${KING_OF_GLORY_INVITE.venue.lng}&q=${encodeURIComponent(KING_OF_GLORY_INVITE.venue.building)}`,
 } as const;
 
+export interface MapCamera {
+  center: [number, number]; // [lng, lat]
+  zoom: number;
+  pitch: number;
+  bearing: number;
+}
+
+export interface ArrivalStop extends ArrivalGuideStep {
+  id: 'area' | 'tower' | 'arrive' | 'level8';
+  label: string;
+  camera: MapCamera;
+}
+
+export interface Landmark {
+  name: string;
+  lng: number;
+  lat: number;
+}
+
+const VENUE_CENTER: [number, number] = [KING_OF_GLORY_INVITE.venue.lng, KING_OF_GLORY_INVITE.venue.lat];
+
+/** Menara Zurich building outline from OpenStreetMap (way 369332662), [lng, lat]. */
+export const VENUE_FOOTPRINT: ReadonlyArray<[number, number]> = [
+  [103.7593156, 1.4797011],
+  [103.7597384, 1.4795529],
+  [103.7596348, 1.4792573],
+  [103.7595022, 1.4793038],
+  [103.7594986, 1.4792935],
+  [103.7593582, 1.4793427],
+  [103.759363, 1.4793565],
+  [103.7592132, 1.479409],
+  [103.7589257, 1.4795097],
+  [103.7590281, 1.4798018],
+  [103.7593156, 1.4797011],
+];
+
+/** Well-known places nearby (OpenStreetMap) so guests can orient themselves on the map. */
+export const NEARBY_LANDMARKS: readonly Landmark[] = [
+  { name: 'KSL City Mall', lng: 103.7623222, lat: 1.4853626 },
+  { name: 'Grand Paragon Hotel', lng: 103.7614847, lat: 1.4817995 },
+  { name: 'DNP Plaza', lng: 103.7573941, lat: 1.4788761 },
+];
+
 /**
- * Step-by-step arrival guide shown after a guest registers.
+ * Guided arrival tour shown after a guest registers. Each stop flies the map to a camera.
  * Keep each step short — guests read this on their phone in the car park.
  */
-export const ARRIVAL_GUIDE: readonly ArrivalGuideStep[] = [
+export const ARRIVAL_TOUR: readonly ArrivalStop[] = [
   {
-    title: 'Navigate to Menara Zurich',
+    id: 'area',
+    label: 'The area',
+    title: 'Head to Jalan Dato Abdullah Tahir',
     detail:
-      'Tap Google Maps or Waze above and search "Menara Zurich, Jalan Dato Abdullah Tahir". The tower is in Taman Abad, Johor Bahru.',
+      'Menara Zurich is in Taman Abad, Johor Bahru — less than 1 km from KSL City Mall. Tap Google Maps or Waze for turn-by-turn directions.',
+    camera: { center: [103.7607, 1.4823], zoom: 14.6, pitch: 25, bearing: 0 },
   },
   {
-    title: 'Driving? Park at the building',
+    id: 'tower',
+    label: 'The tower',
+    title: 'Look for the gold tower',
     detail:
-      'Use the Menara Zurich car park in the building. Parking charges by the building operator may apply.',
+      'On this map Menara Zurich is lit up in gold. It sits on Jalan Dato Abdullah Tahir, just along the road from DNP Plaza.',
+    camera: { center: VENUE_CENTER, zoom: 16.4, pitch: 55, bearing: -20 },
   },
   {
-    title: 'Grab / taxi? Drop off at the main lobby',
-    detail: 'Set your drop-off point to "Menara Zurich" and get off at the main lobby entrance.',
-  },
-  {
-    title: 'Take the lift to Level 8',
-    detail: 'From the lobby, take the office tower lift up to Level 8.',
-  },
-  {
-    title: 'Follow the signs to Auditorium 3',
+    id: 'arrive',
+    label: 'Parking',
+    title: 'Park or get dropped off',
     detail:
-      'Our welcome team will be waiting on Level 8 to greet you and show your group to your seats.',
+      'Driving? Use the Menara Zurich car park in the building (parking charges may apply). Taking Grab? Set your drop-off to “Menara Zurich” and get off at the main lobby.',
+    camera: { center: VENUE_CENTER, zoom: 17.4, pitch: 62, bearing: 35 },
   },
   {
-    title: `Arrive by ${KING_OF_GLORY_INVITE.arriveByLabel}`,
-    detail: `The celebration starts at ${KING_OF_GLORY_INVITE.timeLabel} sharp. Coming 15 minutes early helps us seat your whole group together.`,
+    id: 'level8',
+    label: 'Level 8',
+    title: `Lift up to ${KING_OF_GLORY_INVITE.venue.floor}, ${KING_OF_GLORY_INVITE.venue.room}`,
+    detail: `From the lobby, take the lift to ${KING_OF_GLORY_INVITE.venue.floor} and follow the Christmas signs to ${KING_OF_GLORY_INVITE.venue.room}. Our welcome team will meet you there — please arrive by ${KING_OF_GLORY_INVITE.arriveByLabel}.`,
+    camera: { center: VENUE_CENTER, zoom: 18, pitch: 70, bearing: 80 },
   },
 ];
 

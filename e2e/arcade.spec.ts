@@ -508,42 +508,62 @@ test('/register, /present, and /admin flow: guest signs up from the invitation c
     'C:/Users/andrewkannan/.gemini/antigravity/brain/51b63e48-b75f-463f-b008-5ea1870cf2ef';
   const isPixel = testInfo.project.name === 'pixel-7';
 
+  const viewports = [
+    { name: 'phone-small', width: 320, height: 640 },
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'tablet', width: 768, height: 1024 },
+    { name: 'laptop', width: 1024, height: 768 },
+    { name: 'desktop', width: 1440, height: 900 },
+  ];
+  // Fails if any element pushes the page wider than the viewport (sideways scrolling).
+  const expectNoHorizontalOverflow = async (label: string) => {
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    );
+    expect(overflow, `horizontal overflow at ${label}`).toBeLessThanOrEqual(0);
+  };
+
   // 1. Guest scans the physical invitation card and opens /register
   await page.goto('/register');
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Jesus, the King of Glory' })
+    page.getByRole('heading', { level: 1, name: 'Come celebrate Christmas with us' })
   ).toBeVisible();
-  await expect(page.getByText('Menara Zurich Level 8')).toBeVisible();
+  await expect(page.getByText('Menara Zurich, Level 8')).toBeVisible();
   // Standalone guest page: no arcade header / crown
   await expect(page.locator('.top-bar')).toHaveCount(0);
   await expect(page.locator('.crown-art-canvas')).toHaveCount(0);
 
+  if (isPixel) {
+    for (const vp of viewports) {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await expectNoHorizontalOverflow(`form ${vp.name}`);
+      await page.screenshot({ path: `${artifactDir}/v191-form-${vp.name}.png`, fullPage: true });
+    }
+    await page.setViewportSize({ width: 412, height: 915 });
+  }
+
   // Submitting empty shows a clear error and moves focus to the first invalid field
-  await page.getByRole('button', { name: /Reserve my seat/i }).click();
+  await page.getByRole('button', { name: /Save my seat/i }).click();
   await expect(page.getByText('Please enter your name (at least 2 characters).')).toBeVisible();
   await expect(page.getByLabel('Your name')).toBeFocused();
   await expect(page.getByLabel('Your name')).toHaveAttribute('aria-invalid', 'true');
 
   await page.getByLabel('Your name').fill('Mr. & Mrs. Rajan');
-  await page.getByLabel(/Mobile \/ WhatsApp number/i).fill('016-889 4455');
-  await page.getByRole('button', { name: '3', exact: true }).click();
-  await expect(page.getByRole('spinbutton', { name: 'Number of seats' })).toHaveValue('3');
-  await page.getByLabel(/Who invited you/i).fill('Andrew Kannan');
+  await page.getByLabel('WhatsApp number').fill('016-889 4455');
+  await page.getByRole('button', { name: 'Add one seat' }).click();
+  await page.getByRole('button', { name: 'Add one seat' }).click();
+  await expect(page.getByRole('spinbutton', { name: 'How many seats?' })).toHaveValue('3');
+  await page.getByText('Someone invited you? (optional)').click();
+  await page.getByLabel('Who invited you?').fill('Andrew Kannan');
 
-  if (isPixel) {
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.screenshot({ path: `${artifactDir}/v190-1-register-form-mobile.png`, fullPage: true });
-  }
+  await page.getByRole('button', { name: 'Save my 3 seats' }).click();
 
-  await page.getByRole('button', { name: /Reserve my 3 seats/i }).click();
-
-  // 2. Confirmation shows seats, code, time, location, directions and the arrival guide
-  await expect(
-    page.getByRole('heading', { name: 'See you at Christmas, Mr. & Mrs. Rajan!' })
-  ).toBeFocused();
+  // 2. Confirmation: seats, code, time, location, directions and the interactive arrival tour
+  const doneHeading = page.getByRole('heading', { name: /You.re in, Mr\. & Mrs\. Rajan!/ });
+  await expect(doneHeading).toBeFocused();
   await expect(page.getByText(/^KOG-[A-Z0-9]{4,6}$/)).toBeVisible();
   await expect(page.getByText('Thursday, 24 December 2026')).toBeVisible();
-  await expect(page.getByText('Menara Zurich, Level 8 (Auditorium 3)')).toBeVisible();
+  await expect(page.getByText('Menara Zurich, Level 8')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Directions in Google Maps' })).toHaveAttribute(
     'href',
     /google\.com\/maps\/dir\/\?api=1&destination=Menara%20Zurich/
@@ -552,30 +572,34 @@ test('/register, /present, and /admin flow: guest signs up from the invitation c
     'href',
     /waze\.com\/ul\?ll=1\.4795313,103\.7593321&navigate=yes/
   );
-  await expect(page.getByRole('heading', { name: 'How to get to Menara Zurich' })).toBeVisible();
-  await expect(page.getByText('Take the lift to Level 8')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your way to Menara Zurich' })).toBeVisible();
   // Map either renders or falls back gracefully — it must not stay stuck loading
-  await expect(page.getByText('Loading map…')).toHaveCount(0, { timeout: 25_000 });
+  await expect(page.getByText('Loading your map…')).toHaveCount(0, { timeout: 25_000 });
+
+  // Tour stops drive the map camera
+  const level8Stop = page.getByRole('button', { name: /Lift up to Level 8, Auditorium 3/ });
+  await level8Stop.click();
+  await expect(level8Stop).toHaveAttribute('aria-current', 'step');
 
   if (isPixel) {
-    await page.waitForTimeout(2500);
-    await page.screenshot({ path: `${artifactDir}/v190-2-register-confirmation-mobile.png`, fullPage: true });
-    await page.setViewportSize({ width: 1366, height: 900 });
-    await page.waitForTimeout(1500);
-    await page.screenshot({ path: `${artifactDir}/v190-3-register-confirmation-desktop.png`, fullPage: true });
+    await page.getByRole('button', { name: /Look for the gold tower/ }).click();
+    await page.waitForTimeout(3000);
+    for (const vp of viewports) {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await page.waitForTimeout(900);
+      await expectNoHorizontalOverflow(`confirmation ${vp.name}`);
+      await page.screenshot({ path: `${artifactDir}/v191-done-${vp.name}.png`, fullPage: true });
+    }
+    await page.setViewportSize({ width: 412, height: 915 });
   }
 
   // The confirmation survives a reload (guest reopens the page on the day)
   await page.reload();
-  await expect(
-    page.getByRole('heading', { name: 'See you at Christmas, Mr. & Mrs. Rajan!' })
-  ).toBeVisible();
+  await expect(doneHeading).toBeVisible();
 
   if (isPixel) {
     await page.getByRole('button', { name: 'Register another guest' }).click();
     await expect(page.getByLabel('Your name')).toBeFocused();
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.screenshot({ path: `${artifactDir}/v190-4-register-form-desktop.png`, fullPage: true });
   }
 
   // 3. Open /present big-screen King of Glory Christmas Crown visualizer
