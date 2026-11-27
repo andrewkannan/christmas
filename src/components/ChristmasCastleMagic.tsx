@@ -28,12 +28,16 @@ function DoorCornerFiligree({ className }: { className: string }) {
 }
 
 /**
- * Clean, wordless Full-Screen Royal Palace Double Doors covering 100% of the viewport.
- * - Zero text or overlays — only the grand doors and continuously shining 24k Gold Door Knobs
- *   that invite the guest to tap.
- * - On tap/click: the door knobs turn, the heavy palace doors swing open smoothly and
- *   unhurriedly in 3D perspective (~1.9s) revealing pure clean white (#ffffff), and then
- *   the clean white gently fades out (~0.95s) so the page fades in smoothly.
+ * Clean, wordless Full-Screen 3D Royal Palace Double Doors covering 100% of the viewport.
+ * - Zero text or overlays — only the grand carved doors, outer gold hinges, 3D door thickness,
+ *   and continuously shining 24k Gold Door Knobs that invite the guest to tap.
+ * - On tap/click:
+ *   1. The 24k gold door knobs turn (0ms -> 320ms).
+ *   2. The heavy palace doors pivot slowly and majestically on their outer hinges in true 3D
+ *      perspective (2.4s swing with visible 3D door thickness and foreshortening, never sliding)
+ *      revealing pure clean white (#ffffff) shining behind the doors.
+ *   3. As the doors open wide, the pure clean white light shines and immediately fades smoothly
+ *      (550ms) into the page so there is no long blank white screen.
  */
 export function ChristmasCastleMagic(_props: ChristmasCastleMagicProps) {
   const [phase, setPhase] = useState<DoorPhase>(() => {
@@ -52,22 +56,23 @@ export function ChristmasCastleMagic(_props: ChristmasCastleMagicProps) {
     playArcadeTone('fanfare');
   }, []);
 
-  // Choreography (smooth, weighty, unhurried palace door swing):
-  // 1. 'opening' (0ms -> 2150ms): Knobs turn (0-320ms), palace doors swing open smoothly over 1.88s
-  //    as pure clean white (#ffffff) shines behind them.
-  // 2. 'white-fade' (2150ms -> 3100ms): Pure clean white screen gently fades out over 950ms so the page fades in.
-  // 3. 'opened' (3100ms): Overlay unmounts cleanly.
+  // Choreography:
+  // - 'opening' (0ms -> 2050ms): Knobs turn (0-320ms), heavy palace doors swing open slowly in 3D perspective
+  //   (300ms -> 2550ms) with pure clean white (#ffffff) shining behind them.
+  // - 'white-fade' (2050ms -> 2600ms): As the doors reach wide open, the clean white light fades out
+  //   over just 550ms so the page appears smoothly with no lingering blank white screen.
+  // - 'opened' (2600ms): Overlay unmounts cleanly.
   useEffect(() => {
     if (phase === 'opening') {
       const t = window.setTimeout(() => {
         setPhase('white-fade');
-      }, 2150);
+      }, 2050);
       return () => window.clearTimeout(t);
     }
     if (phase === 'white-fade') {
       const t = window.setTimeout(() => {
         setPhase('opened');
-      }, 950);
+      }, 550);
       return () => window.clearTimeout(t);
     }
   }, [phase]);
@@ -97,104 +102,115 @@ export function ChristmasCastleMagic(_props: ChristmasCastleMagicProps) {
       aria-label="Open palace doors"
       onClick={handleOpenDoor}
     >
-      {/* Pure Clean White Light behind the doors that shines full-screen and then gently fades out */}
+      {/* Pure Clean White (#ffffff) Light Behind the Doors (z-index: 1, NEVER in front of the doors) */}
       <div className="royal-door-overlay__white-shine" aria-hidden="true" />
 
-      {/* Center Seam Pure White Light Ray that widens as the palace doors unlatch and swing open */}
-      <div className="royal-door-overlay__seam-beam" aria-hidden="true" />
+      {/* Outer Palace Doorway Frame & 3D Perspective Stage */}
+      <div className="royal-door-frame" aria-hidden="true">
+        <div className="royal-door-stage">
+          {/* ==================== LEFT FULL-HEIGHT PALACE DOOR ==================== */}
+          <div className="royal-door royal-door--left">
+            {/* 3D Inner Wood/Gold Door Thickness Slab (visible as the door pivots in 3D) */}
+            <div className="royal-door__thickness royal-door__thickness--left" />
 
-      {/* 3D Full-Viewport Palace Double Doors Stage */}
-      <div className="royal-door-stage" aria-hidden="true">
-        {/* ==================== LEFT FULL-HEIGHT PALACE DOOR ==================== */}
-        <div className="royal-door royal-door--left">
-          <span className="royal-door__hinge royal-door__hinge--top" />
-          <span className="royal-door__hinge royal-door__hinge--mid" />
-          <span className="royal-door__hinge royal-door__hinge--bot" />
+            {/* Dynamic 3D Depth Shading Overlay as door swings */}
+            <div className="royal-door__depth-shade" />
 
-          <div className="royal-door__inner-frame">
-            <div className="royal-door__panel royal-door__panel--upper">
-              <DoorCornerFiligree className="royal-door__filigree--tl" />
-              <DoorCornerFiligree className="royal-door__filigree--tr" />
-              <DoorCornerFiligree className="royal-door__filigree--bl" />
-              <DoorCornerFiligree className="royal-door__filigree--br" />
-              <div className="royal-door__medallion-ring" />
-            </div>
+            <span className="royal-door__hinge royal-door__hinge--top" />
+            <span className="royal-door__hinge royal-door__hinge--mid" />
+            <span className="royal-door__hinge royal-door__hinge--bot" />
 
-            <div className="royal-door__rail" />
-
-            <div className="royal-door__panel royal-door__panel--lower">
-              <DoorCornerFiligree className="royal-door__filigree--tl" />
-              <DoorCornerFiligree className="royal-door__filigree--tr" />
-              <DoorCornerFiligree className="royal-door__filigree--bl" />
-              <DoorCornerFiligree className="royal-door__filigree--br" />
-            </div>
-          </div>
-
-          {/* Left Shining 24k Gold Door Knob & Backplate */}
-          <div className="royal-door__knob-assembly royal-door__knob-assembly--left">
-            <div className="royal-door__knob-halo" />
-            <div className="royal-door__backplate">
-              <span className="royal-door__screw royal-door__screw--top" />
-              <div className="royal-door__knob">
-                <div className="royal-door__knob-cap">
-                  <span className="royal-door__knob-glint" />
-                </div>
-                <svg className="royal-door__knob-spark" viewBox="0 0 32 32">
-                  <path
-                    d="M16 1 L18.2 12.2 L29.5 14.5 L18.2 16.8 L16 28 L13.8 16.8 L2.5 14.5 L13.8 12.2 Z"
-                    fill="#ffffff"
-                  />
-                </svg>
+            <div className="royal-door__inner-frame">
+              <div className="royal-door__panel royal-door__panel--upper">
+                <DoorCornerFiligree className="royal-door__filigree--tl" />
+                <DoorCornerFiligree className="royal-door__filigree--tr" />
+                <DoorCornerFiligree className="royal-door__filigree--bl" />
+                <DoorCornerFiligree className="royal-door__filigree--br" />
+                <div className="royal-door__medallion-ring" />
               </div>
-              <span className="royal-door__keyhole" />
-              <span className="royal-door__screw royal-door__screw--bot" />
-            </div>
-          </div>
-        </div>
 
-        {/* ==================== RIGHT FULL-HEIGHT PALACE DOOR ==================== */}
-        <div className="royal-door royal-door--right">
-          <span className="royal-door__hinge royal-door__hinge--top" />
-          <span className="royal-door__hinge royal-door__hinge--mid" />
-          <span className="royal-door__hinge royal-door__hinge--bot" />
+              <div className="royal-door__rail" />
 
-          <div className="royal-door__inner-frame">
-            <div className="royal-door__panel royal-door__panel--upper">
-              <DoorCornerFiligree className="royal-door__filigree--tl" />
-              <DoorCornerFiligree className="royal-door__filigree--tr" />
-              <DoorCornerFiligree className="royal-door__filigree--bl" />
-              <DoorCornerFiligree className="royal-door__filigree--br" />
-              <div className="royal-door__medallion-ring" />
-            </div>
-
-            <div className="royal-door__rail" />
-
-            <div className="royal-door__panel royal-door__panel--lower">
-              <DoorCornerFiligree className="royal-door__filigree--tl" />
-              <DoorCornerFiligree className="royal-door__filigree--tr" />
-              <DoorCornerFiligree className="royal-door__filigree--bl" />
-              <DoorCornerFiligree className="royal-door__filigree--br" />
-            </div>
-          </div>
-
-          {/* Right Shining 24k Gold Door Knob & Backplate */}
-          <div className="royal-door__knob-assembly royal-door__knob-assembly--right">
-            <div className="royal-door__knob-halo" />
-            <div className="royal-door__backplate">
-              <span className="royal-door__screw royal-door__screw--top" />
-              <div className="royal-door__knob">
-                <div className="royal-door__knob-cap">
-                  <span className="royal-door__knob-glint" />
-                </div>
-                <svg className="royal-door__knob-spark royal-door__knob-spark--delayed" viewBox="0 0 32 32">
-                  <path
-                    d="M16 1 L18.2 12.2 L29.5 14.5 L18.2 16.8 L16 28 L13.8 16.8 L2.5 14.5 L13.8 12.2 Z"
-                    fill="#ffffff"
-                  />
-                </svg>
+              <div className="royal-door__panel royal-door__panel--lower">
+                <DoorCornerFiligree className="royal-door__filigree--tl" />
+                <DoorCornerFiligree className="royal-door__filigree--tr" />
+                <DoorCornerFiligree className="royal-door__filigree--bl" />
+                <DoorCornerFiligree className="royal-door__filigree--br" />
               </div>
-              <span className="royal-door__keyhole" />
-              <span className="royal-door__screw royal-door__screw--bot" />
+            </div>
+
+            {/* Left Shining 24k Gold Door Knob & Backplate */}
+            <div className="royal-door__knob-assembly royal-door__knob-assembly--left">
+              <div className="royal-door__knob-halo" />
+              <div className="royal-door__backplate">
+                <span className="royal-door__screw royal-door__screw--top" />
+                <div className="royal-door__knob">
+                  <div className="royal-door__knob-cap">
+                    <span className="royal-door__knob-glint" />
+                  </div>
+                  <svg className="royal-door__knob-spark" viewBox="0 0 32 32">
+                    <path
+                      d="M16 1 L18.2 12.2 L29.5 14.5 L18.2 16.8 L16 28 L13.8 16.8 L2.5 14.5 L13.8 12.2 Z"
+                      fill="#ffffff"
+                    />
+                  </svg>
+                </div>
+                <span className="royal-door__keyhole" />
+                <span className="royal-door__screw royal-door__screw--bot" />
+              </div>
+            </div>
+          </div>
+
+          {/* ==================== RIGHT FULL-HEIGHT PALACE DOOR ==================== */}
+          <div className="royal-door royal-door--right">
+            {/* 3D Inner Wood/Gold Door Thickness Slab (visible as the door pivots in 3D) */}
+            <div className="royal-door__thickness royal-door__thickness--right" />
+
+            {/* Dynamic 3D Depth Shading Overlay as door swings */}
+            <div className="royal-door__depth-shade" />
+
+            <span className="royal-door__hinge royal-door__hinge--top" />
+            <span className="royal-door__hinge royal-door__hinge--mid" />
+            <span className="royal-door__hinge royal-door__hinge--bot" />
+
+            <div className="royal-door__inner-frame">
+              <div className="royal-door__panel royal-door__panel--upper">
+                <DoorCornerFiligree className="royal-door__filigree--tl" />
+                <DoorCornerFiligree className="royal-door__filigree--tr" />
+                <DoorCornerFiligree className="royal-door__filigree--bl" />
+                <DoorCornerFiligree className="royal-door__filigree--br" />
+                <div className="royal-door__medallion-ring" />
+              </div>
+
+              <div className="royal-door__rail" />
+
+              <div className="royal-door__panel royal-door__panel--lower">
+                <DoorCornerFiligree className="royal-door__filigree--tl" />
+                <DoorCornerFiligree className="royal-door__filigree--tr" />
+                <DoorCornerFiligree className="royal-door__filigree--bl" />
+                <DoorCornerFiligree className="royal-door__filigree--br" />
+              </div>
+            </div>
+
+            {/* Right Shining 24k Gold Door Knob & Backplate */}
+            <div className="royal-door__knob-assembly royal-door__knob-assembly--right">
+              <div className="royal-door__knob-halo" />
+              <div className="royal-door__backplate">
+                <span className="royal-door__screw royal-door__screw--top" />
+                <div className="royal-door__knob">
+                  <div className="royal-door__knob-cap">
+                    <span className="royal-door__knob-glint" />
+                  </div>
+                  <svg className="royal-door__knob-spark royal-door__knob-spark--delayed" viewBox="0 0 32 32">
+                    <path
+                      d="M16 1 L18.2 12.2 L29.5 14.5 L18.2 16.8 L16 28 L13.8 16.8 L2.5 14.5 L13.8 12.2 Z"
+                      fill="#ffffff"
+                    />
+                  </svg>
+                </div>
+                <span className="royal-door__keyhole" />
+                <span className="royal-door__screw royal-door__screw--bot" />
+              </div>
             </div>
           </div>
         </div>

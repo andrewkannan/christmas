@@ -10052,9 +10052,9 @@ body:has(.app-shell--invite) {
   overflow: hidden;
   cursor: pointer;
   user-select: none;
-  background: #ffffff;
   outline: none;
-  transition: opacity 950ms cubic-bezier(0.25, 0.1, 0.25, 1);
+  /* Quick, crisp 550ms fade from clean white into the page once doors finish swinging open */
+  transition: opacity 550ms cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
 .royal-door-overlay--opening {
@@ -10066,7 +10066,7 @@ body:has(.app-shell--invite) {
   opacity: 0;
 }
 
-/* Pure Clean White (#ffffff) Light Behind & Flooding Through the Doors */
+/* Pure Clean White (#ffffff) Sanctuary Light Behind the Doors (z-index: 1, NEVER covering the doors) */
 .royal-door-overlay__white-shine {
   position: absolute;
   inset: 0;
@@ -10074,40 +10074,37 @@ body:has(.app-shell--invite) {
   background: #ffffff;
 }
 
-/* Center Seam Pure White Light Beam that smoothly widens to full clean white as palace doors open */
-.royal-door-overlay__seam-beam {
+/* Outer Palace Architrave Frame so the top & bottom 3D perspective angles of the swinging doors are clearly visible */
+.royal-door-frame {
   position: absolute;
-  inset-block: 0;
-  inset-inline-start: 50%;
-  inline-size: 4px;
-  transform: translateX(-50%) scaleX(1);
-  z-index: 5;
-  pointer-events: none;
-  background: #ffffff;
-  box-shadow:
-    0 0 40px 16px rgba(255, 255, 255, 0.98),
-    0 0 110px 44px rgba(255, 255, 255, 0.82);
-  opacity: 0;
-  transition:
-    opacity 320ms ease,
-    transform 1750ms cubic-bezier(0.25, 0.1, 0.22, 1) 240ms;
+  inset: 0;
+  z-index: 2;
+  padding: clamp(0.45rem, 1.4vmin, 0.9rem);
+  background: linear-gradient(180deg, #3c0306 0%, #5c0709 50%, #2d0204 100%);
+  box-shadow: inset 0 0 0 3px #c8922a;
+  display: flex;
+  transition: opacity 420ms ease 1750ms;
 }
 
-.royal-door-overlay--opening .royal-door-overlay__seam-beam,
-.royal-door-overlay--white-fade .royal-door-overlay__seam-beam {
-  opacity: 1;
-  transform: translateX(-50%) scaleX(700);
+.royal-door-overlay--white-fade .royal-door-frame {
+  opacity: 0;
 }
 
 /* 3D Perspective Stage holding Left & Right Full-Screen Palace Doors */
 .royal-door-stage {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
+  position: relative;
+  flex: 1;
+  inline-size: 100%;
+  block-size: 100%;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  perspective: 2000px;
-  overflow: hidden;
+  /* Strong, realistic 3D camera perspective (750px) so the top and bottom edges of the doors
+     visibly angle in 3D space as they pivot on their outer hinges — never looking like a flat slide! */
+  perspective: 750px;
+  perspective-origin: 50% 50%;
+  transform-style: preserve-3d;
+  background: #ffffff;
+  box-shadow: 0 0 60px 20px rgba(255, 255, 255, 0.95);
 }
 
 .royal-door {
@@ -10120,35 +10117,95 @@ body:has(.app-shell--invite) {
     linear-gradient(160deg, #8b1014 0%, #6d090d 48%, #470407 100%);
   box-shadow:
     inset 0 0 60px rgba(18, 1, 3, 0.72),
-    0 0 40px rgba(0, 0, 0, 0.55);
+    0 14px 40px rgba(0, 0, 0, 0.45);
   transform-style: preserve-3d;
+  backface-visibility: hidden;
   will-change: transform;
-  /* Weighty, smooth palace door swing (1.88s after 240ms knob turn) */
-  transition: transform 1880ms cubic-bezier(0.25, 0.1, 0.22, 1) 240ms;
+  /* Slow, heavy, realistic 2.25s palace door hinge swing after 260ms knob turn */
+  transition:
+    transform 2250ms cubic-bezier(0.22, 0.08, 0.16, 1) 260ms,
+    box-shadow 2250ms ease 260ms;
 }
 
 .royal-door--left {
-  transform-origin: left center;
-  border-inline-start: 6px solid #c8922a;
+  transform-origin: 0% 50%;
+  border-inline-start: 5px solid #c8922a;
   border-inline-end: 3px solid #f5d27b;
-  border-block: 6px solid #c8922a;
+  border-block: 5px solid #c8922a;
 }
 
 .royal-door--right {
-  transform-origin: right center;
-  border-inline-end: 6px solid #c8922a;
+  transform-origin: 100% 50%;
+  border-inline-end: 5px solid #c8922a;
   border-inline-start: 3px solid #f5d27b;
-  border-block: 6px solid #c8922a;
+  border-block: 5px solid #c8922a;
 }
 
 .royal-door-overlay--opening .royal-door--left,
 .royal-door-overlay--white-fade .royal-door--left {
-  transform: rotateY(-108deg);
+  transform: rotateY(-84deg);
+  box-shadow:
+    inset 0 0 60px rgba(18, 1, 3, 0.85),
+    24px 0 60px rgba(0, 0, 0, 0.35);
 }
 
 .royal-door-overlay--opening .royal-door--right,
 .royal-door-overlay--white-fade .royal-door--right {
-  transform: rotateY(108deg);
+  transform: rotateY(84deg);
+  box-shadow:
+    inset 0 0 60px rgba(18, 1, 3, 0.85),
+    -24px 0 60px rgba(0, 0, 0, 0.35);
+}
+
+/* 3D Solid Wood & 24k Gold Door Edge Thickness Slab (perpendicular to door face in 3D space) */
+.royal-door__thickness {
+  position: absolute;
+  inset-block: -5px;
+  inline-size: 26px;
+  background: linear-gradient(
+    180deg,
+    #b47b1c 0%,
+    #f5d27b 18%,
+    #5c0709 22%,
+    #3d0406 50%,
+    #5c0709 78%,
+    #f5d27b 82%,
+    #b47b1c 100%
+  );
+  border-block: 3px solid #f5d27b;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.65);
+}
+
+.royal-door__thickness--left {
+  inset-inline-end: 0;
+  transform-origin: 100% 50%;
+  transform: rotateY(90deg);
+}
+
+.royal-door__thickness--right {
+  inset-inline-start: 0;
+  transform-origin: 0% 50%;
+  transform: rotateY(-90deg);
+}
+
+/* Dynamic 3D Shading across the door face as it turns away in perspective */
+.royal-door__depth-shade {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.55));
+  opacity: 0;
+  transition: opacity 2100ms ease 260ms;
+}
+
+.royal-door--right .royal-door__depth-shade {
+  background: linear-gradient(270deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.55));
+}
+
+.royal-door-overlay--opening .royal-door__depth-shade,
+.royal-door-overlay--white-fade .royal-door__depth-shade {
+  opacity: 0.72;
 }
 
 /* Outer Gold Hinge Plates */
