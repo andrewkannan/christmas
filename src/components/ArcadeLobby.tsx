@@ -14,6 +14,7 @@ import {
   SparkleIcon,
   TicketPassIcon,
 } from './Icons.tsx';
+import { CastleSkylineCrest } from './ChristmasCastleMagic.tsx';
 
 interface ArcadeLobbyProps {
   volunteerName: string;
@@ -46,8 +47,10 @@ export function ArcadeLobby({
 
   return (
     <section aria-labelledby="lobby-heading" className="lobby-stage stage-enter">
+      <CastleSkylineCrest label="Palace of the King of Glory · Christmas Eve" />
       <div className="hero-marquee">
         <div className="hero-marquee__glow" aria-hidden="true" />
+        <div className="rg-foil-sheen" aria-hidden="true" />
         <div className="hero-marquee__top">
           {savedPass ? (
             <span className="marquee-pill marquee-pill--gold">

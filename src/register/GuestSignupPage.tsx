@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react';
 import type { GuestSignupResult } from '../types.ts';
 import { submitGuestSignup } from '../lib/api.ts';
+import { playArcadeTone } from '../lib/sound.ts';
 import {
   KING_OF_GLORY_INVITE,
   VENUE_ADDRESS_LABEL,
@@ -18,6 +19,8 @@ import {
   UserPlusIcon,
   WazeIcon,
 } from '../components/Icons.tsx';
+import { ConfettiBurst } from '../components/ConfettiBurst.tsx';
+import { CastleSkylineCrest, ChristmasCastleMagic } from '../components/ChristmasCastleMagic.tsx';
 import { VenueMap } from './VenueMap.tsx';
 
 const PASS_STORAGE_KEY = 'ccc_kog_guest_pass_v1';
@@ -132,10 +135,19 @@ function PeopleGlyphs({ count }: { count: number }) {
   return (
     <span className="rg-people" aria-hidden="true">
       {Array.from({ length: shown }, (_, i) => (
-        <svg key={i} className="rg-people__icon" viewBox="0 0 24 24" style={{ animationDelay: `${i * 30}ms` }}>
-          <circle cx="12" cy="7.5" r="4" />
-          <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z" />
-        </svg>
+        <span
+          key={i}
+          className="rg-people__seat-token"
+          style={{ animationDelay: `${i * 35}ms` }}
+        >
+          <svg className="rg-people__flame" viewBox="0 0 16 16">
+            <path d="M8 1 L9.6 5.4 L14 7 L9.6 8.6 L8 13 L6.4 8.6 L2 7 L6.4 5.4 Z" />
+          </svg>
+          <svg className="rg-people__icon" viewBox="0 0 24 24">
+            <circle cx="12" cy="7.5" r="4" />
+            <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z" />
+          </svg>
+        </span>
       ))}
       {safe > MAX_PEOPLE_GLYPHS && <span className="rg-people__more">+{safe - MAX_PEOPLE_GLYPHS}</span>}
     </span>
@@ -201,6 +213,7 @@ function InviteHero() {
       <div className="rg-stamp rg-stamp--red">
         <div className="rg-stamp__paper">
           <div className="rg-hero__panel">
+            <div className="rg-foil-sheen" aria-hidden="true" />
             <CornerFlourish className="rg-flourish--tl" />
             <CornerFlourish className="rg-flourish--tr" />
             <CornerFlourish className="rg-flourish--bl" />
@@ -228,6 +241,7 @@ function InviteHero() {
 
 export function GuestSignupPage() {
   const [completed, setCompleted] = useState<GuestSignupResult | null>(() => loadSavedPass());
+  const [justRegistered, setJustRegistered] = useState(false);
 
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
@@ -275,8 +289,10 @@ export function GuestSignupPage() {
     [hintId, errors[field] ? `rg-${field}-error` : undefined].filter(Boolean).join(' ') || undefined;
 
   const changeSeats = (next: number) => {
-    setSeats(Math.min(MAX_SEATS, Math.max(1, next)));
+    const clamped = Math.min(MAX_SEATS, Math.max(1, next));
+    setSeats(clamped);
     markInteracted('seats');
+    playArcadeTone(clamped > seats ? 'pickup' : 'tap');
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -307,7 +323,9 @@ export function GuestSignupPage() {
         clientRequestId: requestIdRef.current,
       });
       savePass(guest);
+      setJustRegistered(true);
       setCompleted(guest);
+      playArcadeTone('fanfare');
       requestIdRef.current = newRequestId();
       window.scrollTo({ top: 0, behavior: 'auto' });
       window.setTimeout(() => doneHeadingRef.current?.focus(), 50);
@@ -325,6 +343,7 @@ export function GuestSignupPage() {
   const handleRegisterAnother = () => {
     savePass(null);
     setCompleted(null);
+    setJustRegistered(false);
     setGuestName('');
     setGuestPhone('');
     setSeats(1);
@@ -340,10 +359,17 @@ export function GuestSignupPage() {
 
   return (
     <div className="rg">
+      <ChristmasCastleMagic variant="register" />
+      <CastleSkylineCrest label={`${venue.building}, ${venue.floor} · Christmas Eve ${KING_OF_GLORY_INVITE.timeLabel}`} />
       <BrandBar />
 
       {completed ? (
-        <GuestDone pass={completed} headingRef={doneHeadingRef} onRegisterAnother={handleRegisterAnother} />
+        <GuestDone
+          pass={completed}
+          justRegistered={justRegistered}
+          headingRef={doneHeadingRef}
+          onRegisterAnother={handleRegisterAnother}
+        />
       ) : (
         <div className="rg-layout">
           <InviteHero />
@@ -551,11 +577,12 @@ export function GuestSignupPage() {
 
 interface GuestDoneProps {
   pass: GuestSignupResult;
+  justRegistered?: boolean;
   headingRef: RefObject<HTMLHeadingElement | null>;
   onRegisterAnother: () => void;
 }
 
-function GuestDone({ pass, headingRef, onRegisterAnother }: GuestDoneProps) {
+function GuestDone({ pass, justRegistered = false, headingRef, onRegisterAnother }: GuestDoneProps) {
   const [icsError, setIcsError] = useState('');
 
   const downloadIcs = () => {
@@ -577,11 +604,13 @@ function GuestDone({ pass, headingRef, onRegisterAnother }: GuestDoneProps) {
 
   return (
     <div className="rg-done">
+      {justRegistered && <ConfettiBurst intensity="high" />}
       <section className="rg-ticket-wrap" aria-labelledby="rg-done-title">
         <div className="rg-shadow">
         <div className="rg-stamp rg-stamp--cream">
           <div className="rg-stamp__paper">
             <div className="rg-ticket">
+              <div className="rg-foil-sheen" aria-hidden="true" />
               <div className="rg-ticket__main">
                 <p className="rg-step rg-step--done">
                   <span className="rg-step__dot rg-step__dot--on" aria-hidden="true" />

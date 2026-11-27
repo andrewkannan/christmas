@@ -46,6 +46,7 @@ import { ChurchBoothPage } from './winners/ChurchBoothPage.tsx';
 import { GuestSignupPage } from './register/GuestSignupPage.tsx';
 import { PresentCrownPage } from './present/PresentCrownPage.tsx';
 import { AdminConsolePage } from './admin/AdminConsolePage.tsx';
+import { ChristmasCastleMagic } from './components/ChristmasCastleMagic.tsx';
 
 type RouteMode =
   | 'player'
@@ -555,6 +556,7 @@ export function App() {
           )
         ) : (
           <>
+            <ChristmasCastleMagic variant="arcade" />
             {step.kind === 'lobby' && (
               <ArcadeLobby
                 volunteerName={challengerName}
